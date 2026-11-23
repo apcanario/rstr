@@ -1,13 +1,12 @@
 /** The proof of spec 9.2 and 9.3 over many seeds. Run by the unit tests (stub measure) and the smoke run (real fonts). */
 import { FORMAT_LIST, type Format } from './formats';
 import { check, type Failure } from './invariants';
-import { solve, type Use } from './layout';
+import { choosePairing, solve, type Use } from './layout';
 import { PAIRINGS } from '../data/pairings';
 import type { Measure } from './measure';
 import { mix } from './rng';
 import type { Item, Scene } from './scene';
 import { STYLES } from './styles';
-import { PALETTES } from '../data/palettes';
 import { DEFAULT_TEXT, defaultSpec, SLOTS, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
 
 export const TITLES = { one: 'Signal', three: 'Signal and noise', eight: 'Eight plain words make a long poster title' };
@@ -44,6 +43,9 @@ export interface Opts {
   palettes?: boolean;
   /** Run one spec set per pairing of the style, with pick.pairing set; or only the listed pairing ids. */
   pairings?: boolean | string[];
+  /** Advanced values set on every spec (spec.params), and picks set on every spec. */
+  params?: Spec['params'];
+  pick?: Partial<Spec['pick']>;
 }
 /** What layout may use for a spec: the app's font check (spec 6). Absent: every pairing is drawn as asked. */
 export type Resolve = (spec: Spec) => Use;
@@ -59,7 +61,7 @@ export function picksOf(style: StyleId): Pick[] {
 
 function palettePicks(style: StyleId, o: Opts, picks: Pick[]): Pick[] {
   if (!o.palettes) return picks;
-  return PALETTES[style].flatMap((p) => picks.map((pk) => ({ ...pk, palette: p.id })));
+  return STYLES[style].parts.palette.list.flatMap((p) => picks.map((pk) => ({ ...pk, palette: p.id })));
 }
 
 function pairingPicks(style: StyleId, o: Opts, picks: Pick[]): Pick[] {
@@ -79,7 +81,8 @@ export function* specs(o: Opts = {}): Generator<Spec> {
             for (const v of o.variants === 'cycle' ? [variants[i % variants.length]] : variants) {
               const s = defaultSpec(seedSet(i));
               s.style = style; s.format = format; s.mode = mode; s.text = structuredClone(v.text);
-              s.pick = { ...s.pick, ...pk };
+              s.pick = { ...s.pick, ...o.pick, ...pk };
+              if (o.params) s.params = { ...o.params };
               yield s;
             }
 }
@@ -136,4 +139,60 @@ export function runIndependence(m: Measure, o: Opts = {}, resolve?: Resolve): { 
     if (boxes(base, () => true) !== boxes(go(md), () => true)) out.failures.push({ spec, facet: 'mode moved a box' });
   }
   return out;
+}
+
+/** One shuffle as the variety tests of spec 8.0 see it. */
+export interface VarietyRow { frame: string; transform: string; graphics: string[]; palette: string; pairing: string; }
+export interface VarietyLists { layouts: string[]; graphics: string[]; palettes: string[]; pairings: string[]; }
+export interface Variety {
+  count: number;
+  /** Of the first 60, how many repeat an earlier one in layout, transform, first graphic, second graphic and palette. */
+  repeats60: number;
+  /** What never appeared in the shuffles (spec: every layout, graphic, palette and pairing in 300). */
+  missing: VarietyLists;
+  /** The most frequent layout and its share (spec: at most 25%). */
+  top: { layout: string; share: number };
+  pass: { sixty: boolean; coverage: boolean; share: boolean };
+}
+
+/** The three variety tests of spec 8.0 over a list of shuffles, in order. Pure, so the test of the tests can feed it rows. */
+export function varietyOf(rows: VarietyRow[], lists: VarietyLists): Variety {
+  const seen = new Set<string>();
+  let repeats60 = 0;
+  for (const r of rows.slice(0, 60)) {
+    const key = [r.frame, r.transform, r.graphics[0] ?? '-', r.graphics[1] ?? '-', r.palette].join('|');
+    if (seen.has(key)) repeats60++;
+    seen.add(key);
+  }
+  const has = (f: (r: VarietyRow) => string[]) => new Set(rows.flatMap(f));
+  const lay = has((r) => [r.frame]), gr = has((r) => r.graphics), pal = has((r) => [r.palette]), pair = has((r) => [r.pairing]);
+  const missing = {
+    layouts: lists.layouts.filter((x) => !lay.has(x)), graphics: lists.graphics.filter((x) => !gr.has(x)),
+    palettes: lists.palettes.filter((x) => !pal.has(x)), pairings: lists.pairings.filter((x) => !pair.has(x)),
+  };
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(r.frame, (counts.get(r.frame) ?? 0) + 1);
+  const [layout, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? ['', 0];
+  const share = rows.length ? n / rows.length : 0;
+  const coverage = Object.values(missing).every((l) => l.length === 0);
+  return { count: rows.length, repeats60, missing, top: { layout, share }, pass: { sixty: repeats60 === 0, coverage, share: share <= 0.25 } };
+}
+
+/** Seeds of the i-th shuffle of the variety run: every facet new, as Shuffle with nothing locked. */
+export const shuffleSeeds = (i: number): Spec['seeds'] => ({ layout: mix(0x5a17, i * 4 + 1), colour: mix(0x5a17, i * 4 + 2), graphic: mix(0x5a17, i * 4 + 3), type: mix(0x5a17, i * 4 + 4) });
+
+/**
+ * The variety tests of spec 8.0 for one style in one format: n shuffles (300) of the default text in light mode.
+ * The pairing counted is the one the shuffle chose (the type seed), not the one drawn when its fonts are not loaded.
+ */
+export function runVariety(m: Measure, style: StyleId, format: Format, n = 300, resolve?: Resolve): Variety {
+  const rows: VarietyRow[] = [];
+  for (let i = 0; i < n; i++) {
+    const s = defaultSpec(shuffleSeeds(i));
+    s.style = style; s.format = format;
+    const sc = solve(s, m, resolve?.(s)).scene;
+    rows.push({ frame: sc.frame, transform: sc.transform, graphics: sc.graphics, palette: sc.palette, pairing: choosePairing(s).id });
+  }
+  const st = STYLES[style];
+  return varietyOf(rows, { layouts: st.layouts, graphics: st.parts.graphics.vocab, palettes: st.parts.palette.list.map((p) => p.id), pairings: PAIRINGS[style].map((p) => p.id) });
 }

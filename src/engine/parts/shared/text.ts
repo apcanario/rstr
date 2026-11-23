@@ -1,6 +1,6 @@
-import type { Measure } from '../measure';
-import type { FontRef } from '../scene';
-import { fitLine, inkW, type Fit } from '../text';
+import type { Measure } from '../../measure';
+import type { FontRef } from '../../scene';
+import { fitLine, inkW, type Fit } from '../../text';
 
 /** Several single lines at one shared size: the largest size at which every line fits maxW. */
 export function fitLines(m: Measure, lines: string[], font: FontRef, start: number, min: number, maxW: number, track = 0, force = false): { size: number; lines: string[]; fits: Fit[] } | null {

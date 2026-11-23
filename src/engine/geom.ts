@@ -10,6 +10,18 @@ export function apply(xf: Xf | undefined, p: Pt): Pt {
   const c = Math.cos(xf.rot), s = Math.sin(xf.rot);
   return [xf.x + p[0] * c - p[1] * s, xf.y + p[0] * s + p[1] * c];
 }
+/** a after b: local -> b -> a. Both rigid, so the result is rigid. */
+export function compose(a: Xf | undefined, b: Xf | undefined): Xf | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  const [x, y] = apply(a, [b.x, b.y]);
+  return { x, y, rot: a.rot + b.rot };
+}
+/** World -> local for a rigid transform. */
+export function unapply(xf: Xf, p: Pt): Pt {
+  const c = Math.cos(xf.rot), s = Math.sin(xf.rot), dx = p[0] - xf.x, dy = p[1] - xf.y;
+  return [dx * c + dy * s, -dx * s + dy * c];
+}
 export const xfQuad = (xf: Xf | undefined, q: Quad): Quad => q.map((p) => apply(xf, p));
 export const pad = (r: Rect, d: number): Rect => ({ x: r.x - d, y: r.y - d, w: r.w + 2 * d, h: r.h + 2 * d });
 export function bounds(q: Quad): Rect {

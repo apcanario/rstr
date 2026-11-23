@@ -95,7 +95,7 @@ describe('text fitting', () => {
 
 describe('the 9.2 checker catches each rule', () => {
   const m = stubMeasure, font = { family: 'Inter Tight', weight: 400 };
-  const base = (items: Scene['items'], format = '3:4'): Scene => ({ w: 1080, h: format === '9:16' ? 1920 : 1440, style: 'swiss', format, palette: 'p', pairing: 't', layout: 'c0', frame: 'graphic-above', ground: '#FFFFFF', items, fonts: [], faces: [] });
+  const base = (items: Scene['items'], format = '3:4'): Scene => ({ w: 1080, h: format === '9:16' ? 1920 : 1440, style: 'swiss', format, palette: 'p', pairing: 't', layout: 'c0', frame: 'graphic-above', transform: 'none', graphics: [], ground: '#FFFFFF', items, fonts: [], faces: [] });
   const txt = (x: number, y: number, ink = '#000000', size = 40) => mkText(m, { slot: 'title', part: 'a' + x + y, font, size, runs: [{ s: 'Hello', x, y }], fill: ink, ink: [ink], min: 30 });
   test('a clean scene passes', () => expect(check(base([txt(100, 200)]))).toEqual([]));
   test('1: off the canvas, and into a story zone', () => {

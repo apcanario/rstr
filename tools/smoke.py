@@ -58,6 +58,30 @@ with served() as url, browser() as b:
             fallback_check(f'9.2 palette {style} {fmt}', r, 0)
             for f in r['failures'][:5]:
                 fail(f'9.2 palette {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    # 9.2 with each transform forced on Swiss (spec 8.0): a tilted or turned page keeps every text item legal
+    for fmt in FORMATS:
+        for tr in ['tilt', 'quarter']:
+            r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': ['swiss'], 'formats': [fmt], 'n': max(20, N // 4), 'variants': 'cycle', 'params': {'layout.transform': tr}})
+            print(f'9.2 swiss  {fmt:4}  {tr} forced: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+            for f in r['failures'][:5]:
+                fail(f'9.2 swiss {fmt} {tr}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    # 9.2 with every graphic parameter at both ends of its range (row R13), and each end painted once
+    nends = 0
+    for style in STYLES:
+        for g in pg.evaluate('(s) => window.__rstr.proof.graphics(s)', style):
+            for k, R in g['params'].items():
+                for v in [R['min'], R['max']]:
+                    nends += 1
+                    o = {'styles': [style], 'n': 2, 'start': 60, 'variants': 'cycle', 'params': {f'g.{g["name"]}.{k}': v, 'graphics.cut': 2}, 'pick': {'motif': g['name'] if g['motif'] else None}}
+                    r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', o)
+                    for f in r['failures'][:3]:
+                        fail(f'9.2 {style} {g["name"]}.{k}={v}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+                    spec = pg.evaluate('([s, o]) => { const x = window.__rstr.spec(); x.style = s; x.format = "9:16"; x.params = o.params; x.pick.motif = o.pick.motif; x.seeds = {layout: 61, colour: 62, graphic: 63, type: 64}; return x; }', [style, o])
+                    t1 = time.time()
+                    pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
+                    if time.time() - t1 > 3:
+                        fail(f'paint {style} {g["name"]}.{k}={v}: {time.time() - t1:.1f} s for one 9:16 render', spec)
+    print(f'graphic parameter ends: {nends} ends, each checked for 9.2 over 2 seed sets x 3 formats x 2 modes and painted once')
     # knock-outs: stars and grid in a marker colour never show inside any text item's mask, with and without the layer
     nk = 0
     for fmt in FORMATS:
@@ -115,6 +139,14 @@ with served() as url, browser() as b:
                 if im.size != SIZES[fmt] or im.format != want:
                     fail(f'9.2.6 {style} {fmt} {kind}: got {im.format} {im.size}', spec)
     print('9.2.6 exports checked')
+    # the variety tests of spec 8.0, per style and format: reported, enforced from each style's own row (R5, R6, R8, R9)
+    for style in STYLES:
+        for fmt in FORMATS:
+            v = pg.evaluate('([s, f]) => window.__rstr.proof.variety(s, f, 300)', [style, fmt])
+            miss = {k: x for k, x in v['missing'].items() if x}
+            res = lambda ok: 'pass' if ok else 'FAIL'
+            print(f'variety {style:6} {fmt:4}  60 shuffles: {v["repeats60"]} repeats ({res(v["pass"]["sixty"])}); 300 shuffles: missing {miss or "nothing"} ({res(v["pass"]["coverage"])}); top layout {v["top"]["layout"]} {v["top"]["share"] * 100:.0f}% ({res(v["pass"]["share"])})')
+    print('variety: reported, not enforced (row R13); each style enforces it in its own row')
     print(f'engine checks took {time.time() - t0:.0f} s')
     # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face
     t0 = time.time()

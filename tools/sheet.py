@@ -53,6 +53,19 @@ with served() as url, browser() as b:
                 rows.append(cells)
             strip(rows).save(os.path.join(OUT, f'sheet-{style}-{mode}.jpg'), quality=85)
             print('wrote', f'shots/sheet-{style}-{mode}.jpg')
+    # per style: 24 shuffles at 3:4, labelled with what the variety tests count (row R13)
+    for style in STYLES:
+        rows = []
+        for row in range(3):
+            cells = []
+            for i in range(8):
+                n = row * 8 + i
+                spec = pg.evaluate('([s, n]) => { const x = window.__rstr.spec(); x.style = s; x.format = "3:4"; x.mode = n % 3 ? "light" : "dark"; x.seeds = {layout: 9100 + n * 7919, colour: 9200 + n * 104729, graphic: 9300 + n * 1299709, type: 9400 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null}; return x; }', [style, n])
+                sc = pg.evaluate('(s) => { const c = window.__rstr.scene(s); return [c.frame, c.transform, c.graphics.slice(0, 3).join("+")].join(" "); }', spec)
+                cells.append((img(pg, spec), sc))
+            rows.append(cells)
+        strip(rows, h=420).save(os.path.join(OUT, f'variety-{style}.jpg'), quality=85)
+        print('wrote', f'shots/variety-{style}.jpg')
     # per style: every palette, light above dark, one layout at 3:4, so the two forms can be compared
     for style in STYLES:
         ids = pg.evaluate('(s) => window.__rstr.palettes(s)', style)

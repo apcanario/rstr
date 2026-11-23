@@ -1,30 +1,9 @@
-/** Postmodern graphics: the ground pattern and the shapes, each with a hard ink shadow. */
+/** Postmodern shapes, each with a hard ink shadow; the shape graphic draws one of them where its item places it. */
 import type { Rng } from '../rng';
 import { pick } from '../rng';
 import { TAU } from './clock';
-import type { Ctx, Draw } from './types';
-
-export const pattern: Draw = (ctx, g, r) => {
-  const C = g.colours, W = g.box.w, H = g.box.h, gp = Number(g.params.kind), st = W / 18;
-  ctx.globalAlpha = 0.16; ctx.fillStyle = C.ink; ctx.strokeStyle = C.ink; ctx.lineWidth = Math.max(1, W * 0.0016);
-  if (gp === 0) {
-    for (let y = st / 2; y < H; y += st) for (let x = st / 2; x < W; x += st) { ctx.beginPath(); ctx.arc(x, y, W * 0.0045, 0, TAU); ctx.fill(); }
-  } else if (gp === 1) {
-    ctx.beginPath();
-    for (let x = st; x < W; x += st) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-    for (let y = st; y < H; y += st) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
-    ctx.stroke();
-  } else {
-    for (let i = 0; i < 90; i++) {
-      const x = r() * W, y = r() * H, a = r() * TAU;
-      ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.fillRect(-W * 0.012, -W * 0.003, W * 0.024, W * 0.006); ctx.restore();
-    }
-  }
-  ctx.globalAlpha = 1;
-};
-/** How many draws the pattern takes from the graphic stream (after the kind draw). */
-export const patternDraws = (kind: number) => (kind === 2 ? 270 : 0);
-
+import { val } from './params';
+import type { Ctx, Graphic } from './types';
 type Pal = { ink: string; ground: string; accent: string; accent2: string; accent3: string };
 type Params = Record<string, number | string | boolean>;
 /** Each shape: choose(r) takes its random choices at layout time; draw(ctx, s, params, over) paints it, over = shadow colour. */
@@ -80,16 +59,26 @@ export const SHAPES: Record<string, { choose: (r: Rng, P: Pal) => Params; draw: 
 };
 export const SHAPE_NAMES = Object.keys(SHAPES);
 
-/** One placed shape: g.xf places it, params carry its choices. Drawn twice: shadow in ink, then itself. */
-export const shape: Draw = (ctx, g, _r, T) => {
-  const P = g.colours as unknown as Pal, s = Number(g.params.s), d = Number(g.params.d), k = Number(g.params.k);
-  const def = SHAPES[String(g.params.shape)];
-  const e = T.rev(k * 0.25);
-  if (e <= 0.01) return;
-  ctx.save();
-  if (T.on) { ctx.translate(0, s * 0.03 * Math.cos(TAU * T.ph + k * 1.7)); ctx.rotate(0.07 * Math.sin(TAU * T.ph + k)); }
-  ctx.scale(e, e);
-  ctx.save(); ctx.translate(d, d); def.draw(ctx, s, g.params, P, P.ink); ctx.restore();
-  def.draw(ctx, s, g.params, P, null);
-  ctx.restore();
+/** One placed shape: g.xf places it, params carry its choices. Drawn twice: shadow in ink, then itself. Defaults are the spike's look. */
+export const shape: Graphic = {
+  name: 'shape',
+  params: {
+    scale: { min: 0.5, max: 1.6, def: 1 },     // x the size layout gave it
+    shadow: { min: 0, max: 2.5, def: 1 },      // x the shadow offset
+    spin: { min: -0.6, max: 0.6, def: 0 },     // extra turn, radians
+  },
+  draw(ctx, g, _r, T) {
+    const G = shape, P = g.colours as unknown as Pal, s = Number(g.params.s) * val(g, G, 'scale'), d = Number(g.params.d) * val(g, G, 'shadow'), k = Number(g.params.k);
+    const def = SHAPES[String(g.params.shape)];
+    const e = T.rev(k * 0.25);
+    if (e <= 0.01) return;
+    ctx.save();
+    if (T.on) { ctx.translate(0, s * 0.03 * Math.cos(TAU * T.ph + k * 1.7)); ctx.rotate(0.07 * Math.sin(TAU * T.ph + k)); }
+    const spin = val(g, G, 'spin');
+    if (spin) ctx.rotate(spin);
+    ctx.scale(e, e);
+    ctx.save(); ctx.translate(d, d); def.draw(ctx, s, g.params, P, P.ink); ctx.restore();
+    def.draw(ctx, s, g.params, P, null);
+    ctx.restore();
+  },
 };

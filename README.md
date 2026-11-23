@@ -4,7 +4,7 @@ A poster generator for a phone. Pick a style, shuffle until something lands, typ
 
 ## What it does today
 
-A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwave) and a format (1:1, 3:4, 9:16), Shuffle, lock palette, type, graphic or layout, edit title, subtitle, info and caption, Back, Keep into a Kept sheet, export JPEG or PNG at three sizes. Design, Back steps, Kept and locks are saved and survive reload. The engine lays out, builds a Scene and paints it, with checks for overflow, overlap and contrast. Eight palettes per style, each in light and dark (Light/Dark on the Look tab). 42 font pairings from Google Fonts, fetched on demand and cached (online lines not yet verified). Finish and Marks are in the spec but offer only Clean and Off until bundle 3; the Advanced switch shows Simple's tabs until bundle 4. `docs/design/refs/` shows the looks it targets.
+A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwave) and a format (1:1, 3:4, 9:16), Shuffle, lock palette, type, graphic or layout, edit title, subtitle, info and caption, Back, Keep into a Kept sheet, export JPEG or PNG at three sizes. Design, Back steps, Kept and locks are saved and survive reload. The engine lays out, builds a Scene and paints it, with checks for overflow, overlap and contrast. Eight palettes per style, each in light and dark (Light/Dark on the Look tab). 42 font pairings from Google Fonts, fetched on demand and cached (online lines not yet verified). Every style is built as five parts (ground, layout, type, graphics, palette) over one shared graphics library. Swiss now tilts or turns the whole composition about one roll in three, sets the title small, normal or oversize, draws its graphic with parameters across wide ranges (including a new lines graphic), and cuts a second graphic (and sometimes a third) into the first as a disc, column, band or block. Finish and Marks are in the spec but offer only Clean and Off until bundle 3; the Advanced switch shows Simple's tabs until bundle 4. `docs/design/refs/` shows the looks it targets.
 
 ## Where it is going
 
@@ -26,7 +26,7 @@ A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwav
 | Bundle | What | State |
 |---|---|---|
 | 1 | Engine, colour, type, frame and Simple mode | Done: R1 to R4 and the viewer check; R3's online lines open (H3) |
-| 2 | Parts and variety, Swiss | Next |
+| 2 | Parts and variety, Swiss | In progress: R13 (parts, variety engine) built; R5 (Swiss finished) next |
 | 3 | Postmodern (both dialects), finishes, marks | Queued |
 | 4 | Brutalist, Vaporwave, Advanced mode | Queued |
 | 5 | Photo and export, A3 print | Queued |

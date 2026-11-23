@@ -1,5 +1,6 @@
 /** window.__rstr: the hook the tools use (spec 4). */
 import { PALETTES } from './data/palettes';
+import { GRAPHICS } from './engine/graphics';
 import { FORMATS } from './engine/formats';
 import { choosePairing, render, resolvePairing, scene } from './engine';
 import { PAIRINGS } from './data/pairings';
@@ -9,7 +10,9 @@ import type { Scene } from './engine/scene';
 import { check } from './engine/invariants';
 import { solve, unloadedFaces } from './engine/layout';
 import { browserMeasure } from './engine';
-import { picksOf, runIndependence, runInvariants, type Opts } from './engine/proof';
+import { picksOf, runIndependence, runInvariants, runVariety, type Opts } from './engine/proof';
+import { STYLES } from './engine/styles';
+import type { Format } from './engine/formats';
 import { knockLeak, pixelHash } from './engine/pixels';
 import { migrate, type Spec, type StyleId } from './engine/spec';
 
@@ -68,6 +71,13 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       invariants: (o: Opts) => runInvariants(browserMeasure(), o, resolve),
       picks: (style: StyleId) => picksOf(style),
       independence: (o: Opts) => runIndependence(browserMeasure(), o, resolve),
+      /** The three variety tests of spec 8.0 for one style in one format. */
+      variety: (style: StyleId, format: Format, n?: number) => runVariety(browserMeasure(), style, format, n, resolve),
+      /** Library graphics a style draws, with their parameter ranges: what the range-end checks walk. */
+      graphics: (style: StyleId) => {
+        const st = STYLES[style];
+        return [...st.parts.ground.uses, ...st.parts.graphics.uses].map((name) => ({ name, motif: st.motifs.includes(name), params: GRAPHICS[name].params }));
+      },
     },
     fonts: {
       pairings: (style: StyleId) => PAIRINGS[style].map((p) => p.id),

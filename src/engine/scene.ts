@@ -53,6 +53,16 @@ export interface GraphicItem {
   params: Record<string, number | string | boolean>;
   fills: string[];           // every colour the graphic can show, for the contrast rule
   quad: Quad;                // world extent
+  /** The composition transform (tilt, quarter turn): box, clip and xf are in its local frame. */
+  frame?: Xf;
+  /** The clip: the box (default) or the disc inscribed in it, for a graphic cut into another (spec 8.0). */
+  cut?: 'rect' | 'disc';
+  /** Filled inside the clip before the graphic draws: the plate a cut-in sits on. */
+  plate?: string;
+  /** Depth (spec 8.0): ground, back graphics, front graphics. Text is the top layer. */
+  layer?: 'ground' | 'back' | 'front';
+  /** What the variety tests count this graphic as, if not its name (a Postmodern shape counts as its shape). */
+  tag?: string;
   avoid?: Quad[];            // text quads the graphic keeps off: nothing of it lies directly behind their ink
   knock?: { glyphs: number[]; boxes: Quad[]; pad: number };  // what paint cuts out: big text by its glyphs (padded), small text by its box
 }
@@ -68,6 +78,8 @@ export interface Scene {
   pairing: string;
   layout: string;            // the candidate that passed, or 'fallback'
   frame: string;             // which of the style's layouts was drawn (title-top, graphic-above, ...)
+  transform: string;         // none, tilt or quarter (spec 8.0)
+  graphics: string[];        // the graphics drawn, first one first, as the variety tests count them (ground layer excluded)
   ground: string;
   items: Item[];
   fonts: string[];           // families the layout measured with or drew

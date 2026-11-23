@@ -99,14 +99,20 @@ function layer(w: number, h: number): Ctx | null {
 }
 
 function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, noLayer = false) {
-  const draw = GRAPHICS[it.name];
-  if (!draw) return;
+  const G = GRAPHICS[it.name];
+  if (!G) return;
   const T = clock(t);
   const run = (c: Ctx) => {
     c.save();
-    c.beginPath(); c.rect(it.box.x, it.box.y, it.box.w, it.box.h); c.clip();
+    place(c, it.frame);
+    const b = it.box;
+    c.beginPath();
+    if (it.cut === 'disc') c.arc(b.x + b.w / 2, b.y + b.h / 2, Math.min(b.w, b.h) / 2, 0, Math.PI * 2);
+    else c.rect(b.x, b.y, b.w, b.h);
+    c.clip();
+    if (it.plate) { c.fillStyle = it.plate; c.fillRect(b.x, b.y, b.w, b.h); }
     place(c, it.xf);
-    draw(c, it, skip(rng(it.seed), it.skip), T);
+    G.draw(c, it, skip(rng(it.seed), it.skip), T);
     c.restore();
   };
   if (!it.avoid?.length) { run(ctx); return; }
