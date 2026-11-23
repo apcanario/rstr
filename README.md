@@ -1,0 +1,31 @@
+# RSTR
+
+A poster generator for a phone. Pick a style, shuffle until something lands, type the words, export for the Instagram feed or a story. It composes type, colour and geometry inside rules, from a seed. It is not AI image generation.
+
+## What it does today
+
+Nothing yet: this repo holds the plan and the spike. `docs/archive/spike/app.html` is the proof of concept (open it from a local web server); `docs/design/refs/` shows what it draws.
+
+## Where it is going
+
+- **Four styles:** Swiss, Postmodern, Brutalist, Vaporwave.
+- **Three finishes** over any style: Clean, Grain, Grunge.
+- **Light and dark** for every palette; palettes you can edit and save.
+- **Font pairings** from bundled open-licence fonts; your own font files later.
+- **Four text slots:** title, subtitle, info, caption, each on or off.
+- **Three sizes** from one design: 1080 x 1080, 1080 x 1440, 1080 x 1920.
+- **Simple and Advanced** modes on one switch.
+- Then motion (MP4), then photos, uploaded assets and brand kits.
+
+## Status
+
+| Bundle | What | State |
+|---|---|---|
+| 1 | Engine, colour, type, frame and Simple mode | Next |
+| 2 | Swiss and Postmodern finished, finishes | Queued |
+| 3 | Brutalist, Vaporwave, Advanced mode | Queued |
+| 4 | My palettes, own fonts, retouch | Queued |
+
+## How it is built
+
+`docs/SPEC.md` is the app, `docs/RUN.md` is how a chat builds a row, `docs/BACKLOG.md` is the queue, `docs/CHANGELOG.md` is the record. `docs/archive/` keeps the plans and the spike.

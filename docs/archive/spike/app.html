@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RSTR — spike</title>
+<link rel="stylesheet" href="fonts.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:#0a0a0c;color:#f1efe9;font-family:"DM Sans",system-ui,sans-serif;overflow:hidden}
+button,input{font:inherit;color:inherit;background:none;border:0;outline:0}
+#app{height:100dvh;display:flex;flex-direction:column;padding:10px 14px 0;gap:10px;position:relative}
+header{display:flex;align-items:center;justify-content:space-between;height:34px;flex:none}
+.wm{font-weight:700;letter-spacing:.22em;font-size:15px}.wm b{color:#ff6b6b}
+.seed{font-size:12px;letter-spacing:.08em;color:#f1efe9aa;background:#131316;padding:6px 10px;border-radius:8px}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#131316;border-radius:14px;padding:12px}
+#cv{max-width:100%;max-height:100%;display:block;box-shadow:0 6px 30px #0009}
+.row{display:flex;gap:8px;flex:none}
+.seg{display:flex;background:#131316;border-radius:10px;padding:3px;flex:1}
+.seg button{flex:1;height:34px;border-radius:8px;font-size:13px;font-weight:500;letter-spacing:.04em;color:#f1efe9aa;white-space:nowrap}
+.seg button.on{background:#ff6b6b;color:#0a0a0c;font-weight:700}
+.seg.alt button.on{background:#2a9d8f;color:#0a0a0c}
+.locks button{flex:1;height:34px;border-radius:10px;background:#131316;font-size:12px;font-weight:500;letter-spacing:.06em;display:flex;align-items:center;justify-content:center;gap:6px;color:#f1efe9aa;white-space:nowrap}
+.locks button.on{color:#e9c46a;box-shadow:inset 0 0 0 1.5px #e9c46a}
+svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+#panel{height:148px;flex:none;background:#131316;border-radius:14px;padding:10px;overflow:hidden}
+.tiles{display:grid;gap:8px;height:100%}
+.tile{border-radius:10px;background:#0a0a0c;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;padding:9px 10px;font-size:13px;font-weight:700;letter-spacing:.03em;white-space:nowrap;overflow:hidden;position:relative}
+.tile small{font-weight:400;font-size:10.5px;color:#f1efe988;letter-spacing:.02em}
+.tile.on{box-shadow:inset 0 0 0 2px #ff6b6b}.tile.soon{opacity:.38}
+.tile svg{position:absolute;top:9px;left:10px;width:22px;height:22px;color:#f4a261}
+.sw{display:flex;gap:0;position:absolute;top:9px;left:10px;right:10px;height:26px;border-radius:5px;overflow:hidden}.sw i{flex:1}
+.trow{display:flex;align-items:center;gap:9px;height:32px}
+.trow label{width:62px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#f1efe9aa;flex:none}
+.trow input{flex:1;min-width:0;height:28px;background:#0a0a0c;border-radius:7px;padding:0 9px;font-size:13px}
+.tg{width:40px;height:22px;border-radius:11px;background:#2a2a30;position:relative;flex:none}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#f1efe9;transition:.15s}
+.tg.on{background:#2a9d8f}.tg.on::after{left:21px}
+.go{display:flex;gap:8px;flex:none}
+#shuffle{flex:1;height:58px;border-radius:14px;background:#ff6b6b;color:#0a0a0c;font-weight:700;font-size:17px;letter-spacing:.16em;display:flex;align-items:center;justify-content:center;gap:10px}
+#shuffle svg{width:22px;height:22px;stroke-width:2.2}
+#exp{width:58px;height:58px;border-radius:14px;background:#131316;display:flex;align-items:center;justify-content:center;color:#f4a261}
+#exp svg{width:24px;height:24px}
+nav{display:flex;flex:none;height:56px;margin:0 -14px;border-top:1px solid #1d1d22}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#f1efe977}
+nav button.on{color:#ff6b6b}
+#sheet{position:absolute;inset:0;background:#000a;display:none;align-items:flex-end}
+#sheet.open{display:flex}
+.sh{width:100%;background:#131316;border-radius:18px 18px 0 0;padding:16px 16px 22px;display:flex;flex-direction:column;gap:12px}
+.sh h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#f1efe9aa;font-weight:700}
+.chips{display:flex;gap:8px}.chips button{flex:1;height:40px;border-radius:10px;background:#0a0a0c;font-size:13px;font-weight:500;white-space:nowrap}
+.chips button.on{box-shadow:inset 0 0 0 2px #2a9d8f;color:#fff;font-weight:700}
+.sh .save{height:54px;border-radius:14px;background:#f4a261;color:#0a0a0c;font-weight:700;letter-spacing:.14em;font-size:15px}
+.note{font-size:11.5px;color:#f1efe988;line-height:1.4}
+</style></head><body>
+<div id="app">
+  <header><div class="wm">RS<b>T</b>R</div><div class="seed" id="seed"></div></header>
+  <div id="stage"><canvas id="cv"></canvas></div>
+  <div class="row">
+    <div class="seg" id="fmt"><button data-v="1:1">1:1</button><button data-v="3:4">3:4</button><button data-v="9:16">9:16</button></div>
+    <div class="seg alt" id="mode" style="flex:.9"><button data-v="still">Still</button><button data-v="motion">Motion</button></div>
+  </div>
+  <div class="row locks" id="locks">
+    <button data-v="layout"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Layout</button>
+    <button data-v="colour"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Colour</button>
+    <button data-v="motif"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Motif</button>
+  </div>
+  <div id="panel"></div>
+  <div class="go">
+    <button id="shuffle"><svg viewBox="0 0 24 24"><path d="M3 7h3c5 0 7 10 12 10h3M3 17h3c1.6 0 2.9-1 4-2.4M14 9.400C15.100 8 16.400 7 18 7h3M18 4l3 3-3 3M18 14l3 3-3 3"/></svg>SHUFFLE</button>
+    <button id="exp" aria-label="Export"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></button>
+  </div>
+  <nav id="tabs">
+    <button data-v="style"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/><path d="M4 10h16M10 10v10"/></svg>Style</button>
+    <button data-v="motif"><svg viewBox="0 0 24 24"><path d="M3 17c4-7 6 3 9-3s5-6 9-2M3 11c3-5 6 1 9-3s6-3 9-1"/></svg>Motif</button>
+    <button data-v="text"><svg viewBox="0 0 24 24"><path d="M5 6h14M12 6v13M9 19h6"/></svg>Text</button>
+    <button data-v="colour"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16"/></svg>Colour</button>
+  </nav>
+  <div id="sheet"><div class="sh">
+    <h3>Sizes</h3><div class="chips" id="xs"><button class="on">1:1</button><button class="on">3:4</button><button class="on">9:16</button></div>
+    <h3>File</h3><div class="chips" id="xf"><button class="on">JPEG</button><button>PNG</button><button>MP4 · 6 s</button></div>
+    <div class="note">Same seed, same design, every size. Files are rendered on the phone at 1080 px wide; nothing is uploaded.</div>
+    <button class="save" id="save">SAVE 3 FILES</button>
+  </div></div>
+</div>
+<script src="engine.js"></script>
+<script>
+const $=s=>document.querySelector(s), cv=$('#cv'), ctx=cv.getContext('2d');
+const S={style:'swiss',format:'3:4',mode:'still',tab:'style',motif:null,palette:null,locks:{},seeds:IDK.randomSeeds(),
+ text:{title:{on:true,v:'Signal and noise'},subtitle:{on:true,v:'A modular identity system'},
+ info:{on:true,v:[{k:'Where',v:'Lisboa'},{k:'When',v:'23 Nov 2026'},{k:'Seed',v:''}]},caption:{on:true,v:'Vol. 01 — generated, not drawn'}}};
+const q=new URLSearchParams(location.search);
+if(q.get('s')){const o=JSON.parse(q.get('s'));Object.assign(S,o)}
+const hex=()=>((S.seeds.layout^S.seeds.colour^S.seeds.motif)>>>0).toString(16).toUpperCase().padStart(8,'0').replace(/(.{4})/,'$1-');
+function spec(){S.text.info.v[2].v=hex();return{style:S.style,format:S.format,seeds:S.seeds,motif:S.motif,palette:S.palette,text:S.text}}
+let t0=0,raf=0;
+function draw(ts){const d=IDK.FORMATS[S.format];if(cv.width!==d[0]||cv.height!==d[1]){cv.width=d[0];cv.height=d[1]}
+ if(S.mode==='motion'){if(!t0)t0=ts||0;IDK.render(ctx,spec(),{s:(((ts||0)-t0)/1000)%6,dur:6});raf=requestAnimationFrame(draw)}
+ else IDK.render(ctx,spec(),null);$('#seed').textContent='#'+hex()}
+function refresh(){cancelAnimationFrame(raf);t0=0;draw();ui()}
+const motifIcon={topo:'<path d="M3 17c4-7 6 3 9-3s5-6 9-2M3 11c3-5 6 1 9-3s6-3 9-1"/>',blocks:'<rect x="4" y="4" width="7" height="16"/><rect x="11" y="4" width="9" height="8"/>',bars:'<path d="M4 20 20 4M4 12l8-8M12 20l8-8"/>',dots:'<circle cx="7" cy="7" r="2.5"/><circle cx="16" cy="8" r="1.5"/><circle cx="8" cy="16" r="1.5"/><circle cx="16" cy="16" r=".8"/>',disc:'<circle cx="11" cy="13" r="7"/><circle cx="18" cy="6" r="2"/>',photo:'<rect x="4" y="5" width="16" height="14"/><path d="m4 16 5-5 4 4 3-3 4 4"/>'};
+function panel(){const p=$('#panel');
+ if(S.tab==='style'){p.innerHTML='<div class="tiles" style="grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr">'+[['swiss','Swiss','Grid, one accent'],['pomo','Postmodern','Tilt, pattern, shadow'],['brutal','Brutalist','Heavy type, hard rules'],['vapor','Vaporwave','Sun, grid, chrome']].map(s=>`<button class="tile ${S.style===s[0]?'on':''} ${s[0].length<2?'soon':''}" data-style="${s[0]}">${s[1]}<small>${s[2]}</small></button>`).join('')+'</div>'}
+ else if(S.tab==='motif'){const m=S.style==='swiss'?IDK.MOTIFS.concat(['photo']):['photo'];
+  p.innerHTML=S.style==='swiss'?'<div class="tiles" style="grid-template-columns:repeat(3,1fr);grid-template-rows:1fr 1fr">'+m.map(k=>`<button class="tile ${S.motif===k?'on':''} ${k==='photo'?'soon':''}" data-motif="${k}"><svg viewBox="0 0 24 24">${motifIcon[k]}</svg>${k[0].toUpperCase()+k.slice(1)}</button>`).join('')+'</div>'
+  :'<div class="note" style="padding:8px">This style draws its graphics from the motif seed. Lock Motif to keep them while you shuffle layout and colour.</div>'}
+ else if(S.tab==='text'){p.innerHTML=['title','subtitle','info','caption'].map(k=>`<div class="trow"><label>${k}</label><input data-k="${k}" value="${k==='info'?S.text.info.v.slice(0,2).map(i=>i.v).join(' · '):S.text[k].v}"><button class="tg ${S.text[k].on?'on':''}" data-tg="${k}"></button></div>`).join('')}
+ else{const P=IDK.PAL[S.style];p.innerHTML=`<div class="tiles" style="grid-template-columns:repeat(${P.length>4?3:2},1fr);grid-template-rows:1fr 1fr">`+P.map((c,i)=>`<button class="tile ${S.palette===i?'on':''}" data-pal="${i}"><span class="sw"><i style="background:${c.bg||c.g[1]}"></i><i style="background:${c.ink}"></i><i style="background:${c.a}"></i>${c.c?`<i style="background:${c.b}"></i><i style="background:${c.c}"></i>`:''}</span>${c.name}</button>`).join('')+'</div>'}}
+function ui(){for(const [id,k] of [['#fmt','format'],['#mode','mode'],['#tabs','tab']])document.querySelectorAll(id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===S[k]));
+ document.querySelectorAll('#locks button').forEach(b=>b.classList.toggle('on',!!S.locks[b.dataset.v]));panel()}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b){if(e.target.id==='sheet')$('#sheet').classList.remove('open');return}
+ const p=b.parentElement.id,d=b.dataset;
+ if(p==='fmt')S.format=d.v;else if(p==='mode')S.mode=d.v;else if(p==='tabs')S.tab=d.v;else if(p==='locks')S.locks[d.v]=!S.locks[d.v];
+ else if(b.id==='shuffle'){S.seeds=IDK.randomSeeds(S.seeds,S.locks);if(!S.locks.motif)S.motif=null;if(!S.locks.colour)S.palette=null}
+ else if(b.id==='exp'){$('#sheet').classList.add('open');return}
+ else if(d.style&&d.style.length>1){S.style=d.style;S.palette=null;S.motif=null}
+ else if(d.motif&&d.motif!=='photo')S.motif=d.motif;else if(d.pal)S.palette=+d.pal;else if(d.tg)S.text[d.tg].on=!S.text[d.tg].on;
+ else if(b.parentElement.classList.contains('chips')){b.classList.toggle('on');return}
+ else if(b.id==='save'){save();return}
+ refresh()});
+document.addEventListener('input',e=>{const k=e.target.dataset.k;if(!k||k==='info')return;S.text[k].v=e.target.value;cancelAnimationFrame(raf);t0=0;draw()});
+function save(){const keep=S.format;const sizes=[...document.querySelectorAll('#xs button.on')].map(b=>b.textContent);
+ sizes.forEach((f,i)=>setTimeout(()=>{S.format=f;S.mode='still';draw();cv.toBlob(bl=>{try{const a=document.createElement('a');a.href=URL.createObjectURL(bl);a.download='rstr-'+hex()+'-'+f.replace(':','x')+'.jpg';a.click()}catch(_){}
+  if(i===sizes.length-1){S.format=keep;refresh();$('#sheet').classList.remove('open')}},'image/jpeg',.92)},i*250))}
+document.fonts.ready.then(()=>Promise.all(['800 20px "ID Sans"','400 20px "ID Sans"','500 20px "ID Sans"','700 20px "ID Sans"','800 20px "ID Display"','italic 400 20px "ID Serif"','400 20px "ID Mono"','400 20px "ID Heavy"','400 20px "ID Black"','800 20px "ID Wide"','400 20px "ID Pixel"'].map(f=>document.fonts.load(f)))).then(()=>{refresh();window.READY=1});
+</script></body></html>
