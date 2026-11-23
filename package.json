@@ -1,0 +1,22 @@
+{
+  "name": "rstr",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc --noEmit && vitest run && vite build",
+    "smoke": "vite build && python3 tools/smoke.py",
+    "sheet": "vite build && python3 tools/sheet.py"
+  },
+  "dependencies": {
+    "preact": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
+  }
+}

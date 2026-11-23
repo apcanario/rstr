@@ -1,0 +1,90 @@
+"""npm run sheet: contact sheets and app screens to shots/. A person or a reviewer looks at them."""
+import base64, io, os, sys
+from PIL import Image, ImageDraw
+from common import ROOT, browser, open_app, served
+from refs import ref_specs
+
+OUT = os.path.join(ROOT, 'shots')
+os.makedirs(OUT, exist_ok=True)
+REFS = os.path.join(ROOT, 'docs', 'design', 'refs')
+STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
+FORMATS = ['1:1', '3:4', '9:16']
+
+
+def img(pg, spec):
+    r = pg.evaluate('(s) => window.__rstr.exportImage(s, "image/jpeg")', spec)
+    return Image.open(io.BytesIO(base64.b64decode(r['url'].split(',')[1]))).convert('RGB')
+
+
+def strip(rows, h=560, gap=12, label_h=0):
+    """rows: list of lists of (image, label)."""
+    rows = [[(im.resize((int(im.width * h / im.height), h)), lab) for im, lab in row] for row in rows]
+    W = max(sum(i.width + gap for i, _ in row) + gap for row in rows)
+    H = len(rows) * (h + gap + 22) + gap
+    sh = Image.new('RGB', (W, H), (34, 34, 38))
+    d = ImageDraw.Draw(sh)
+    y = gap
+    for row in rows:
+        x = gap
+        for im, lab in row:
+            sh.paste(im, (x, y))
+            d.text((x, y + h + 4), lab, fill=(200, 200, 200))
+            x += im.width + gap
+        y += h + gap + 22
+    return sh
+
+
+with served() as url, browser() as b:
+    pg, errors = open_app(b, url)
+    # per style: 12 designs across the three formats
+    for style in STYLES:
+        rows = []
+        for row in range(2):
+            cells = []
+            for i in range(6):
+                n = row * 6 + i
+                fmt = FORMATS[n % 3]
+                spec = pg.evaluate('([s, f, n]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.seeds = {layout: 1000 + n * 7919, colour: 2000 + n * 104729, graphic: 3000 + n * 1299709, type: 4000 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null}; return x; }', [style, fmt, n])
+                sol = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
+                sc = pg.evaluate('(s) => { const c = window.__rstr.scene(s); return c.palette + " " + c.pairing; }', spec)
+                cells.append((img(pg, spec), f'{fmt} {sc} {sol["layout"]}'))
+            rows.append(cells)
+        strip(rows).save(os.path.join(OUT, f'sheet-{style}.jpg'), quality=85)
+        print('wrote', f'shots/sheet-{style}.jpg')
+    # text variants: one word, eight words, each slot alone
+    for style in STYLES:
+        cells = []
+        for k, title in enumerate(['Signal', 'Eight plain words make a long poster title']):
+            for fmt in FORMATS:
+                spec = pg.evaluate('([s, f, t, k]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.text.title.v = t; x.seeds = {layout: 77 + k, colour: 88 + k, graphic: 99 + k, type: 5}; return x; }', [style, fmt, title, k])
+                cells.append((img(pg, spec), f'{fmt} {len(title.split())} words'))
+        strip([cells], h=480).save(os.path.join(OUT, f'text-{style}.jpg'), quality=85)
+    print('wrote shots/text-*.jpg')
+    # the spike's reference specs next to the approved refs
+    rows, row = [], []
+    for name, spec in ref_specs():
+        ours = img(pg, spec)
+        ours.save(os.path.join(OUT, f'ref-{name}.jpg'), quality=90)
+        ref = os.path.join(REFS, name + '.jpg')
+        pair = [(Image.open(ref).convert('RGB'), 'ref ' + name)] if os.path.exists(ref) else []
+        row += pair + [(ours, 'R1 ' + name)]
+        if len(row) >= 6:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    strip(rows, h=460).save(os.path.join(OUT, 'refs-compare.jpg'), quality=85)
+    print('wrote shots/refs-compare.jpg')
+    pg.close()
+    # app screens
+    for (w, h) in [(360, 640), (412, 915)]:
+        pg, _ = open_app(b, url, w, h, query='?s=' + __import__('urllib.parse').parse.quote(__import__('json').dumps(ref_specs()[1][1])))
+        for style in STYLES:
+            pg.click(f'button[data-style="{style}"]')
+            pg.wait_for_timeout(100)
+            pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-{style}.png'))
+        pg.close()
+    print('wrote shots/screen-*.png')
+    if errors:
+        print('page errors:', errors)
+        sys.exit(1)
