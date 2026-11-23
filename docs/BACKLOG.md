@@ -20,20 +20,12 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 
 ## By hand (Pedro)
 
+- **H3. Run the online type checks.** Where Google Fonts is reachable (your computer): `npm ci`, `npm run smoke`, `python3 tools/fetch_fonts.py --check`, `npm run sheet`; report the output or send it as `Notes:`. Detail in Carried R3. Open until done.
 - **H2. Look and use.** After each bundle, shuffle each style on the phone for a few minutes and send what is off in the next starter's `Notes:` line. Open until Pedro says done.
 
 ## Bundle 1: engine, colour, type, frame
 
 Read spec 3, 4, 5, 6, 9 and 10 in full before any row of this bundle.
-
-### R3. Type
-
-- Pairings as data from `docs/design/pairings.md` (spec 6): check every family resolves from Google Fonts, swap or drop any that does not and say which in the changelog.
-- The type seed and `pick.pairing`, per-style allowed lists.
-- Online loading on demand, only the weights a pairing names; a service worker that caches fetched font files; the eight core families bundled; the 4 s fallback to the style's default pairing with a note.
-- `tools/fetch_fonts.py` for the APK build: downloads every pairing's fonts and writes the licence texts.
-
-**Done when:** every pairing of every style passes 9.2 with its real fonts loaded (tested, online); with the network off after one use, a used pairing still draws with its own fonts (tested); with the network off and an unused pairing picked, the design draws with the default pairing and the note shows (tested); layout never runs with a fallback system font (tested: the Scene records the families it measured with); changing only the type seed moves no graphic (tested); a sheet per style shows every pairing with the same other seeds.
 
 ### R4. The frame and Simple mode
 
@@ -107,5 +99,6 @@ Needs Pedro's notes to run. Works every note and everything in Carried.
 
 ## Done
 
+- **R3. Type.** 23 Nov 2026, built and reviewed; three online Done-when lines UNVERIFIED (Google Fonts blocked in the workspace), see Carried R3 and H3. `docs/reviews/R3.md`.
 - **R2. Colour, light and dark.** 23 Nov 2026. Review R2 applied; see `docs/CHANGELOG.md` and `docs/reviews/R2.md`.
 - **R1. The engine.** 23 Nov 2026. Review R1 applied; see `docs/CHANGELOG.md` and `docs/reviews/R1.md`.
