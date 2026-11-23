@@ -2,7 +2,8 @@
 taps the controls at both phone sizes, and checks exports. Any failure prints the spec that caused it."""
 import base64, io, json, sys, time
 from PIL import Image
-from common import browser, open_app, served
+from common import browser, idle, open_app, served
+import fontcheck
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 200
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
@@ -87,7 +88,7 @@ with served() as url, browser() as b:
     # 9.3: independence of the four streams, in light and dark; switching the mode moves no box either
     for style in STYLES:
         r = pg.evaluate('(o) => window.__rstr.proof.independence(o)', {'styles': [style], 'n': max(20, N // 4), 'variants': 'cycle'})
-        print(f'9.3 {style:6} streams, light and dark: {r["count"]} designs, {len(r["failures"])} failing')
+        print(f'9.3 {style:6} streams, light and dark: {r["count"]} designs, {len(r["failures"])} failing; the type seed changed the pairing and moved text in {r["typeMoved"]}')
         for f in r['failures'][:5]:
             fail(f'9.3 {style}: {f["facet"]}', f['spec'])
     # 9.3: the same spec drawn twice gives identical pixels
@@ -112,6 +113,10 @@ with served() as url, browser() as b:
                     fail(f'9.2.6 {style} {fmt} {kind}: got {im.format} {im.size}', spec)
     print('9.2.6 exports checked')
     print(f'engine checks took {time.time() - t0:.0f} s')
+    # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face
+    t0 = time.time()
+    fontcheck.run(b, url, pg, max(4, N // 25), fail)
+    print(f'font checks took {time.time() - t0:.0f} s')
     if errors:
         fail('page errors: ' + '; '.join(errors[:3]))
     pg.close()
@@ -125,6 +130,8 @@ with served() as url, browser() as b:
                 pg.click(f'button[data-format="{fmt}"]')
                 before = pg.evaluate('() => JSON.stringify(window.__rstr.spec().seeds)')
                 pg.click('[data-testid="shuffle"]')
+                if not idle(pg):
+                    fail(f'app {w}x{h}: the stage did not draw the shuffled design')
                 after = pg.evaluate('() => window.__rstr.spec()')
                 if json.dumps(after['seeds'], separators=(',', ':')) == before:
                     fail(f'app {w}x{h}: Shuffle did not change the seeds')
@@ -140,6 +147,7 @@ with served() as url, browser() as b:
         for _ in range(2):
             before = pg.evaluate('() => window.__rstr.spec()')
             pg.click('[data-testid="mode"]')
+            idle(pg)
             after = pg.evaluate('() => window.__rstr.spec()')
             if after['mode'] == before['mode'] or after['seeds'] != before['seeds'] or after['style'] != before['style']:
                 fail(f'app {w}x{h}: the mode switch did not change only the mode')

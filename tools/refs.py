@@ -32,6 +32,9 @@ def text(kind):
     return out
 
 
+DEFAULT_PAIRING = {p_style: lst[0]['id'] for p_style, lst in json.load(open(os.path.join(os.path.dirname(HERE), 'src', 'data', 'pairings.json')))['pairings'].items()}
+
+
 def ref_specs():
     data = json.load(open(os.path.join(HERE, 'refs.json')))
     out = []
@@ -42,6 +45,9 @@ def ref_specs():
         pick.update(r['pick'])
         if r['style'] == 'brutal':
             pick['pairing'] = 'br-anton' if mulberry32(seeds['layout'])() < 0.5 else 'br-archivo-black'
+        else:
+            # the spike had one pairing per style; with R3's lists the type seed would choose another (R3)
+            pick['pairing'] = DEFAULT_PAIRING[r['style']]
         spec = {"v": 1, "style": r['style'], "format": r['format'], "mode": r.get("mode", "light"), "finish": "clean", "marks": "off",
                 "seeds": seeds, "pick": pick, "params": {}, "text": text(r['text'])}
         out.append((r['name'], spec))

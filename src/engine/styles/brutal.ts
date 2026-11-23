@@ -1,7 +1,7 @@
 /** Brutalist (spec 8.3): heavy type, the title is the graphic. Ported from the spike. */
 import { firstInk, needRatio } from '../colour';
 import { mkGraphic, mkRect, mkText } from '../items';
-import { PAIRINGS } from '../../data/pairings';
+import { isCoreFace, PAIRINGS } from '../../data/pairings';
 import { rng } from '../rng';
 import type { Item, TextItem } from '../scene';
 import { fitLine } from '../text';
@@ -10,6 +10,8 @@ import { upper } from './util';
 
 const MIN = { title: 40, subtitle: 16, info: 16, caption: 16 };
 const BLUNT = ['barcode', 'slab', 'asterisks'];
+/** The bundled display faces of the Brutalist pairings: the band's reference (see build). */
+const REF_FACES = [...new Map(PAIRINGS.brutal.filter((p) => isCoreFace(p.display)).map((p) => [p.display.family + p.display.weight, p.display])).values()];
 const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 
 /** Title lines: a typed line break is kept; otherwise one word per line up to four, else three balanced lines. */
@@ -100,10 +102,12 @@ export const brutal: Style = {
         if (kx < 1) ls.forEach((o) => { o.s *= kx; o.h *= kx; });
         return { ls, ky, height: ls.reduce((a, o) => a + o.h * ky, 0) + gap * (ls.length - 1) };
       };
-      // Left-over space gets one blunt graphic. Its size is set by the face of the style's pairings that
-      // leaves the most room, never by the pairing in use, so the type seed cannot move it (9.3);
-      // every face then stretches to fill what is left.
-      const ref = Math.min(...PAIRINGS.brutal.map((p) => block(p.display, areaBot - areaTop).height));
+      // Left-over space gets one blunt graphic. Its size is set by the bundled display faces of the style's
+      // pairings (the one that leaves the most room), never by the pairing in use, so the type seed cannot move
+      // it (9.3). Only core faces count: they are always loaded, so the band never waits on, or is measured
+      // with a fallback for, a face fetched online (review R1, the band risk). Every face then stretches to fill
+      // what is left.
+      const ref = Math.min(...REF_FACES.map((f) => block(f, areaBot - areaTop).height));
       const left = areaBot - areaTop - ref - gap;
       if (left > W * 0.12) {
         const band = flip ? { x: M, y: areaTop, w: iw, h: left } : { x: M, y: areaBot - left, w: iw, h: left };

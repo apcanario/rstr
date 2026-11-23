@@ -3,7 +3,8 @@ import { MARKER, MASK } from '../data/palettes/system';
 import { FORMATS } from './formats';
 import type { Ctx } from './graphics/types';
 import { paint, paintText } from './paint';
-import { scene as sceneOf } from './index';
+import { browserMeasure, scene as sceneOf } from './index';
+import type { Use } from './layout';
 import type { Scene, TextItem } from './scene';
 import type { Spec } from './spec';
 
@@ -27,9 +28,9 @@ export { MARKER };
  * with every graphic that has an `avoid` list in the marker colour, then count marker pixels that fall inside
  * any text item's painted mask (fill, outline and echoes). Run once with the offscreen layer and once without.
  */
-export function knockLeak(spec: Spec, noLayer = false): { leaks: number; masked: number; graphics: number } {
+export function knockLeak(spec: Spec, noLayer = false, use: Use = {}): { leaks: number; masked: number; graphics: number } {
   const [W, H] = FORMATS[spec.format];
-  const sc: Scene = structuredClone(sceneOf(spec));
+  const sc: Scene = structuredClone(sceneOf(spec, browserMeasure(), use));
   let graphics = 0;
   for (const it of sc.items) {
     if (it.kind !== 'graphic' || !it.avoid?.length) continue;

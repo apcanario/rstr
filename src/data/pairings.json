@@ -1,0 +1,901 @@
+{
+ "_doc": "Font pairings (spec 6), from docs/design/pairings.md. The first pairing of each style is its default and uses core fonts only. Read by src/data/pairings.ts and tools/fetch_fonts.py.",
+ "sources": {
+  "Archivo Expanded": {
+   "family": "Archivo",
+   "wdth": 125
+  }
+ },
+ "pairings": {
+  "swiss": [
+   {
+    "id": "sw-inter-tight",
+    "name": "Inter Tight",
+    "display": {
+     "family": "Inter Tight",
+     "weight": 800
+    },
+    "text": {
+     "family": "Inter Tight",
+     "weight": 400
+    },
+    "label": {
+     "family": "Inter Tight",
+     "weight": 700
+    },
+    "mono": {
+     "family": "Inter Tight",
+     "weight": 500
+    },
+    "from": "Spike, approved look",
+    "notes": "Default. Core fonts only."
+   },
+   {
+    "id": "sw-inter",
+    "name": "Inter",
+    "display": {
+     "family": "Inter",
+     "weight": 800
+    },
+    "text": {
+     "family": "Inter",
+     "weight": 400
+    },
+    "label": {
+     "family": "Inter",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Inter",
+     "weight": 400
+    },
+    "from": "Pedro"
+   },
+   {
+    "id": "sw-dm-sans",
+    "name": "DM Sans",
+    "display": {
+     "family": "DM Sans",
+     "weight": 800
+    },
+    "text": {
+     "family": "DM Sans",
+     "weight": 400
+    },
+    "label": {
+     "family": "DM Sans",
+     "weight": 400
+    },
+    "mono": {
+     "family": "DM Sans",
+     "weight": 400
+    },
+    "from": "Pedro"
+   },
+   {
+    "id": "sw-archivo",
+    "name": "Archivo",
+    "display": {
+     "family": "Archivo",
+     "weight": 800
+    },
+    "text": {
+     "family": "Archivo",
+     "weight": 400
+    },
+    "label": {
+     "family": "Archivo",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Archivo",
+     "weight": 400
+    },
+    "from": "Pedro"
+   },
+   {
+    "id": "sw-archivo-narrow",
+    "name": "Archivo Narrow",
+    "display": {
+     "family": "Archivo Narrow",
+     "weight": 700
+    },
+    "text": {
+     "family": "Archivo",
+     "weight": 400
+    },
+    "label": {
+     "family": "Archivo",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Archivo",
+     "weight": 400
+    },
+    "from": "Pedro"
+   },
+   {
+    "id": "sw-instrument",
+    "name": "Instrument Sans",
+    "display": {
+     "family": "Instrument Sans",
+     "weight": 700
+    },
+    "text": {
+     "family": "Instrument Sans",
+     "weight": 400
+    },
+    "label": {
+     "family": "Instrument Sans",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Instrument Sans",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "sw-geist",
+    "name": "Geist",
+    "display": {
+     "family": "Geist",
+     "weight": 800
+    },
+    "text": {
+     "family": "Geist",
+     "weight": 400
+    },
+    "label": {
+     "family": "Geist",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Geist Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "sw-hanken",
+    "name": "Hanken Grotesk",
+    "display": {
+     "family": "Hanken Grotesk",
+     "weight": 800
+    },
+    "text": {
+     "family": "Hanken Grotesk",
+     "weight": 400
+    },
+    "label": {
+     "family": "Hanken Grotesk",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Hanken Grotesk",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "sw-schibsted",
+    "name": "Schibsted Grotesk",
+    "display": {
+     "family": "Schibsted Grotesk",
+     "weight": 800
+    },
+    "text": {
+     "family": "Schibsted Grotesk",
+     "weight": 400
+    },
+    "label": {
+     "family": "Schibsted Grotesk",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Schibsted Grotesk",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "sw-work",
+    "name": "Work Sans",
+    "display": {
+     "family": "Work Sans",
+     "weight": 800
+    },
+    "text": {
+     "family": "Work Sans",
+     "weight": 400
+    },
+    "label": {
+     "family": "Work Sans",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Work Sans",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "sw-plex",
+    "name": "IBM Plex Sans",
+    "display": {
+     "family": "IBM Plex Sans",
+     "weight": 700
+    },
+    "text": {
+     "family": "IBM Plex Sans",
+     "weight": 400
+    },
+    "label": {
+     "family": "IBM Plex Sans",
+     "weight": 400
+    },
+    "mono": {
+     "family": "IBM Plex Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "sw-space",
+    "name": "Space Grotesk",
+    "display": {
+     "family": "Space Grotesk",
+     "weight": 700
+    },
+    "text": {
+     "family": "Space Grotesk",
+     "weight": 400
+    },
+    "label": {
+     "family": "Space Grotesk",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "sw-inter-alegreya",
+    "name": "Inter / Alegreya",
+    "display": {
+     "family": "Inter",
+     "weight": 800
+    },
+    "text": {
+     "family": "Inter",
+     "weight": 500
+    },
+    "label": {
+     "family": "Inter",
+     "weight": 500
+    },
+    "serif": {
+     "family": "Alegreya",
+     "weight": 400,
+     "italic": true
+    },
+    "mono": {
+     "family": "Inter",
+     "weight": 500
+    },
+    "from": "Pedro",
+    "notes": "The serif sets the subtitle only."
+   },
+   {
+    "id": "sw-franklin-baskerville",
+    "name": "Franklin / Baskerville",
+    "display": {
+     "family": "Libre Franklin",
+     "weight": 800
+    },
+    "text": {
+     "family": "Libre Franklin",
+     "weight": 500
+    },
+    "label": {
+     "family": "Libre Franklin",
+     "weight": 500
+    },
+    "serif": {
+     "family": "Libre Baskerville",
+     "weight": 400,
+     "italic": true
+    },
+    "mono": {
+     "family": "Libre Franklin",
+     "weight": 500
+    },
+    "from": "Typewolf",
+    "notes": "The serif sets the subtitle only."
+   },
+   {
+    "id": "sw-work-taviraj",
+    "name": "Work Sans / Taviraj",
+    "display": {
+     "family": "Work Sans",
+     "weight": 700
+    },
+    "text": {
+     "family": "Work Sans",
+     "weight": 500
+    },
+    "label": {
+     "family": "Work Sans",
+     "weight": 500
+    },
+    "serif": {
+     "family": "Taviraj",
+     "weight": 400,
+     "italic": true
+    },
+    "mono": {
+     "family": "Work Sans",
+     "weight": 500
+    },
+    "from": "Typewolf",
+    "notes": "The serif sets the subtitle only."
+   },
+   {
+    "id": "sw-archivo-instrument",
+    "name": "Archivo / Instrument Serif",
+    "display": {
+     "family": "Archivo",
+     "weight": 800
+    },
+    "text": {
+     "family": "Archivo",
+     "weight": 500
+    },
+    "label": {
+     "family": "Archivo",
+     "weight": 500
+    },
+    "serif": {
+     "family": "Instrument Serif",
+     "weight": 400,
+     "italic": true
+    },
+    "mono": {
+     "family": "Archivo",
+     "weight": 500
+    },
+    "from": "Plan",
+    "notes": "The serif sets the subtitle only."
+   }
+  ],
+  "pomo": [
+   {
+    "id": "pm-bricolage",
+    "name": "Bricolage / Instrument",
+    "display": {
+     "family": "Bricolage Grotesque",
+     "weight": 800
+    },
+    "text": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "serif": {
+     "family": "Instrument Serif",
+     "weight": 400,
+     "italic": true
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "from": "Spike, approved look",
+    "notes": "Default. Core fonts only."
+   },
+   {
+    "id": "pm-rubik-trirong",
+    "name": "Rubik / Trirong",
+    "display": {
+     "family": "Rubik",
+     "weight": 800
+    },
+    "text": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "serif": {
+     "family": "Trirong",
+     "weight": 400,
+     "italic": true
+    },
+    "mono": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "from": "Typewolf"
+   },
+   {
+    "id": "pm-syne-fraunces",
+    "name": "Syne / Fraunces",
+    "display": {
+     "family": "Syne",
+     "weight": 800
+    },
+    "text": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "serif": {
+     "family": "Fraunces",
+     "weight": 400,
+     "italic": true
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "pm-unbounded-young",
+    "name": "Unbounded / Young Serif",
+    "display": {
+     "family": "Unbounded",
+     "weight": 700
+    },
+    "text": {
+     "family": "JetBrains Mono",
+     "weight": 400
+    },
+    "serif": {
+     "family": "Young Serif",
+     "weight": 400
+    },
+    "mono": {
+     "family": "JetBrains Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "pm-familjen-gloock",
+    "name": "Familjen / Gloock",
+    "display": {
+     "family": "Familjen Grotesk",
+     "weight": 700
+    },
+    "text": {
+     "family": "IBM Plex Mono",
+     "weight": 400
+    },
+    "serif": {
+     "family": "Gloock",
+     "weight": 400
+    },
+    "mono": {
+     "family": "IBM Plex Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "pm-eczar-gentium",
+    "name": "Eczar / Gentium",
+    "display": {
+     "family": "Eczar",
+     "weight": 800
+    },
+    "text": {
+     "family": "Courier Prime",
+     "weight": 400
+    },
+    "serif": {
+     "family": "Gentium Book Plus",
+     "weight": 400,
+     "italic": true
+    },
+    "mono": {
+     "family": "Courier Prime",
+     "weight": 400
+    },
+    "from": "Typewolf",
+    "notes": "Two serifs; Typewolf's Gentium Basic is now Gentium Book Plus."
+   },
+   {
+    "id": "pm-darker-playfair",
+    "name": "Darker / Playfair",
+    "display": {
+     "family": "Darker Grotesque",
+     "weight": 900
+    },
+    "text": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "serif": {
+     "family": "Playfair Display",
+     "weight": 400,
+     "italic": true
+    },
+    "mono": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "pm-rubikmono-cormorant",
+    "name": "Rubik Mono / Cormorant",
+    "display": {
+     "family": "Rubik Mono One",
+     "weight": 400
+    },
+    "text": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "serif": {
+     "family": "Cormorant Garamond",
+     "weight": 500,
+     "italic": true
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   }
+  ],
+  "brutal": [
+   {
+    "id": "br-anton",
+    "name": "Anton",
+    "display": {
+     "family": "Anton",
+     "weight": 400
+    },
+    "text": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "from": "Spike, shown",
+    "notes": "Default. Core fonts only."
+   },
+   {
+    "id": "br-archivo-black",
+    "name": "Archivo Black",
+    "display": {
+     "family": "Archivo Black",
+     "weight": 400
+    },
+    "text": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "from": "Spike, shown",
+    "notes": "Core fonts only."
+   },
+   {
+    "id": "br-bebas",
+    "name": "Bebas Neue",
+    "display": {
+     "family": "Bebas Neue",
+     "weight": 400
+    },
+    "text": {
+     "family": "IBM Plex Mono",
+     "weight": 400
+    },
+    "mono": {
+     "family": "IBM Plex Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "br-big-shoulders",
+    "name": "Big Shoulders",
+    "display": {
+     "family": "Big Shoulders Display",
+     "weight": 900
+    },
+    "text": {
+     "family": "JetBrains Mono",
+     "weight": 400
+    },
+    "mono": {
+     "family": "JetBrains Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "br-league",
+    "name": "League Gothic",
+    "display": {
+     "family": "League Gothic",
+     "weight": 400
+    },
+    "text": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "br-oswald",
+    "name": "Oswald",
+    "display": {
+     "family": "Oswald",
+     "weight": 700
+    },
+    "text": {
+     "family": "IBM Plex Mono",
+     "weight": 400
+    },
+    "mono": {
+     "family": "IBM Plex Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "br-alfa",
+    "name": "Alfa Slab",
+    "display": {
+     "family": "Alfa Slab One",
+     "weight": 400
+    },
+    "text": {
+     "family": "Courier Prime",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Courier Prime",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "br-dela",
+    "name": "Dela Gothic",
+    "display": {
+     "family": "Dela Gothic One",
+     "weight": 400
+    },
+    "text": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "br-bowlby",
+    "name": "Bowlby",
+    "display": {
+     "family": "Bowlby One",
+     "weight": 400
+    },
+    "text": {
+     "family": "Courier Prime",
+     "weight": 400
+    },
+    "mono": {
+     "family": "Courier Prime",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "br-archivo-wide",
+    "name": "Archivo Wide",
+    "display": {
+     "family": "Archivo Expanded",
+     "weight": 900
+    },
+    "text": {
+     "family": "Archivo Narrow",
+     "weight": 500
+    },
+    "mono": {
+     "family": "Archivo Narrow",
+     "weight": 500
+    },
+    "from": "Pedro",
+    "notes": "Archivo at width 125 (an alias family; see sources). Archivo Narrow in place of a mono."
+   }
+  ],
+  "vapor": [
+   {
+    "id": "vp-unbounded",
+    "name": "Unbounded",
+    "display": {
+     "family": "Unbounded",
+     "weight": 800
+    },
+    "text": {
+     "family": "Inter Tight",
+     "weight": 500
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "pixel": {
+     "family": "Silkscreen",
+     "weight": 400
+    },
+    "from": "Spike, shown",
+    "notes": "Default. Core fonts only."
+   },
+   {
+    "id": "vp-krona",
+    "name": "Krona One",
+    "display": {
+     "family": "Krona One",
+     "weight": 400
+    },
+    "text": {
+     "family": "Space Grotesk",
+     "weight": 500
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "pixel": {
+     "family": "VT323",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "vp-audiowide",
+    "name": "Audiowide",
+    "display": {
+     "family": "Audiowide",
+     "weight": 400
+    },
+    "text": {
+     "family": "Michroma",
+     "weight": 400
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "pixel": {
+     "family": "Pixelify Sans",
+     "weight": 500
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "vp-syncopate",
+    "name": "Syncopate",
+    "display": {
+     "family": "Syncopate",
+     "weight": 700
+    },
+    "text": {
+     "family": "Syncopate",
+     "weight": 400
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "pixel": {
+     "family": "Press Start 2P",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "vp-orbitron",
+    "name": "Orbitron",
+    "display": {
+     "family": "Orbitron",
+     "weight": 900
+    },
+    "text": {
+     "family": "Space Mono",
+     "weight": 400
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "pixel": {
+     "family": "VT323",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "vp-monoton",
+    "name": "Monoton",
+    "display": {
+     "family": "Monoton",
+     "weight": 400
+    },
+    "text": {
+     "family": "Michroma",
+     "weight": 400
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "pixel": {
+     "family": "Silkscreen",
+     "weight": 400
+    },
+    "from": "Plan"
+   },
+   {
+    "id": "vp-playfair",
+    "name": "Playfair",
+    "display": {
+     "family": "Playfair Display",
+     "weight": 900,
+     "italic": true
+    },
+    "text": {
+     "family": "Cormorant Garamond",
+     "weight": 500
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "pixel": {
+     "family": "DotGothic16",
+     "weight": 400
+    },
+    "from": "Plan",
+    "notes": "The serif vapor look."
+   },
+   {
+    "id": "vp-cormorant-proza",
+    "name": "Cormorant / Proza",
+    "display": {
+     "family": "Cormorant Garamond",
+     "weight": 700,
+     "italic": true
+    },
+    "text": {
+     "family": "Proza Libre",
+     "weight": 400
+    },
+    "mono": {
+     "family": "DM Mono",
+     "weight": 400
+    },
+    "pixel": {
+     "family": "VT323",
+     "weight": 400
+    },
+    "from": "Typewolf"
+   }
+  ]
+ }
+}

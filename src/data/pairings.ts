@@ -1,9 +1,11 @@
 /**
- * Font pairings (spec 6). R1 carries only the pairings built on the bundled core set;
- * R3 brings in the rest of docs/design/pairings.md with online loading.
+ * Font pairings (spec 6): the data is `pairings.json`, from docs/design/pairings.md. Each style lists the
+ * pairings it allows; the first is its default and uses core fonts only, so it always draws.
+ * `tools/fetch_fonts.py` reads the same file for the APK build.
  */
 import type { StyleId } from '../engine/spec';
 import type { FontRef } from '../engine/scene';
+import data from './pairings.json';
 
 export interface Pairing {
   id: string;
@@ -14,26 +16,37 @@ export interface Pairing {
   serif?: FontRef;      // a subtitle face where the style uses one
   mono: FontRef;
   pixel?: FontRef;
+  from: string;
   notes: string;
 }
 
-const f = (family: string, weight: number, italic = false): FontRef => ({ family, weight, italic });
+/** Where an alias family comes from on Google Fonts: the real family and a fixed width. */
+export interface FontSource { family: string; wdth?: number; }
 
-export const PAIRINGS: Record<StyleId, Pairing[]> = {
-  swiss: [
-    { id: 'sw-inter-tight', name: 'Inter Tight', display: f('Inter Tight', 800), text: f('Inter Tight', 400), label: f('Inter Tight', 700), mono: f('Inter Tight', 500), notes: 'Spike, approved look. Default.' },
-  ],
-  pomo: [
-    { id: 'pm-bricolage', name: 'Bricolage / Instrument', display: f('Bricolage Grotesque', 800), text: f('DM Mono', 400), serif: f('Instrument Serif', 400, true), mono: f('DM Mono', 400), notes: 'Spike, approved look. Default.' },
-  ],
-  brutal: [
-    { id: 'br-anton', name: 'Anton', display: f('Anton', 400), text: f('DM Mono', 400), mono: f('DM Mono', 400), notes: 'Spike, shown. Default.' },
-    { id: 'br-archivo-black', name: 'Archivo Black', display: f('Archivo Black', 400), text: f('DM Mono', 400), mono: f('DM Mono', 400), notes: 'Spike, shown.' },
-  ],
-  vapor: [
-    { id: 'vp-unbounded', name: 'Unbounded', display: f('Unbounded', 800), text: f('Inter Tight', 500), mono: f('DM Mono', 400), pixel: f('Silkscreen', 400), notes: 'Spike, shown. Default.' },
-  ],
-};
+const raw = data as unknown as { sources: Record<string, FontSource>; pairings: Record<StyleId, (Omit<Pairing, 'notes'> & { notes?: string })[]> };
+
+export const SOURCES: Record<string, FontSource> = raw.sources;
+
+export const PAIRINGS: Record<StyleId, Pairing[]> = Object.fromEntries(
+  Object.entries(raw.pairings).map(([s, list]) => [s, list.map((p) => ({ ...p, notes: p.notes ?? '' }))]),
+) as Record<StyleId, Pairing[]>;
+
+/** The style's default pairing: the first of its list. */
+export const defaultPairing = (style: StyleId): Pairing => PAIRINGS[style][0];
+
+export const ROLES = ['display', 'text', 'label', 'serif', 'mono', 'pixel'] as const;
+
+/** Every face a pairing names, once each. */
+export function facesOf(p: Pairing): FontRef[] {
+  const out = new Map<string, FontRef>();
+  for (const r of ROLES) {
+    const f = p[r];
+    if (f) out.set(faceKey(f), { family: f.family, weight: f.weight, ...(f.italic ? { italic: true } : {}) });
+  }
+  return [...out.values()];
+}
+
+export const faceKey = (f: FontRef) => `${f.family}|${f.weight}|${f.italic ? 'i' : 'n'}`;
 
 /** The eight core families bundled with the web app, and the UI face. Files in public/fonts. */
 export const CORE_FONTS: { family: string; weight: number; italic?: boolean; file: string }[] = [
@@ -50,6 +63,9 @@ export const CORE_FONTS: { family: string; weight: number; italic?: boolean; fil
   { family: 'Unbounded', weight: 800, file: 'unbounded-latin-800-normal.woff2' },
   { family: 'Silkscreen', weight: 400, file: 'silkscreen-latin-400-normal.woff2' },
 ];
+export const CORE_FAMILIES = [...new Set(CORE_FONTS.map((f) => f.family))];
+export const isCoreFace = (f: FontRef) => CORE_FONTS.some((c) => c.family === f.family && c.weight === f.weight && !!c.italic === !!f.italic);
+
 export const UI_FONTS = [
   { family: 'DM Sans', weight: 400, file: 'dm-sans-latin-400-normal.woff2' },
   { family: 'DM Sans', weight: 500, file: 'dm-sans-latin-500-normal.woff2' },

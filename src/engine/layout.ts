@@ -1,5 +1,5 @@
 /** layout(spec, measure) -> Scene. A solver: candidates from the layout stream, the first that passes 9.2 wins. */
-import { PAIRINGS, type Pairing } from '../data/pairings';
+import { defaultPairing, PAIRINGS, type Pairing } from '../data/pairings';
 import { formOf, PALETTES, type Form, type Mode } from '../data/palettes';
 import { FORMATS } from './formats';
 import { check, type Failure } from './invariants';
@@ -19,9 +19,22 @@ export function choosePalette(spec: Spec): Form {
   const list = PALETTES[spec.style];
   return formOf(list.find((p) => p.id === spec.pick.palette) ?? pick(rng(spec.seeds.colour), list), spec.mode);
 }
+/** The pairing the spec asks for: pick.pairing, else the type seed over the style's allowed list. */
 export function choosePairing(spec: Spec): Pairing {
   const list = PAIRINGS[spec.style];
   return list.find((p) => p.id === spec.pick.pairing) ?? pick(rng(spec.seeds.type), list);
+}
+
+/**
+ * What layout may use instead of the spec's own choice. The app sets `pairing` to the style's default when
+ * the wanted pairing's fonts are not loaded (spec 6); the spec keeps the pairing it asked for.
+ */
+export interface Use { pairing?: string; }
+
+/** The pairing to draw with: the wanted one if its fonts are available, else the style's default (spec 6). */
+export function resolvePairing(spec: Spec, isAvailable: (p: Pairing) => boolean): Use {
+  const want = choosePairing(spec);
+  return { pairing: isAvailable(want) ? want.id : defaultPairing(spec.style).id };
 }
 
 function build(spec: Spec, m: Measure, P: Form, T: Pairing, k: number): Item[] | null {
@@ -43,9 +56,9 @@ function build(spec: Spec, m: Measure, P: Form, T: Pairing, k: number): Item[] |
   return style.build(b);
 }
 
-function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: string): Scene {
+function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: string, measured: Set<string>): Scene {
   const [W, H] = FORMATS[spec.format];
-  const fonts = [...new Set(items.filter((i): i is TextItem => i.kind === 'text').map((i) => i.font.family))];
+  const fonts = [...new Set([...measured, ...items.filter((i): i is TextItem => i.kind === 'text').map((i) => i.font.family)])].sort();
   return { w: W, h: H, style: spec.style, format: spec.format, palette: P.id, pairing: T.id, layout: layoutName, ground: P.ground, items, fonts };
 }
 
@@ -62,12 +75,12 @@ function formsFor(spec: Spec, P: Form): Form[] {
 }
 
 /** True if these items pass 9.2 for the form in use and rule 4 for every other form of the style. */
-function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name: string): { first: Scene | null; failures: Failure[] } {
+function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name: string, measured: Set<string>): { first: Scene | null; failures: Failure[] } {
   let first: Scene | null = null;
   for (const Q of formsFor(spec, P)) {
     const items = build(spec, m, Q, T, k);
     if (!items) return { first: null, failures: [{ rule: 0, part: '-', msg: 'text does not fit' }] };
-    const sc = sceneOf(spec, items, Q, T, name);
+    const sc = sceneOf(spec, items, Q, T, name, measured);
     const f = check(sc, Q === P ? [1, 2, 3, 4, 5] : [4]);
     if (f.length) return { first: null, failures: f };
     if (!first) first = sc;
@@ -80,11 +93,15 @@ function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name:
  * the colour seed can never move a box (9.3), and switching mode keeps the layout. The fallback keeps the frame and shortens text to fit. A picked layout or motif
  * the fallback cannot carry is dropped (layout first, then motif), so the fallback always passes.
  */
-export function solve(spec: Spec, m: Measure): Solved {
-  const P = choosePalette(spec), T = choosePairing(spec);
+export function solve(spec: Spec, m0: Measure, use: Use = {}): Solved {
+  const P = choosePalette(spec);
+  const T = (use.pairing && PAIRINGS[spec.style].find((p) => p.id === use.pairing)) || choosePairing(spec);
+  // every family layout measures with is recorded on the Scene, so a test can prove none was a fallback
+  const measured = new Set<string>();
+  const m: Measure = (s, f, px, tr) => { measured.add(f.family); return m0(s, f, px, tr); };
   let last: Failure[] = [];
   for (let k = 0; k < CANDIDATES; k++) {
-    const r = passesAll(spec, m, P, T, k, 'c' + k);
+    const r = passesAll(spec, m, P, T, k, 'c' + k, measured);
     if (r.first) return { scene: r.first, tried: k + 1, failures: [] };
     last = r.failures;
   }
@@ -92,13 +109,13 @@ export function solve(spec: Spec, m: Measure): Solved {
   if (spec.pick.layout) tries.push({ ...spec, pick: { ...spec.pick, layout: null } });
   if (spec.pick.motif) tries.push({ ...spec, pick: { ...spec.pick, layout: null, motif: null } });
   for (const s of tries.slice(0, -1)) {
-    const r = passesAll(s, m, P, T, -1, 'fallback');
+    const r = passesAll(s, m, P, T, -1, 'fallback', measured);
     if (r.first) return { scene: r.first, tried: CANDIDATES + 1, failures: last };
   }
   const items = build(tries[tries.length - 1], m, P, T, -1) ?? [];
-  return { scene: sceneOf(spec, items, P, T, 'fallback'), tried: CANDIDATES + 1, failures: last };
+  return { scene: sceneOf(spec, items, P, T, 'fallback', measured), tried: CANDIDATES + 1, failures: last };
 }
 
-export function layout(spec: Spec, m: Measure): Scene {
-  return solve(spec, m).scene;
+export function layout(spec: Spec, m: Measure, use: Use = {}): Scene {
+  return solve(spec, m, use).scene;
 }

@@ -1,7 +1,11 @@
 /** window.__rstr: the hook the tools use (spec 4). */
 import { PALETTES } from './data/palettes';
 import { FORMATS } from './engine/formats';
-import { render, scene } from './engine';
+import { choosePairing, render, resolvePairing, scene } from './engine';
+import { PAIRINGS } from './data/pairings';
+import { available, coreFailures, ensure, isLoaded, loadedFamilies, pairingById, unloaded } from './fonts';
+import type { Drawn } from './app/App';
+import type { FontRef, Scene } from './engine/scene';
 import { check } from './engine/invariants';
 import { solve } from './engine/layout';
 import { browserMeasure } from './engine';
@@ -9,36 +13,65 @@ import { picksOf, runIndependence, runInvariants, type Opts } from './engine/pro
 import { knockLeak, pixelHash } from './engine/pixels';
 import { migrate, type Spec, type StyleId } from './engine/spec';
 
-export function installApi(ready: Promise<void>, current: () => Spec) {
+/** Every tool call lays out the way the app does: with the wanted pairing only if its fonts are loaded (spec 6). */
+const useOf = (spec: Spec) => resolvePairing(spec, available);
+const resolve = (spec: Spec) => useOf(spec);
+
+export function installApi(ready: Promise<void>, current: () => Spec, view: { idle: () => Promise<void>; drawn: () => Drawn | null; current: () => boolean }) {
   const api = {
     ready,
     spec: () => structuredClone(current()),
+    /** Resolves when the stage has drawn the current spec (after any wait for fonts). */
+    async idle(ms = 15000) {
+      const t0 = performance.now();
+      for (;;) {
+        await view.idle();
+        if (view.current() || performance.now() - t0 > ms) return view.current();
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    },
+    drawn: () => view.drawn(),
     migrate: (raw: unknown) => migrate(raw),
-    scene: (raw: unknown) => scene(migrate(raw)),
-    solve: (raw: unknown) => { const r = solve(migrate(raw), browserMeasure()); return { layout: r.scene.layout, tried: r.tried, failures: r.failures }; },
-    check: (raw: unknown) => check(scene(migrate(raw))),
-    render: (canvas: HTMLCanvasElement, raw: unknown) => render(canvas, migrate(raw)),
+    scene: (raw: unknown) => { const s = migrate(raw); return scene(s, browserMeasure(), useOf(s)); },
+    solve: (raw: unknown) => { const s = migrate(raw); const r = solve(s, browserMeasure(), useOf(s)); return { layout: r.scene.layout, pairing: r.scene.pairing, tried: r.tried, failures: r.failures }; },
+    check: (raw: unknown) => { const s = migrate(raw); return check(scene(s, browserMeasure(), useOf(s))); },
+    render: (canvas: HTMLCanvasElement, raw: unknown) => { const s = migrate(raw); return render(canvas, s, null, useOf(s)); },
     /** Full-size export as a data URL. */
     exportImage(raw: unknown, type: 'image/jpeg' | 'image/png' = 'image/jpeg') {
       const spec = migrate(raw), c = document.createElement('canvas');
-      render(c, spec);
+      render(c, spec, null, useOf(spec));
       const [w, h] = FORMATS[spec.format];
       return { url: c.toDataURL(type, 0.92), w, h };
     },
     /** Raw pixels of a render, for the determinism check. */
     pixels(raw: unknown): string {
-      const c = document.createElement('canvas');
-      render(c, migrate(raw));
+      const c = document.createElement('canvas'), s = migrate(raw);
+      render(c, s, null, useOf(s));
       return pixelHash(c);
     },
     /** Marker-colour pixels of knocked-out graphics found inside text masks, with and without the offscreen layer. */
-    knock: (raw: unknown) => ({ layer: knockLeak(migrate(raw)), noLayer: knockLeak(migrate(raw), true) }),
+    knock: (raw: unknown) => { const s = migrate(raw); return { layer: knockLeak(s, false, useOf(s)), noLayer: knockLeak(s, true, useOf(s)) }; },
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),
     proof: {
-      invariants: (o: Opts) => runInvariants(browserMeasure(), o),
+      invariants: (o: Opts) => runInvariants(browserMeasure(), o, resolve),
       picks: (style: StyleId) => picksOf(style),
-      independence: (o: Opts) => runIndependence(browserMeasure(), o),
+      independence: (o: Opts) => runIndependence(browserMeasure(), o, resolve),
+    },
+    fonts: {
+      pairings: (style: StyleId) => PAIRINGS[style].map((p) => p.id),
+      /** Wait for a pairing's fonts (at most ms): true if they all loaded. */
+      ensure: (id: string, ms?: number) => ensure(pairingById(id)!, ms),
+      available: (id: string) => available(pairingById(id)!),
+      wanted: (raw: unknown) => choosePairing(migrate(raw)).id,
+      loaded: () => loadedFamilies(),
+      coreFailures: () => coreFailures(),
+      /** Faces a Scene used or measured that are not loaded: must always be empty (spec 6). */
+      unloaded(sc: Scene): string[] {
+        const loaded = new Set(loadedFamilies());
+        const faces: FontRef[] = sc.items.flatMap((i) => (i.kind === 'text' ? [i.font] : []));
+        return [...new Set([...unloaded(faces.filter((f) => !isLoaded(f))), ...sc.fonts.filter((f) => !loaded.has(f)).map((f) => f + ' (measured)')])];
+      },
     },
   };
   (window as unknown as { __rstr: typeof api }).__rstr = api;

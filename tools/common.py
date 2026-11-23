@@ -38,12 +38,17 @@ def browser():
             b.close()
 
 
-def open_app(b, url, w=412, h=915, scale=2.625, query=''):
-    pg = b.new_page(viewport={'width': w, 'height': h}, device_scale_factor=scale, accept_downloads=True)
+def open_app(b, url, w=412, h=915, scale=2.625, query='', ctx=None):
+    pg = ctx.new_page() if ctx else b.new_page(viewport={'width': w, 'height': h}, device_scale_factor=scale, accept_downloads=True)
     errors = []
     pg.on('pageerror', lambda e: errors.append(str(e)))
     pg.goto(url + query)
     pg.wait_for_function('window.__rstr !== undefined')
     pg.evaluate('() => window.__rstr.ready')
-    pg.wait_for_timeout(100)
+    pg.evaluate('() => window.__rstr.idle()')
     return pg, errors
+
+
+def idle(pg):
+    """Wait until the stage has drawn the current spec (after any wait for fonts)."""
+    return pg.evaluate('() => window.__rstr.idle()')
