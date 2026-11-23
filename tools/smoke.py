@@ -9,6 +9,10 @@ STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
 FORMATS = ['1:1', '3:4', '9:16']
 SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920)}
 fails = []
+# Fallbacks allowed when a layout or motif is picked, at N = 200 (review R2 S1): a picked Vaporwave sky title
+# cannot always fit. The runs draw seeds 0..N-1, so for N <= 200 these counts are a ceiling; above, scaled.
+# Unpicked and per-palette runs allow none: a fallback there means a palette or form cut every candidate.
+PICKED_FALLBACKS = {('vapor', '1:1'): 196, ('vapor', '3:4'): 6, ('vapor', '9:16'): 6}
 
 
 def fail(msg, spec=None):
@@ -16,6 +20,13 @@ def fail(msg, spec=None):
     print('FAIL', msg)
     if spec is not None:
         print('  spec:', json.dumps(spec, ensure_ascii=False))
+
+
+def fallback_check(label, r, ceiling):
+    if r['fallbacks'] > ceiling:
+        fail(f'{label}: {r["fallbacks"]} fallbacks, at most {ceiling} expected')
+        for spec in r['fallbackSpecs'][:3]:
+            print('  fell back:', json.dumps(spec, ensure_ascii=False))
 
 
 with served() as url, browser() as b:
@@ -26,6 +37,7 @@ with served() as url, browser() as b:
         for fmt in FORMATS:
             r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': [style], 'formats': [fmt], 'n': N})
             print(f'9.2 {style:6} {fmt:4}  {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+            fallback_check(f'9.2 {style} {fmt}', r, 0)
             for f in r['failures'][:5]:
                 fail(f'9.2 {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
     # 9.2 with every value of pick.layout and pick.motif: a picked spec is tested like a seeded one
@@ -33,6 +45,8 @@ with served() as url, browser() as b:
         for fmt in FORMATS:
             r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': [style], 'formats': [fmt], 'n': N, 'picks': 'each', 'variants': 'cycle'})
             print(f'9.2 {style:6} {fmt:4}  picked: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+            rec = PICKED_FALLBACKS.get((style, fmt), 0)
+            fallback_check(f'9.2 picked {style} {fmt}', r, rec if N <= 200 else -(-rec * N // 200))
             for f in r['failures'][:5]:
                 fail(f'9.2 picked {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
     # 9.2 with every palette picked, in light and dark (row R2)
@@ -40,6 +54,7 @@ with served() as url, browser() as b:
         for fmt in FORMATS:
             r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': [style], 'formats': [fmt], 'n': max(18, N // 8), 'palettes': True, 'variants': 'cycle'})
             print(f'9.2 {style:6} {fmt:4}  each palette, light and dark: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+            fallback_check(f'9.2 palette {style} {fmt}', r, 0)
             for f in r['failures'][:5]:
                 fail(f'9.2 palette {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
     # knock-outs: stars and grid in a marker colour never show inside any text item's mask, with and without the layer

@@ -13,7 +13,7 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 ## Carried
 
 - **R3.** The 9.3 type-seed test is meaningful only with a second pairing; a unit test with a stub pairing covers it until R3 adds real ones. Show the note when a core font fails (fonts load with `allSettled` now). Review R1 M2, M10.
-- **R4.** App chrome: the coral wordmark letter, selected segments, Shuffle and the orange export icon go against spec 10.1 "dark and quiet"; follow `ui-*.jpg`. Review R1 M8.
+- **R4.** App chrome: the coral wordmark letter, selected segments, Shuffle and the orange export icon go against spec 10.1 "dark and quiet"; follow `ui-*.jpg`. Review R1 M8. Move the interim Light/Dark button from the header (`App.tsx`) to the Look tab (spec 10.1, 10.2) and drop the `header .seed` margins in `app.css`. Review R2 M6.
 - **R8.** Brutalist 1:1 Anton (Klein, Alarm): title lines leave about a third of the width empty when height binds (`styles/brutal.ts`, `kx < 1`); spec 8.3 says every line fills the width. Review R1 M4.
 - **R9.** A sky-title treatment that passes for every palette (dark plate band or wider outline) so the spike's sky layout comes back over the sun; revisit the outline next to the echoes (outline-as-ink choice). Vaporwave 1:1 caption crowds the subtitle (`vapor.ts`, caption anchored at `bot`); 3:4 Mint c0 sun cut by the edge with an empty floor. Review R1 S2, S4, M6.
 - **R5.** Swiss 9:16 Cobalt and Pine: small text with dead ground between the rule and the story zone. Review R1.

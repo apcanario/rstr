@@ -8,6 +8,13 @@ import { mix } from '../src/engine/rng';
 import { STYLE_IDS, type StyleId } from '../src/engine/spec';
 
 const show = (fs: { spec: unknown }[]) => fs.slice(0, 3).map((f) => JSON.stringify(f)).join('\n');
+/** The specs that fell back, for the message when a fallback was not expected. */
+const showFb = (r: { fallbackSpecs: unknown[] }) => r.fallbackSpecs.slice(0, 3).map((s) => JSON.stringify(s)).join('\n');
+/**
+ * Fallbacks allowed when a layout or motif is picked (review R2 S1): a picked Vaporwave sky title cannot
+ * always fit. Counts as of R2; a rise means a change cut candidates. Unpicked and per-palette runs allow none.
+ */
+const PICKED_FALLBACKS: Record<StyleId, number> = { swiss: 0, pomo: 0, brutal: 0, vapor: 10 };
 
 describe('9.2 on the stub measure, every style x format x mode, every text variant on every seed set', () => {
   for (const style of STYLE_IDS) {
@@ -15,6 +22,7 @@ describe('9.2 on the stub measure, every style x format x mode, every text varia
       const r = runInvariants(stubMeasure, { styles: [style], n: 10 });
       expect(r.count).toBe(10 * textVariants().length * 3 * 2);
       expect(r.failures, show(r.failures)).toEqual([]);
+      expect(r.fallbacks, showFb(r)).toBe(0);
     });
   }
 });
@@ -25,6 +33,7 @@ describe('9.2 with every value of pick.layout and pick.motif', () => {
       const r = runInvariants(stubMeasure, { styles: [style], n: 9, picks: 'each', variants: 'cycle' });
       expect(r.count).toBe(picksOf(style).length * 9 * 3 * 2);
       expect(r.failures, show(r.failures)).toEqual([]);
+      expect(r.fallbacks, showFb(r)).toBeLessThanOrEqual(PICKED_FALLBACKS[style]);
     });
   }
   test('the specs carry the picks', () => {
@@ -34,6 +43,8 @@ describe('9.2 with every value of pick.layout and pick.motif', () => {
   test('a picked Vaporwave sky title at 1:1 falls back to a frame that passes', () => {
     const r = runInvariants(stubMeasure, { styles: ['vapor'], formats: ['1:1'], n: 40, picks: 'each', variants: 'cycle' });
     expect(r.failures, show(r.failures)).toEqual([]);
+    expect(r.fallbacks).toBeGreaterThan(0);
+    expect(r.fallbacks, showFb(r)).toBeLessThanOrEqual(44); // 44 of 160 as of R2
   });
 });
 
@@ -43,6 +54,7 @@ describe('9.2 with every palette picked, in both modes', () => {
       const r = runInvariants(stubMeasure, { styles: [style], n: 9, palettes: true, variants: 'cycle' });
       expect(r.count).toBe(PALETTES[style].length * 9 * 3 * 2);
       expect(r.failures, show(r.failures)).toEqual([]);
+      expect(r.fallbacks, showFb(r)).toBe(0);
     });
   }
   test('the specs carry the palettes and both modes', () => {

@@ -9,7 +9,7 @@ export const SWISS: Palette[] = [
     dark: { ground: '#171615', ink: '#F2EFE8', accent: '#F0233F' } },
   { id: 'signal', name: 'Signal',
     light: { ground: '#E4002B', ink: '#FFFFFF', accent: '#161616' },
-    dark: { ground: '#2A0711', ink: '#FFFFFF', accent: '#E4002B' } },
+    dark: { ground: '#7A0016', ink: '#FFFFFF', accent: '#161616' } },
   { id: 'night', name: 'Night',
     light: { ground: '#E6E3DC', ink: '#111113', accent: '#F04E24' },
     dark: { ground: '#111113', ink: '#EDEAE3', accent: '#FF5A36' } },

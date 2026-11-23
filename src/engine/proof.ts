@@ -42,7 +42,8 @@ export interface Opts {
   /** Run one spec set per palette of the style, with pick.palette set (every palette in every mode). */
   palettes?: boolean;
 }
-export interface Report { count: number; fallbacks: number; failures: { spec: Spec; failures: Failure[] }[]; }
+/** fallbackSpecs: the first 20 specs that fell back, so an unexpected fallback can be printed. */
+export interface Report { count: number; fallbacks: number; fallbackSpecs: Spec[]; failures: { spec: Spec; failures: Failure[] }[]; }
 
 type Pick = Partial<Spec['pick']>;
 /** One pick per value of pick.layout and pick.motif the style lists. */
@@ -74,11 +75,11 @@ export function* specs(o: Opts = {}): Generator<Spec> {
 
 /** 9.2 rules 1 to 5 on the final Scene of every spec. */
 export function runInvariants(m: Measure, o: Opts = {}): Report {
-  const r: Report = { count: 0, fallbacks: 0, failures: [] };
+  const r: Report = { count: 0, fallbacks: 0, fallbackSpecs: [], failures: [] };
   for (const spec of specs(o)) {
     r.count++;
     const { scene } = solve(spec, m);
-    if (scene.layout === 'fallback') r.fallbacks++;
+    if (scene.layout === 'fallback' && r.fallbacks++ < 20) r.fallbackSpecs.push(spec);
     const f = check(scene);
     if (f.length && r.failures.length < 50) r.failures.push({ spec, failures: f });
   }

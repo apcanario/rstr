@@ -80,7 +80,7 @@ with served() as url, browser() as b:
         ours.save(os.path.join(OUT, f'ref-{name}.jpg'), quality=90)
         ref = os.path.join(REFS, name + '.jpg')
         pair = [(Image.open(ref).convert('RGB'), 'ref ' + name)] if os.path.exists(ref) else []
-        row += pair + [(ours, 'R1 ' + name)]
+        row += pair + [(ours, 'now ' + name)]
         if len(row) >= 6:
             rows.append(row)
             row = []
