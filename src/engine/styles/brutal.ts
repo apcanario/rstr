@@ -107,7 +107,8 @@ export const brutal: Style = {
       const left = areaBot - areaTop - ref - gap;
       if (left > W * 0.12) {
         const band = flip ? { x: M, y: areaTop, w: iw, h: left } : { x: M, y: areaBot - left, w: iw, h: left };
-        const kind = Math.floor(rng(spec.seeds.graphic)() * 3);
+        const mi = BLUNT.indexOf(spec.pick.motif ?? '');
+        const kind = mi >= 0 ? mi : Math.floor(rng(spec.seeds.graphic)() * 3);
         graphics.push(mkGraphic(BLUNT[kind], band, spec.seeds.graphic, 1, { ink: P.ink, accent: P.accent }, kind === 1 ? [P.accent, P.ink] : [P.ink], { W }));
         if (flip) areaTop += left + gap; else areaBot -= left + gap;
       }

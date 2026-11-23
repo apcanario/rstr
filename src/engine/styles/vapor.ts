@@ -1,7 +1,7 @@
 /** Vaporwave (spec 8.4): gradient sky, slit sun, grid floor, chrome title. Ported from the spike. */
 import { firstInk, needRatio } from '../colour';
-import { sample } from '../invariants';
-import { bounds, pad, rectQuad, type Rect } from '../geom';
+import { OUTLINE_MIN, sample } from '../invariants';
+import { bounds, overlaps, pad, rectQuad, type Rect } from '../geom';
 import { mkGraphic, mkRect, mkText } from '../items';
 import { pick } from '../rng';
 import type { GraphicItem, Item, Linear } from '../scene';
@@ -42,8 +42,10 @@ export const vapor: Style = {
 
     const texts: Item[] = [];
     // light ink on the floor and dark skies, dark ink where the sky is pale: whichever reads against what is behind
+    // the sun's colours count too where the box overlaps the sun, as behind() counts them
     const inkFor = (r: Rect, px: number) => {
       const bg = r.y + r.h <= hz ? sample(skyPaint, rectQuad(r)) : r.y >= hz ? [P.ground] : [...sample(skyPaint, rectQuad(r)), P.ground];
+      if (overlaps(rectQuad(r), sunG.quad)) bg.push(...sunG.fills);
       return firstInk([P.ink, winInk], bg, needRatio(px));
     };
     let ty = isUpper ? top + W * 0.02 : hz + W * 0.07;
@@ -57,7 +59,7 @@ export const vapor: Style = {
           slot: 'title', part: 'chrome', font: T.display, size: t.size,
           runs: t.lines.map((l, i) => { const mt = t.metrics[i]; return { s: l, x: (W - (mt.left + mt.right)) / 2 + mt.left, y: ty + t.asc + i * t.size * 1.08 }; }),
           fill: { kind: 'linear', em: true, x0: 0, y0: -0.75, x1: 0, y1: 0, stops: [[0, chrome], [0.48, A3], [0.52, sky[1] ?? sky[0]], [1, P.accent]] },
-          stroke: { paint: tInk, width: Math.max(2, t.size * 0.022) },
+          stroke: { paint: tInk, width: Math.max(2, t.size * OUTLINE_MIN) },
           echoes: [{ dx: d, dy: d, paint: P.accent }, { dx: -d * 0.5, dy: -d * 0.5, paint: A2 }],
           ink: [tInk], min: MIN.title,
         }));

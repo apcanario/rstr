@@ -37,7 +37,8 @@ export function App({ ready }: { ready: Promise<void> }) {
 
   const set = (p: Partial<Spec>) => setSpec((s) => ({ ...s, ...p }));
   const shuffle = () => setSpec((s) => ({ ...s, seeds: newSeeds(), pick: { palette: null, pairing: null, motif: null, layout: null } }));
-  const save = () => {
+  const save = async () => {
+    await ready;   // spec 6: export waits for fonts the same way the stage does
     const c = document.createElement('canvas');
     render(c, spec);
     c.toBlob((b) => {
@@ -69,7 +70,7 @@ export function App({ ready }: { ready: Promise<void> }) {
       </div>
       <div class="go">
         <button class="shuffle" data-testid="shuffle" onClick={shuffle}><Icon d={icon.shuffle} />Shuffle</button>
-        <button class="export" data-testid="export" aria-label="Export" onClick={save}><Icon d={icon.save} /></button>
+        <button class="export" data-testid="export" aria-label="Export" disabled={!loaded} onClick={save}><Icon d={icon.save} /></button>
       </div>
     </div>
   );

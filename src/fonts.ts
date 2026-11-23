@@ -1,4 +1,7 @@
-/** Loads the bundled core fonts and the UI face. Layout never runs before they are in. */
+/**
+ * Loads the bundled core fonts and the UI face. Layout never runs before every load has settled; a face
+ * that fails does not block the rest (what loaded is drawn; R3 adds the note).
+ */
 import { CORE_FONTS, UI_FONTS } from './data/pairings';
 
 export function loadCoreFonts(): Promise<void> {
@@ -8,5 +11,5 @@ export function loadCoreFonts(): Promise<void> {
     document.fonts.add(face);
     return face.load();
   });
-  return Promise.all(all).then(() => undefined);
+  return Promise.allSettled(all).then(() => undefined);
 }

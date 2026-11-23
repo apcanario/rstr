@@ -21,13 +21,34 @@ def fail(msg, spec=None):
 with served() as url, browser() as b:
     pg, errors = open_app(b, url)
     t0 = time.time()
-    # 9.2, rules 1 to 5, over N seed sets per style x format x mode, with the text variants
+    # 9.2, rules 1 to 5, over N seed sets per style x format x mode, each with every text variant
     for style in STYLES:
         for fmt in FORMATS:
             r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': [style], 'formats': [fmt], 'n': N})
             print(f'9.2 {style:6} {fmt:4}  {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
             for f in r['failures'][:5]:
                 fail(f'9.2 {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    # 9.2 with every value of pick.layout and pick.motif: a picked spec is tested like a seeded one
+    for style in STYLES:
+        for fmt in FORMATS:
+            r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': [style], 'formats': [fmt], 'n': N, 'picks': 'each', 'variants': 'cycle'})
+            print(f'9.2 {style:6} {fmt:4}  picked: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+            for f in r['failures'][:5]:
+                fail(f'9.2 picked {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    # knock-outs: stars and grid in a marker colour never show inside any text item's mask, with and without the layer
+    nk = 0
+    for fmt in FORMATS:
+        for lay in ['title-sky', 'title-floor', None]:
+            for i in range(4):
+                spec = pg.evaluate('([f, l, i]) => { const x = window.__rstr.spec(); x.style = "vapor"; x.format = f; x.pick.layout = l; x.seeds = {layout: 500 + i, colour: 600 + i, graphic: 700 + i, type: 800 + i}; return x; }', [fmt, lay, i])
+                r = pg.evaluate('(s) => window.__rstr.knock(s)', spec)
+                for path, k in r.items():
+                    nk += 1
+                    if k['graphics'] == 0 or k['masked'] == 0:
+                        fail(f'knock vapor {fmt} {path}: nothing to test ({k})', spec)
+                    elif k['leaks']:
+                        fail(f'knock vapor {fmt} {path}: {k["leaks"]} marker pixels inside text', spec)
+    print(f'knock-outs: {nk} Vaporwave renders, marker never inside text checked')
     # the fallback: text far too long for any candidate still draws a legal design
     long = ' '.join(['Antidisestablishmentarianism'] * 14)
     nfb = 0
@@ -43,7 +64,7 @@ with served() as url, browser() as b:
     print(f'fallback: 72 over-long designs, {nfb} fell back, all checked')
     # 9.3: independence of the four streams
     for style in STYLES:
-        r = pg.evaluate('(o) => window.__rstr.proof.independence(o)', {'styles': [style], 'n': max(20, N // 4), 'modes': ['light']})
+        r = pg.evaluate('(o) => window.__rstr.proof.independence(o)', {'styles': [style], 'n': max(20, N // 4), 'modes': ['light'], 'variants': 'cycle'})
         print(f'9.3 {style:6} streams: {r["count"]} designs, {len(r["failures"])} failing')
         for f in r['failures'][:5]:
             fail(f'9.3 {style}: {f["facet"]}', f['spec'])

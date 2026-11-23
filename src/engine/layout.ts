@@ -50,29 +50,43 @@ function sceneOf(spec: Spec, items: Item[], P: Palette, T: Pairing, layoutName: 
 
 export interface Solved { scene: Scene; tried: number; failures: Failure[]; }
 
+/** True if these items pass 9.2 for the palette in use and rule 4 for every other palette of the style. */
+function passesAll(spec: Spec, m: Measure, P: Palette, T: Pairing, k: number, name: string): { first: Scene | null; failures: Failure[] } {
+  const palettes = [P, ...PALETTES[spec.style].filter((p) => p !== P)];
+  let first: Scene | null = null;
+  for (const Q of palettes) {
+    const items = build(spec, m, Q, T, k);
+    if (!items) return { first: null, failures: [{ rule: 0, part: '-', msg: 'text does not fit' }] };
+    const sc = sceneOf(spec, items, Q, T, name);
+    const f = check(sc, Q === P ? [1, 2, 3, 4, 5] : [4]);
+    if (f.length) return { first: null, failures: f };
+    if (!first) first = sc;
+  }
+  return { first, failures: [] };
+}
+
 /**
  * A candidate passes only if it passes for every palette of the style: so the colour seed can never
- * move a box (9.3). The fallback keeps the frame and shortens text to fit.
+ * move a box (9.3). The fallback keeps the frame and shortens text to fit. A picked layout or motif
+ * the fallback cannot carry is dropped (layout first, then motif), so the fallback always passes.
  */
 export function solve(spec: Spec, m: Measure): Solved {
   const P = choosePalette(spec), T = choosePairing(spec);
-  const palettes = [P, ...PALETTES[spec.style].filter((p) => p !== P)];
   let last: Failure[] = [];
   for (let k = 0; k < CANDIDATES; k++) {
-    let first: Scene | null = null, ok = true;
-    for (const Q of palettes) {
-      const items = build(spec, m, Q, T, k);
-      if (!items) { ok = false; last = [{ rule: 0, part: '-', msg: 'text does not fit' }]; break; }
-      const sc = sceneOf(spec, items, Q, T, 'c' + k);
-      const f = check(sc, Q === P ? [1, 2, 3, 4, 5] : [4]);
-      if (f.length) { ok = false; last = f; break; }
-      if (!first) first = sc;
-    }
-    if (ok && first) return { scene: first, tried: k + 1, failures: [] };
+    const r = passesAll(spec, m, P, T, k, 'c' + k);
+    if (r.first) return { scene: r.first, tried: k + 1, failures: [] };
+    last = r.failures;
   }
-  const items = build(spec, m, P, T, -1) ?? [];
-  const scene = sceneOf(spec, items, P, T, 'fallback');
-  return { scene, tried: CANDIDATES + 1, failures: last };
+  const tries: Spec[] = [spec];
+  if (spec.pick.layout) tries.push({ ...spec, pick: { ...spec.pick, layout: null } });
+  if (spec.pick.motif) tries.push({ ...spec, pick: { ...spec.pick, layout: null, motif: null } });
+  for (const s of tries.slice(0, -1)) {
+    const r = passesAll(s, m, P, T, -1, 'fallback');
+    if (r.first) return { scene: r.first, tried: CANDIDATES + 1, failures: last };
+  }
+  const items = build(tries[tries.length - 1], m, P, T, -1) ?? [];
+  return { scene: sceneOf(spec, items, P, T, 'fallback'), tried: CANDIDATES + 1, failures: last };
 }
 
 export function layout(spec: Spec, m: Measure): Scene {

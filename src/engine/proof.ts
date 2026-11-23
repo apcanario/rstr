@@ -5,6 +5,7 @@ import { solve } from './layout';
 import type { Measure } from './measure';
 import { mix } from './rng';
 import type { Item, Scene } from './scene';
+import { STYLES } from './styles';
 import { DEFAULT_TEXT, defaultSpec, SLOTS, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
 
 export const TITLES = { one: 'Signal', three: 'Signal and noise', eight: 'Eight plain words make a long poster title' };
@@ -29,20 +30,38 @@ export function seedSet(i: number): Spec['seeds'] {
   return { layout: mix(0x5eed, i * 4 + 1), colour: mix(0x5eed, i * 4 + 2), graphic: mix(0x5eed, i * 4 + 3), type: mix(0x5eed, i * 4 + 4) };
 }
 
-export interface Opts { styles?: StyleId[]; formats?: Format[]; modes?: Mode[]; n?: number; start?: number; }
+/**
+ * picks: 'none' runs unpicked specs only; 'each' runs, instead, one spec set per value of pick.layout and
+ * pick.motif the style lists. variants: 'all' runs every text variant on every seed set (spec 9.2);
+ * 'cycle' gives seed set i the variant i mod 9 (cheaper, for the independence run and picked specs).
+ */
+export interface Opts {
+  styles?: StyleId[]; formats?: Format[]; modes?: Mode[]; n?: number; start?: number;
+  picks?: 'none' | 'each'; variants?: 'all' | 'cycle';
+}
 export interface Report { count: number; fallbacks: number; failures: { spec: Spec; failures: Failure[] }[]; }
+
+type Pick = Partial<Spec['pick']>;
+/** One pick per value of pick.layout and pick.motif the style lists. */
+export function picksOf(style: StyleId): Pick[] {
+  const st = STYLES[style];
+  return [...st.layouts.map((layout) => ({ layout })), ...st.motifs.map((motif) => ({ motif }))];
+}
 
 export function* specs(o: Opts = {}): Generator<Spec> {
   const variants = textVariants();
+  const start = o.start ?? 0, n = o.n ?? 200;
   for (const style of o.styles ?? STYLE_IDS)
-    for (const format of o.formats ?? FORMAT_LIST)
-      for (const mode of o.modes ?? (['light', 'dark'] as Mode[]))
-        for (let i = o.start ?? 0; i < (o.start ?? 0) + (o.n ?? 200); i++) {
-          const v = variants[i % variants.length];
-          const s = defaultSpec(seedSet(i));
-          s.style = style; s.format = format; s.mode = mode; s.text = structuredClone(v.text);
-          yield s;
-        }
+    for (const pk of o.picks === 'each' ? picksOf(style) : [{} as Pick])
+      for (const format of o.formats ?? FORMAT_LIST)
+        for (const mode of o.modes ?? (['light', 'dark'] as Mode[]))
+          for (let i = start; i < start + n; i++)
+            for (const v of o.variants === 'cycle' ? [variants[i % variants.length]] : variants) {
+              const s = defaultSpec(seedSet(i));
+              s.style = style; s.format = format; s.mode = mode; s.text = structuredClone(v.text);
+              s.pick = { ...s.pick, ...pk };
+              yield s;
+            }
 }
 
 /** 9.2 rules 1 to 5 on the final Scene of every spec. */

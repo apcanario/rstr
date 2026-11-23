@@ -10,7 +10,7 @@ header { display: flex; align-items: center; justify-content: space-between; hei
 .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #131316; border-radius: 14px; padding: 10px; }
 .stage canvas { max-width: 100%; max-height: 100%; display: block; box-shadow: 0 6px 30px #0009; }
 .seg { display: flex; flex: none; gap: 3px; background: #131316; border-radius: 12px; padding: 3px; }
-.seg button { flex: 1; min-width: 0; height: 48px; border-radius: 9px; font-size: 14px; font-weight: 500; color: #f1efe9aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seg button { flex: 1 1 auto; min-width: 48px; height: 48px; padding: 0 8px; border-radius: 9px; font-size: 14px; font-weight: 500; color: #f1efe9aa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 380px) { .seg button { font-size: 12.5px; letter-spacing: -0.01em; } }
 .seg button.on { background: #ff6b6b; color: #0a0a0c; font-weight: 700; }
 .go { display: flex; gap: 8px; flex: none; }

@@ -30,7 +30,7 @@ function paintRect(ctx: Ctx, it: RectItem) {
   ctx.restore();
 }
 
-function paintText(ctx: Ctx, it: TextItem) {
+export function paintText(ctx: Ctx, it: TextItem) {
   ctx.save();
   place(ctx, it.xf);
   if (it.clip) { ctx.beginPath(); ctx.rect(it.clip.x, it.clip.y, it.clip.w, it.clip.h); ctx.clip(); }
@@ -97,7 +97,7 @@ function layer(w: number, h: number): Ctx | null {
   return null;
 }
 
-function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null) {
+function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, noLayer = false) {
   const draw = GRAPHICS[it.name];
   if (!draw) return;
   const T = clock(t);
@@ -110,8 +110,18 @@ function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null) {
   };
   if (!it.avoid?.length) { run(ctx); return; }
   // draw on a layer, cut the text holes out, then lay it down
-  const L = layer(scene.w, scene.h);
-  if (!L) { run(ctx); return; }
+  const L = noLayer ? null : layer(scene.w, scene.h);
+  if (!L) {
+    // no layer to cut from: clip the whole canvas minus every avoided box (even-odd), so nothing lies behind the text
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, scene.w, scene.h);
+    for (const q of it.avoid) quadPath(ctx, q);
+    ctx.clip('evenodd');
+    run(ctx);
+    ctx.restore();
+    return;
+  }
   run(L);
   L.save();
   L.globalCompositeOperation = 'destination-out';
@@ -131,7 +141,14 @@ function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null) {
   ctx.drawImage(L.canvas as CanvasImageSource, 0, 0);
 }
 
-export function paint(ctx: Ctx, scene: Scene, t: Time | null = null) {
+export interface PaintOpts {
+  /** Paint no text items (the knock proof reads what lies under the text). */
+  noText?: boolean;
+  /** Take the no-layer path for knock-outs, as on a platform without offscreen canvases. */
+  noLayer?: boolean;
+}
+
+export function paint(ctx: Ctx, scene: Scene, t: Time | null = null, o: PaintOpts = {}) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
@@ -139,7 +156,7 @@ export function paint(ctx: Ctx, scene: Scene, t: Time | null = null) {
   ctx.fillRect(0, 0, scene.w, scene.h);
   for (const it of scene.items) {
     if (it.kind === 'rect') paintRect(ctx, it);
-    else if (it.kind === 'text') paintText(ctx, it);
-    else paintGraphic(ctx, it, scene, t);
+    else if (it.kind === 'text') { if (!o.noText) paintText(ctx, it); }
+    else paintGraphic(ctx, it, scene, t, o.noLayer);
   }
 }

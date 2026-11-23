@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { contrast, firstInk, needRatio } from '../src/engine/colour';
 import { contains, overlaps, rectQuad } from '../src/engine/geom';
-import { check } from '../src/engine/invariants';
+import { check, OUTLINE_MIN } from '../src/engine/invariants';
 import { mkGraphic, mkRect, mkText } from '../src/engine/items';
 import { layout } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
@@ -112,6 +112,20 @@ describe('the 9.2 checker catches each rule', () => {
     expect(check(base([txt(100, 200, '#EEEEEE')])).map((f) => f.rule)).toContain(4);
     expect(check(base([mkRect({ x: 50, y: 100, w: 400, h: 200 }, '#111111', { plate: true }), txt(100, 200, '#FFFFFF')]))).toEqual([]);
     expect(check(base([mkGraphic('disc', { x: 0, y: 0, w: 400, h: 400 }, 1, 0, {}, ['#222222']), txt(100, 200)])).map((f) => f.rule)).toContain(4);
+  });
+  test('4: ink is derived from the paint, not from what the item claims', () => {
+    // a fill that fails on white, claimed ink that passes: the checker reads the fill
+    const lie = mkText(m, { slot: 'title', part: 'lie', font, size: 80, runs: [{ s: 'Hello', x: 100, y: 200 }], fill: '#F0F0F0', ink: ['#000000'], min: 30 });
+    expect(check(base([lie])).map((f) => f.rule)).toContain(4);
+    // a gradient fill with one failing stop fails
+    const grad = mkText(m, { slot: 'title', part: 'grad', font, size: 80, runs: [{ s: 'Hello', x: 100, y: 200 }], fill: { kind: 'linear', em: true, x0: 0, y0: -0.75, x1: 0, y1: 0, stops: [[0, '#000000'], [1, '#F6EBFF']] }, ink: ['#000000'], min: 30 });
+    expect(check(base([grad])).map((f) => f.rule)).toContain(4);
+    // the same failing fill inside a dark outline of 4% of the size passes: the outline carries it
+    const ok = mkText(m, { slot: 'title', part: 'ok', font, size: 100, runs: [{ s: 'Hello', x: 100, y: 200 }], fill: '#F6EBFF', stroke: { paint: '#000000', width: 100 * OUTLINE_MIN }, ink: ['#000000'], min: 30 });
+    expect(check(base([ok]))).toEqual([]);
+    // an outline thinner than OUTLINE_MIN does not: the fill is checked
+    const thin = mkText(m, { slot: 'title', part: 'thin', font, size: 100, runs: [{ s: 'Hello', x: 100, y: 200 }], fill: '#F6EBFF', stroke: { paint: '#000000', width: 2.2 }, ink: ['#000000'], min: 30 });
+    expect(check(base([thin])).map((f) => f.rule)).toContain(4);
   });
   test('5: under the minimum size', () => expect(check(base([txt(100, 200, '#000000', 20)])).map((f) => f.rule)).toContain(5));
 });

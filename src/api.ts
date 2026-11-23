@@ -4,8 +4,9 @@ import { render, scene } from './engine';
 import { check } from './engine/invariants';
 import { solve } from './engine/layout';
 import { browserMeasure } from './engine';
-import { runIndependence, runInvariants, type Opts } from './engine/proof';
-import { migrate, type Spec } from './engine/spec';
+import { picksOf, runIndependence, runInvariants, type Opts } from './engine/proof';
+import { knockLeak, pixelHash } from './engine/pixels';
+import { migrate, type Spec, type StyleId } from './engine/spec';
 
 export function installApi(ready: Promise<void>, current: () => Spec) {
   const api = {
@@ -27,13 +28,13 @@ export function installApi(ready: Promise<void>, current: () => Spec) {
     pixels(raw: unknown): string {
       const c = document.createElement('canvas');
       render(c, migrate(raw));
-      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-      let h = 2166136261;
-      for (let i = 0; i < d.length; i++) { h ^= d[i]; h = Math.imul(h, 16777619); }
-      return (h >>> 0).toString(16) + ':' + d.length;
+      return pixelHash(c);
     },
+    /** Marker-colour pixels of knocked-out graphics found inside text masks, with and without the offscreen layer. */
+    knock: (raw: unknown) => ({ layer: knockLeak(migrate(raw)), noLayer: knockLeak(migrate(raw), true) }),
     proof: {
       invariants: (o: Opts) => runInvariants(browserMeasure(), o),
+      picks: (style: StyleId) => picksOf(style),
       independence: (o: Opts) => runIndependence(browserMeasure(), o),
     },
   };

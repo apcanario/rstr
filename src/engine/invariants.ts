@@ -20,6 +20,23 @@ export function sample(p: Paint, q: Quad): string[] {
   return [at(t0), at(t1), ...p.stops.filter(([t]) => t > t0 && t < t1).map(([, c]) => c)];
 }
 
+/** Every colour a paint can show: the colour, or each stop of a gradient. */
+export const coloursOf = (p: Paint): string[] => (typeof p === 'string' ? [p] : p.stops.map(([, c]) => c));
+
+/** An outline at least this wide (as a share of the type size) carries legibility on its own. */
+export const OUTLINE_MIN = 0.04;
+
+/**
+ * The colours that carry a text item's legibility, derived from what is painted, never from what a style
+ * claims: the outline's colours if the item has an outline at least OUTLINE_MIN of its size wide (the
+ * fill inside it is then not checked), else every colour of the fill. Echoes are offset copies of the
+ * text itself and count as its own ink, not as background (changelog, R1 Choices).
+ */
+export function inkOf(t: TextItem): string[] {
+  if (t.stroke && t.stroke.width >= OUTLINE_MIN * t.size - 1e-9) return coloursOf(t.stroke.paint);
+  return coloursOf(t.fill);
+}
+
 const avoided = (it: Item, q: Quad) => it.kind === 'graphic' && !!it.avoid?.some((a) => contains(a, q));
 
 /** Every colour that can sit directly behind text item i. */
@@ -69,7 +86,7 @@ export function check(scene: Scene, rules: number[] = [1, 2, 3, 4, 5]): Failure[
     }
     if (rules.includes(4)) {
       const bg = behind(scene, i), need = needRatio(t.px);
-      for (const c of t.ink) for (const b of bg) {
+      for (const c of inkOf(t)) for (const b of bg) {
         const r = contrast(c, b);
         if (r < need - 1e-6) { f.push({ rule: 4, part: name, msg: `contrast ${r.toFixed(2)} < ${need} (${c} on ${b})` }); break; }
       }
