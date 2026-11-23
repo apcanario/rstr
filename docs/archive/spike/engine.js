@@ -3,7 +3,7 @@
   'use strict';
   const FORMATS = { '1:1': [1080, 1080], '3:4': [1080, 1440], '9:16': [1080, 1920] };
   const F = { sans: '"ID Sans"', disp: '"ID Display"', serif: '"ID Serif"', mono: '"ID Mono"', heavy: '"ID Heavy"', black: '"ID Black"', wide: '"ID Wide"', pixel: '"ID Pixel"' };
-  const MOTIFS = ['topo', 'blocks', 'bars', 'dots', 'disc'];
+  const MOTIFS = ['topo', 'blocks', 'bars', 'dots', 'disc', 'lines'];
   const PAL = {
     swiss: [
       { name: 'Paper', bg: '#F2EFE8', ink: '#161616', a: '#E4002B', b: '#161616' },
@@ -25,6 +25,13 @@
       { name: 'Night', g: ['#05010F', '#1B0B4B', '#5B1E9E', '#FF2E97'], floor: '#07020F', ink: '#FFFFFF', a: '#FF2E97', b: '#05FFA1', c: '#FFE66D', dark: true },
       { name: 'Miami', g: ['#00A6FB', '#7BDFF2', '#F7AEF8', '#FDE2A8'], floor: '#2A0A5E', ink: '#FFFFFF', a: '#FF5DA2', b: '#00F5D4', c: '#FFF275', dark: true },
       { name: 'Mint', g: ['#C9FFF2', '#D9E8FF', '#FFD6F6', '#FFF3C4'], floor: '#F6EBFF', ink: '#2B1055', a: '#FF5DA2', b: '#7A5CFF', c: '#00B8A9', dark: false }
+    ],
+    grunge: [
+      { name: 'Paper', bg: '#E7E2D6', ink: '#0E0E0E', a: '#D7261E' },
+      { name: 'Xerox', bg: '#D9D7D0', ink: '#111111', a: '#111111' },
+      { name: 'Acid', bg: '#101010', ink: '#E9E6DC', a: '#D9FF2F' },
+      { name: 'Ink blue', bg: '#E7E2D6', ink: '#101010', a: '#1C3FD1' },
+      { name: 'Rust', bg: '#D8D0BE', ink: '#151210', a: '#C4501B' }
     ],
     pomo: [
       { name: 'Milano', bg: '#F3EAD8', ink: '#141414', a: '#FF4F9A', b: '#00A7A0', c: '#FFD23F' },
@@ -105,7 +112,7 @@
       }
       f[j * nx + i] = z; if (z < lo) lo = z; if (z > hi) hi = z;
     }
-    const levels = 13 + Math.floor(r() * 6), every = 4;
+    const bold = pick(r, [1, 1, 1, 2.6, 5]), levels = bold > 2 ? 5 + Math.floor(r() * 4) : 13 + Math.floor(r() * 6), every = bold > 2 ? 2 : 4;
     ctx.lineCap = 'round';
     for (let k = 1; k < levels; k++) {
       const L = lo + (hi - lo) * k / levels, index = k % every === 0;
@@ -130,7 +137,7 @@
         }
       }
       ctx.strokeStyle = index ? C.hi : C.line;
-      ctx.lineWidth = W * (index ? 0.0046 : 0.0019);
+      ctx.lineWidth = W * (bold > 2 ? 0.0032 : (index ? 0.0046 : 0.0019)) * bold;
       ctx.stroke();
     }
   }
@@ -168,7 +175,7 @@
     ctx.restore();
   }
   function dots(ctx, R, r, C, T, W, mod) {
-    const step = mod / 3, fx0 = r(), fy0 = r(), inv = r() < 0.4;
+    const step = mod / pick(r, [4, 3, 3, 2, 1.25, 0.85]), fx0 = r(), fy0 = r(), inv = r() < 0.4;
     const fx = R.x + R.w * (fx0 + 0.12 * Math.cos(TAU * T.ph)), fy = R.y + R.h * (fy0 + 0.12 * Math.sin(TAU * T.ph));
     const maxd = Math.hypot(R.w, R.h) * 0.75, e = T.rev(0);
     ctx.fillStyle = C.a;
@@ -185,20 +192,40 @@
     const a2 = r() * TAU + TAU * T.ph * (T.on ? 1 : 0), r2 = m * (0.07 + r() * 0.07) * T.rev(1.5);
     ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(cx + Math.cos(a2) * rad * 0.98, cy + Math.sin(a2) * rad * 0.98, r2, 0, TAU); ctx.fill();
   }
-  const MOTIF_FN = { topo, blocks, bars, dots, disc };
+  function lines(ctx, R, r, C, T, W) {
+    const vert = r() < 0.5, n = 5 + Math.floor(r() * 16), grow = r() < 0.6, pitch = (vert ? R.w : R.h) / n;
+    for (let i = 0; i < n; i++) {
+      const k = grow ? (i + 1) / n : 1 - i / n, th = pitch * (0.06 + 0.86 * k) * T.rev(i * 0.1);
+      ctx.fillStyle = (i % 5 === 4) ? C.ink : C.a;
+      if (vert) ctx.fillRect(R.x + i * pitch, R.y, th, R.h); else ctx.fillRect(R.x, R.y + i * pitch, R.w, th);
+    }
+  }
+  const MOTIF_FN = { topo, blocks, bars, dots, disc, lines };
 
   /* ---------- SWISS ---------- */
   function swiss(ctx, W, H, spec, T) {
+    const rt = rng((spec.seeds.layout ^ 0x9E3779B9) >>> 0);
+    const tilt = spec.tilt != null ? spec.tilt : (rt() < 0.34 ? pick(rt, [-14, -9, 9, 14, -90]) : 0);
+    if (!tilt) return swissCore(ctx, W, H, spec, T, 0);
+    if (tilt === -90) {                       // the whole layout turned a quarter, read from the side
+      ctx.save(); ctx.translate(0, H); ctx.rotate(-Math.PI / 2);
+      const P9 = swissCore(ctx, H, W, Object.assign({}, spec, { format: 'side' }), T, 0); ctx.restore(); return P9;
+    }
+    const a = tilt * Math.PI / 180, c = Math.abs(Math.cos(a)), sn = Math.abs(Math.sin(a)), k = Math.min(W / (W * c + H * sn), H / (W * sn + H * c));
+    ctx.save(); ctx.translate(W / 2, H / 2); ctx.rotate(a); ctx.scale(k, k); ctx.translate(-W / 2, -H / 2);
+    const P = swissCore(ctx, W, H, spec, T, tilt); ctx.restore(); return P;
+  }
+  function swissCore(ctx, W, H, spec, T, tilt) {
     const rl = rng(spec.seeds.layout), rc = rng(spec.seeds.colour), rm = rng(spec.seeds.motif);
     const P = PAL.swiss[spec.palette != null ? spec.palette : Math.floor(rc() * PAL.swiss.length)];
     const story = spec.format === '9:16';
     const M = Math.round(W * 0.0667), cols = 6, mod = (W - 2 * M) / cols, G = Math.round(W * 0.028);
     const top = M + (story ? H * 0.085 : 0), bot = H - M - (story ? H * 0.1 : 0), innerH = bot - top;
     const arche = spec.layout != null ? spec.layout : Math.floor(rl() * 3);
-    const axis = pick(rl, [0, 0, 1, 2]);
+    const axis = pick(rl, [0, 0, 1, 2]), big = pick(rl, [0.55, 1, 1, 1.5]);
     const motif = spec.motif || pick(rm, MOTIFS);
     const tx = spec.text, any = ['title', 'subtitle', 'info', 'caption'].some(k => tx[k].on);
-    ctx.fillStyle = P.bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = P.bg; ctx.fillRect(-W * 2, -H * 2, W * 5, H * 5);
 
     let MR, TR, panel = null;
     if (!any) MR = { x: 0, y: 0, w: W, h: H };
@@ -218,6 +245,8 @@
         TR = { x: M, y: top, w: W - 2 * M, h: innerH - mh - G * 1.4 };
       }
     }
+    if (tilt) for (const B of [MR, panel]) { if (!B) continue; const l = B.x <= 0, r_ = B.x + B.w >= W - 1, t_ = B.y <= 0, b_ = B.y + B.h >= H - 1;
+      if (l) { B.x -= W; B.w += W; } if (r_) B.w += W; if (t_) { B.y -= H; B.h += H; } if (b_) B.h += H; }
     // motif
     const invert = motif === 'topo' ? rm() < 0.45 : false;
     ctx.save(); ctx.beginPath(); ctx.rect(MR.x, MR.y, MR.w, MR.h); ctx.clip();
@@ -226,6 +255,18 @@
       ? (invert ? { line: P.bg, hi: P.bg } : { line: P.ink, hi: P.a })
       : { a: P.a, b: P.b, ink: P.ink, bg: P.bg };
     MOTIF_FN[motif](ctx, MR, rm, C, T, W, mod);
+    if (spec.combo !== false && rm() < 0.62) {          // a second approach cut into the first
+      const m2 = pick(rm, MOTIFS.filter(m => m !== motif)), shape = Math.floor(rm() * 3), plate = pick(rm, [P.a, P.ink, P.bg]);
+      const vx = Math.max(MR.x, 0), vy = Math.max(MR.y, 0), vw = Math.min(MR.x + MR.w, W) - vx, vh = Math.min(MR.y + MR.h, H) - vy, mm = Math.min(vw, vh);
+      let R2; ctx.save(); ctx.beginPath();
+      if (shape === 0) { const r = mm * (0.24 + rm() * 0.22), cx = vx + vw * (0.25 + rm() * 0.5), cy = vy + vh * (0.3 + rm() * 0.4); ctx.arc(cx, cy, r, 0, TAU); R2 = { x: cx - r, y: cy - r, w: 2 * r, h: 2 * r }; }
+      else if (shape === 1) { const c0 = Math.floor(rm() * 4), cw = 1 + Math.floor(rm() * 3); R2 = { x: M + c0 * mod, y: MR.y, w: cw * mod, h: MR.h }; ctx.rect(R2.x, R2.y, R2.w, R2.h); }
+      else { R2 = { x: MR.x, y: vy + vh * (0.2 + rm() * 0.4), w: MR.w, h: Math.max(mod, Math.round(vh * (0.2 + rm() * 0.2) / mod) * mod) }; ctx.rect(R2.x, R2.y, R2.w, R2.h); }
+      ctx.clip(); ctx.fillStyle = plate; ctx.fillRect(R2.x, R2.y, R2.w, R2.h);
+      const C2 = m2 === 'topo' ? { line: plate === P.bg ? P.ink : P.bg, hi: plate === P.a ? P.ink : P.a }
+        : { a: plate === P.a ? P.ink : P.a, b: P.b, ink: plate === P.ink ? P.bg : P.ink, bg: plate };
+      MOTIF_FN[m2](ctx, R2, rm, C2, T, W, mod); ctx.restore();
+    }
     ctx.restore();
     if (!any) return P;
     if (panel) { ctx.fillStyle = P.bg; ctx.fillRect(panel.x, panel.y, panel.w, panel.h); }
@@ -259,7 +300,7 @@
     const subS = Math.round(W * 0.036);
     if (tx.title.on) {
       const maxH = room - (tx.subtitle.on ? subS * 1.3 + G : 0);
-      const t = fit(ctx, tx.title.v, F.sans, 800, aw, maxH, Math.round(W * 0.15), 30, 0.94, 3);
+      const t = fit(ctx, tx.title.v, F.sans, 800, aw, maxH, Math.round(W * 0.15 * big), 30, 0.94, big < 1 ? 2 : 4);
       t.lines.forEach((l, i) => {
         const e = T.rev(0.6 + i * 0.5), ly = y + t.size * 0.76 + i * t.size * 0.94;
         ctx.save(); ctx.beginPath(); ctx.rect(0, ly - t.size * 0.8, W, t.size * 1.02); ctx.clip();
@@ -514,10 +555,92 @@
     return P;
   }
 
+  /* ---------- GRUNGE POSTMODERN: cut, paste, photocopy ---------- */
+  function photocopy(ctx, W, H, r, amt) {
+    const im = ctx.getImageData(0, 0, W, H), d = im.data, streak = new Float32Array(H);
+    for (let y = 0; y < H; y++) streak[y] = r() < 0.03 ? -(8 + r() * 46) : 0;
+    const eL = r() < 0.55 ? W * (0.02 + r() * 0.06) : 0, eR = r() < 0.55 ? W * (0.02 + r() * 0.06) : 0, eT = r() < 0.4 ? H * (0.012 + r() * 0.03) : 0;
+    let s = ((r() * 4294967296) >>> 0) || 1;
+    for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i += 4) {
+      s ^= s << 13; s ^= s >>> 17; s ^= s << 5; const n = (s >>> 0) / 4294967296;
+      let v = (n - 0.5) * 78 * amt + streak[y];
+      if (n > 0.9986) v += 150; else if (n < 0.0012) v -= 180;
+      if (x < eL) v -= 255 * Math.pow(1 - x / eL, 1.4) * (0.5 + n); if (x > W - eR) v -= 255 * Math.pow(1 - (W - x) / eR, 1.4) * (0.5 + n); if (y < eT) v -= 255 * Math.pow(1 - y / eT, 1.4) * (0.5 + n);
+      for (let c = 0; c < 3; c++) { const p = (d[i + c] - 128) * 1.14 + 128 + v; d[i + c] = p < 0 ? 0 : p > 255 ? 255 : p; }
+    }
+    ctx.putImageData(im, 0, 0);
+  }
+  function grunge(ctx, W, H, spec, T) {
+    const rl = rng(spec.seeds.layout), rc = rng(spec.seeds.colour), rm = rng(spec.seeds.motif);
+    const P = PAL.grunge[spec.palette != null ? spec.palette : Math.floor(rc() * PAL.grunge.length)];
+    const story = spec.format === '9:16', M = Math.round(W * 0.05), tx = spec.text, iw = W - 2 * M;
+    const top = M + (story ? H * 0.1 : 0), bot = H - M - (story ? H * 0.125 : 0);
+    ctx.fillStyle = P.bg; ctx.fillRect(0, 0, W, H); ctx.textBaseline = 'alphabetic';
+    // layer 1: found graphics
+    const kinds = ['slab', 'half', 'topo', 'scribble', 'tape', 'x', 'lines', 'half', 'topo'].sort(() => rm() - 0.5).slice(0, 4 + Math.floor(rm() * 2));
+    for (const k of kinds) {
+      ctx.save();
+      if (k === 'slab') { ctx.translate(rm() * W, rm() * H); ctx.rotate((rm() - 0.5) * 0.5); ctx.fillStyle = rm() < 0.3 ? P.a : P.ink; const w = W * (0.4 + rm() * 0.6), h = H * (0.06 + rm() * 0.2); ctx.fillRect(-w / 2, -h / 2, w, h); }
+      else if (k === 'half') { const r = W * (0.2 + rm() * 0.3), cx = rm() * W, cy = top + rm() * (bot - top); ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.clip(); dots(ctx, { x: cx - r, y: cy - r, w: 2 * r, h: 2 * r }, rm, { a: rm() < 0.3 ? P.a : P.ink }, T, W, W / 7); }
+      else if (k === 'topo') { ctx.globalAlpha = 0.55; topo(ctx, { x: 0, y: rm() * H * 0.5, w: W, h: H * 0.6 }, rm, { line: P.ink, hi: P.ink }, T, W); }
+      else if (k === 'scribble') { ctx.strokeStyle = rm() < 0.4 ? P.a : P.ink; ctx.lineWidth = W * (0.004 + rm() * 0.008); ctx.lineJoin = 'round'; ctx.beginPath(); let x = rm() * W, y = rm() * H; ctx.moveTo(x, y); for (let i = 0; i < 46; i++) { x += (rm() - 0.5) * W * 0.3; y += (rm() - 0.5) * W * 0.12; ctx.lineTo(x, y); } ctx.stroke(); }
+      else if (k === 'tape') { for (let i = 0; i < 2; i++) { ctx.save(); ctx.translate(rm() * W, rm() * H); ctx.rotate((rm() - 0.5) * 1.6); ctx.globalAlpha = 0.8; ctx.fillStyle = '#D8C98A'; ctx.fillRect(-W * 0.16, -W * 0.035, W * 0.32, W * 0.07); ctx.restore(); } }
+      else if (k === 'x') { ctx.strokeStyle = P.ink; ctx.lineCap = 'square'; for (let i = 0; i < 5; i++) { const x = rm() * W, y = rm() * H, q = W * (0.02 + rm() * 0.05); ctx.lineWidth = q * 0.3; ctx.beginPath(); ctx.moveTo(x - q, y - q); ctx.lineTo(x + q, y + q); ctx.moveTo(x + q, y - q); ctx.lineTo(x - q, y + q); ctx.stroke(); } }
+      else { ctx.translate(W / 2, H / 2); ctx.rotate((rm() - 0.5) * 0.3); ctx.translate(-W / 2, -H / 2); lines(ctx, { x: rm() * W * 0.5, y: rm() * H * 0.6, w: W * (0.3 + rm() * 0.5), h: H * (0.15 + rm() * 0.25) }, rm, { a: P.ink, ink: P.a }, T, W); }
+      ctx.restore();
+    }
+    // title: every word its own face, size and attitude
+    const reserve = (tx.subtitle.on ? W * 0.15 : 0) + (tx.info.on ? W * 0.17 : 0) + W * 0.02;
+    let y = top + W * 0.02;
+    if (tx.title.on) {
+      const words = tx.title.v.split(/\s+/), Ht = bot - top - reserve, fams = [[F.heavy, 400, 0], [F.black, 400, 0], [F.serif, 400, 1], [F.disp, 800, 0], [F.heavy, 400, 0]];
+      const s0 = clamp(Ht / (words.length * 0.8), W * 0.11, W * 0.46), hot = Math.floor(rl() * words.length), boxed = Math.floor(rl() * words.length), cut = Math.floor(rl() * words.length);
+      const plan = words.map(w0 => { const f = pick(rl, fams), up = f[2] ? w0 : (rl() < 0.75 ? w0.toUpperCase() : w0.toLowerCase()); let size = s0 * pick(rl, [0.62, 0.85, 1, 1.25, 1.6]); font(ctx, f[0], size, f[1], f[2]); let w = ctx.measureText(up).width; if (w > W * 1.06) { size *= W * 1.06 / w; w = W * 1.06; } return { f, up, size, w }; });
+      const natural = plan.reduce((a, p) => a + p.size * 0.74, 0), kf = Math.min(1, Ht / natural);
+      plan.forEach((p, i) => {
+        const size = p.size * kf, w = p.w * kf, x = w < iw ? M + rl() * (iw - w) : (W - w) / 2, rot = (rl() - 0.5) * 0.11, e = T.rev(0.6 + i * 0.4);
+        y += size * 0.74; ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.globalAlpha = e; font(ctx, p.f[0], size, p.f[1], p.f[2]);
+        if (i === boxed && i !== hot) { ctx.fillStyle = P.ink; ctx.fillRect(-size * 0.08, -size * 0.8, w + size * 0.16, size * 0.96); ctx.fillStyle = P.bg; ctx.fillText(p.up, 0, 0); }
+        else {
+          if (i === hot) { ctx.fillStyle = P.a; ctx.globalAlpha = 0.75 * e; ctx.fillText(p.up, size * 0.05, size * 0.045); ctx.globalAlpha = e; }
+          ctx.lineJoin = 'round'; ctx.strokeStyle = P.bg; ctx.lineWidth = size * 0.075; ctx.strokeText(p.up, 0, 0);
+          ctx.fillStyle = P.ink;
+          if (i === cut) { const sh = size * (0.05 + rl() * 0.07); ctx.save(); ctx.beginPath(); ctx.rect(-W, -size, W * 3, size * 0.58); ctx.clip(); ctx.fillText(p.up, 0, 0); ctx.restore(); ctx.save(); ctx.beginPath(); ctx.rect(-W, -size * 0.4, W * 3, size); ctx.clip(); ctx.fillText(p.up, sh, size * 0.02); ctx.restore(); }
+          else ctx.fillText(p.up, 0, 0);
+        }
+        ctx.restore();
+      });
+      y += W * 0.035;
+    }
+    if (tx.subtitle.on) {   // cut-out strips, two words each
+      const w2 = tx.subtitle.v.toUpperCase().split(/\s+/), fs = Math.round(W * 0.034); let sx = M + rl() * W * 0.12;
+      for (let i = 0; i < w2.length; i += 2) {
+        const str = w2.slice(i, i + 2).join(' '); font(ctx, F.mono, fs, 400); const w = spacedW(ctx, str, fs * 0.06) + fs;
+        if (sx + w > W - M) sx = M; ctx.save(); ctx.translate(sx, y + (i / 2) * fs * 1.5); ctx.rotate((rl() - 0.5) * 0.08); ctx.globalAlpha = T.rev(2.5 + i * 0.2);
+        ctx.fillStyle = i === 0 && P.a !== P.ink ? P.a : '#F4F1E8'; ctx.fillRect(0, -fs * 1.05, w, fs * 1.45); ctx.fillStyle = '#0E0E0E'; spaced(ctx, str, fs * 0.5, 0, fs * 0.06); ctx.restore();
+        sx += W * 0.09;
+      }
+    }
+    if (tx.info.on) {
+      const items = tx.info.v.slice(0, 3), fs = Math.round(W * 0.024); font(ctx, F.mono, fs, 400);
+      const bw = Math.max.apply(null, items.map(i => ctx.measureText(i.k.toUpperCase() + ' ' + i.v).width)) + fs * 1.4, bh = items.length * fs * 1.25 + fs * 1.1;
+      ctx.save(); ctx.translate(W - M - bw - rl() * W * 0.06, bot - bh - (tx.caption.on ? fs * 1.2 : 0)); ctx.rotate((rl() - 0.5) * 0.07); ctx.globalAlpha = T.rev(3.2);
+      ctx.fillStyle = '#F4F1E8'; ctx.fillRect(0, 0, bw, bh); ctx.fillStyle = '#0E0E0E'; ctx.fillRect(0, 0, bw, fs * 0.28);
+      items.forEach((it, i) => ctx.fillText(it.k.toUpperCase() + ' ' + it.v, fs * 0.7, fs * 1.5 + i * fs * 1.25)); ctx.restore();
+    }
+    if (tx.caption.on) {
+      const fs = Math.round(W * 0.018); font(ctx, F.mono, fs, 400); const str = tx.caption.v.toUpperCase();
+      for (let i = 0; i < 3; i++) { ctx.globalAlpha = T.rev(4) * (1 - i * 0.3); ctx.fillStyle = P.ink; ctx.fillText(str, M + i * fs * 0.5, bot - i * fs * 1.15); }
+      ctx.globalAlpha = 1;
+    }
+    photocopy(ctx, W, H, rm, 1);
+    return P;
+  }
+
   function render(ctx, spec, t) {
     const d = FORMATS[spec.format];
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
-    return ({ pomo, brutal, vapor }[spec.style] || swiss)(ctx, d[0], d[1], spec, clock(t));
+    return ({ pomo, brutal, vapor, grunge }[spec.style] || swiss)(ctx, d[0], d[1], spec, clock(t));
   }
   function randomSeeds(prev, locks) {
     const n = () => (Math.random() * 0xFFFFFFFF) >>> 0, p = prev || {}, l = locks || {};

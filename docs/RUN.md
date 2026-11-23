@@ -37,9 +37,9 @@ Before any row: Pedro's `Notes:` line if there is one, then the **Carried** list
 ## 4. Close the row
 
 1. The chat runs `npm run check`, `npm run smoke` and `npm run sheet` itself. The first two must pass.
-2. Update `docs/BACKLOG.md`: move the row to Done. Add anything found but not fixed to **Carried**, with the row it belongs to.
+2. Update `docs/BACKLOG.md`: move the row to Done as one line (id, title, date closed, how many chats it took, link to its review file). Add anything found but not fixed to **Carried**, with an id, the date, the row that found it and the row that should fix it. A Carried item is removed only by the row that fixes it, and that row's changelog entry names it. Nothing leaves the backlog without a trace in the changelog.
 3. Update `README.md` as `CLAUDE.md` says.
-4. Add the row to `docs/CHANGELOG.md`: date, row, models that ran, what changed, script results, choices taken.
+4. Add the row to `docs/CHANGELOG.md`: date, row, the model each agent actually ran as, what changed (files and behaviour), the review (verdict, counts of error, should-fix and minor, how many applied, each one rejected and why, rebuilds), script results with test counts and anything flaky, choices taken, and which Carried items the row cleared or added, by id. Do not shorten an entry to save room; a thin entry is a defect.
 5. Commit and push `main`. Check the Pages deploy if the session can see it; if it cannot, say it is unverified.
 6. Start the next row. Each row is pushed before the next begins.
 
@@ -53,6 +53,14 @@ After the last row is pushed, one more fresh agent, the **viewer**, checks the b
 - The reviewer checks that every Done-when line marked "(tested)" has a test that would fail if the line were false.
 - If the chat is running out of room, it stops after closing the current row (never mid-row) and gives the reply. The same starter resumes at the next row.
 - A row is never skipped. If a row cannot be finished, the chat stops there and says why.
+
+## 4e. The plan page
+
+`docs/plan.html` is the plan as one page, the same page Pedro reads as an artifact. When a bundle closes, the chat changes that session's state tag in section 07 of the page (`Queued` or `Next` to `Done`, with the date, and the next one to `Next`) and nothing else in the file. A design chat that changes the plan rebuilds the page and replaces the file.
+
+## 4d. The process log
+
+Before its last push, every chat adds its entry to `docs/PROCESS.md` in the format and under the rules given there: what actually ran, every agent in order, every verdict, every failure, Pedro's words verbatim, nothing estimated. A chat that stops early writes its entry before stopping. The first build chat after this section lands (bundle 2) also writes the entry for bundle 1 from what the changelog, the review files and `git log` show, and marks it as reconstructed.
 
 ## 5. The reply
 

@@ -5,10 +5,14 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 | Bundle | Rows | What you get |
 |---|---|---|
 | 1 | R1, R2, R3, R4 | The real engine, palettes with light and dark, 42 font pairings fetched online, the app frame and Simple mode, live on Pages |
-| 2 | R5, R6, R7 | Swiss and Postmodern finished, the five finishes, the marks layer |
-| 3 | R8, R9, R10 | Brutalist, Vaporwave, Advanced mode |
-| 4 | R11, R12 | My palettes, own fonts, spec in and out; retouch from notes |
-| later | M, K | Motion, then photos, assets and kits. Each needs a Fable chat first (spec 11) |
+| 2 | R13, R5, R6, R7 | Styles rebuilt as parts with the variety rules; Swiss and both Postmodern dialects finished; five finishes; marks |
+| 3 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit |
+| 4 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print |
+| 5 | R17, R12 | Text layers with hierarchy; retouch from notes |
+| 6 | R18 | Mix: crosses of two styles (experimental, Advanced) |
+| later | M | Motion, then the APK. Needs a Fable chat first (spec 11) |
+
+Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they had when bundle 1's reviews and Carried items named them; R11 (my palettes, own fonts, spec in and out) was dropped on 23 Nov 2026; R13 to R18 are new.
 
 ## Carried
 
@@ -23,25 +27,38 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 ## By hand (Pedro)
 
 - **H3. Run the online type checks.** Where Google Fonts is reachable (your computer): `npm ci`, `npm run smoke`, `python3 tools/fetch_fonts.py --check`, `npm run sheet`; report the output or send it as `Notes:`. Detail in Carried R3. Open until done.
+- **H4. Try the A3 export on the phone** once bundle 4 lands: export a design with a photo and Grunge at Print size, and say whether it saves and how long it takes.
 - **H2. Look and use.** After each bundle, shuffle each style on the phone for a few minutes and send what is off in the next starter's `Notes:` line. Open until Pedro says done.
 
-## Bundle 2: Swiss, Postmodern, finishes
+## Bundle 2: parts, variety, Swiss, Postmodern, finishes
 
-Read spec 7 and 8.1, 8.2, 8.5, and `docs/design/elements.md`.
+Read spec 7, 8.0, 8.1, 8.2, 8.5, 8.7 and 9.4, `docs/design/elements.md`, and look at every `docs/design/refs/v2-*.jpg`. The spike in `docs/archive/spike/engine.js` holds a working version of the variety pass and the photocopy dialect: port the ideas, not the code.
+
+### R13. Parts and the variety engine
+
+- Split all four styles into the five parts of spec 8.7 behind one interface. A style becomes a named set of parts. No behaviour change yet for Brutalist and Vaporwave.
+- One shared graphics library: every graphic a module with at least three ranged parameters and `t`; add lines; ranges pushed to the extremes of spec 8.0.
+- The combination rule (second and third graphic cut in as disc, column, band or inside a block).
+- Transforms (tilt, quarter turn), depth layers with overlap and bleed, title size classes.
+- The three variety tests of spec 8.0 in the smoke run, reporting per style.
+
+**Done when:** no style file reaches into another part's internals (tested by an import rule); every graphic's parameters at both ends of their ranges pass 9.2 (tested); the variety tests run and report (they may still fail for a style until its own row; record the numbers); `check` and `smoke` pass.
 
 ### R5. Swiss, finished
 
-- The five layouts, the six new graphics, two or three positions per text slot (spec 8.1, 8.5).
-- A tuning pass: generate 200 designs, list the clumsy ones with their specs, tighten the rules until the list is short. Record what was tightened.
+- Eight layouts, twelve graphics, the positions per text slot (spec 8.1, 8.5), with tilt, quarter turn, combination and size classes on.
+- Fix the spike's weakness: a tilted layout keeps its title readable.
+- A tuning pass: generate 300 designs, list the clumsy ones with their specs, tighten the rules until the list is short. Record what was tightened.
 
-**Done when:** every layout and graphic passes 9.2 (tested); each layout and graphic appears on the sheets; the approved look in `docs/design/refs/swiss-*.jpg` is still reachable (the reference specs still draw recognisably the same designs). Whether it is good is Pedro's call.
+**Done when:** the three variety tests pass for Swiss (tested); every layout and graphic passes 9.2 (tested); a reviewer judges the sheets to be in the family of `refs/v2-swiss-*.jpg`, and the first approved look (`refs/swiss-*.jpg`) is still reachable. Whether it is good is Pedro's call.
 
-### R6. Postmodern, finished
+### R6. Postmodern, both dialects
 
-- The six new shapes, two more ground patterns, a second title treatment (letters on separate tiles), positions per slot (spec 8.2).
-- The same tuning pass as R5.
+- Ice cream: thirteen shapes, five ground patterns, the tile title treatment, positions per slot.
+- Photocopy: everything in spec 8.2, at least ten found graphics, the copier pass as part of the ground, the paper edge with its Advanced switch, the Dialect control.
+- The tuning pass for each dialect.
 
-**Done when:** as R5, against `docs/design/refs/pomo-*.jpg`; no shape is ever drawn over text (tested).
+**Done when:** the variety tests pass for Postmodern counting both dialects, and each dialect alone meets the 60-shuffle test (tested); no shape or found graphic is drawn over text in ice cream (tested); in photocopy every title word passes contrast with the paper edge on (tested); sheets match `refs/pomo-*.jpg` and `refs/v2-grunge-*.jpg` in character.
 
 ### R7. Finishes and marks
 
@@ -52,40 +69,84 @@ Read spec 7 and 8.1, 8.2, 8.5, and `docs/design/elements.md`.
 
 ## Bundle 3: Brutalist, Vaporwave, Advanced
 
-Read spec 8.3, 8.4 and 10.3.
+Read spec 5, 8.0, 8.3, 8.4 and 10.3.
 
 ### R8. Brutalist, finished
 
-- Everything in spec 8.3 including the R8 additions, at least 4 heavy pairings, the tuning pass.
+- Everything in spec 8.3: the layouts, heavy pairings, the shared graphics at their heaviest, the variety rules, the tuning pass.
 - Long titles: 8 words must still be heavy and legible.
 
-**Done when:** as R5, against `docs/design/refs/brutal-*.jpg`; every title line of four words or fewer spans the full inner width within 1% (tested).
+**Done when:** the variety tests pass for Brutalist (tested); every title line of four words or fewer spans the full inner width within 1% in the layouts that promise it (tested); sheets are in the family of `refs/brutal-*.jpg` and visibly wider in range.
 
 ### R9. Vaporwave, finished
 
-- Everything in spec 8.4 including the R9 additions, the tuning pass, title legibility over the busiest part of the sky and floor.
+- Everything in spec 8.4 including the layouts with no horizon, the variety rules, the tuning pass, title legibility over the busiest part of the sky and floor.
 
-**Done when:** as R5, against `docs/design/refs/vapor-*.jpg`.
+**Done when:** the variety tests pass for Vaporwave (tested); sheets are in the family of `refs/vapor-*.jpg` and visibly wider in range.
 
 ### R10. Advanced mode
 
-- Spec 10.3: six tabs, controls generated from each style's parameter list, page chips, picks and params written to the spec, cleared by Shuffle unless locked.
+- Spec 10.3 without the Photo tab and Mix: controls generated from the parts' parameter lists, page chips, picks and params written to the spec, cleared by Shuffle unless locked.
+- Colour tab: edit the design's three to five colours for this design only (spec 5), with the contrast handling and the warning.
 
-**Done when:** every parameter of every style can be set and changes the design (tested); setting any parameter to either end of its range still passes 9.2 or the control's range is narrowed until it does (tested); nothing scrolls and nothing wraps in Advanced at both screen sizes (tested).
+**Done when:** every parameter of every style can be set and changes the design (tested); setting any parameter to either end of its range still passes 9.2 or the control's range is narrowed until it does (tested); an edited colour set is in the spec, survives reload and Keep, is cleared by Shuffle when Colour is unlocked and kept when locked (tested); nothing is written to any palette list (tested); nothing scrolls and nothing wraps in Advanced at both screen sizes (tested).
 
-## Bundle 4: yours, then retouch
+## Bundle 4: photo and export
 
-### R11. My palettes, own fonts, spec in and out
+Read spec 3 (formats), 8.9, 9.4 and 10.1 (export sheet).
 
-- Edit and save palettes (spec 5). Load own font files (spec 6). Copy and paste a spec (spec 10.3).
+### R14. Photo
 
-**Done when:** a saved palette and a loaded font survive reload and can be picked by Shuffle (tested); a pasted spec from another phone draws the same layout (tested on the Scene); a broken pasted spec shows an error and changes nothing (tested).
+- Choose a photo from the phone; keep it on the device as spec 8.9 says; Remove.
+- Roles and crop decided by the layout stream in every style; Layout lock holds them; New crop.
+- Text over a photo: plate, scrim, or measured contrast.
+- Simple and Advanced Photo tabs.
+
+**Done when:** with a test photo, 9.2 passes for every style, format and role (tested); 30 shuffles give at least 10 distinct role-and-crop results per style (tested); the photo survives reload (tested); no network request carries image data (tested); a portrait and a landscape photo both cover every box they are given (tested).
+
+### R15. Photo treatments
+
+- Colour, monochrome, duotone, halftone, threshold, posterise, dither; picked by the graphic stream or by hand; parameters in Advanced; each style's allowed list.
+- Finishes and the copier pass over a photo.
+
+**Done when:** each treatment is deterministic (tested); duotone and posterise use only palette colours (tested); treatment time at 1080 x 1920 is recorded; sheets show one photo in every treatment under every style.
+
+### R16. Export
+
+- The export sheet of spec 10.1 in full: formats, 1x, 2x, 3x, JPEG, PNG, WebP.
+- The A format across the engine (layouts, safe areas, sheets, invariants).
+- Print: A3 at 300 dpi, the bleed option, strip rendering, the honest failure message, the sRGB line, the photo pixel count.
+
+**Done when:** every combination of format, size and file type gives a file of exactly the stated pixels (tested); a strip-rendered export is pixel-identical to a single-canvas one of the same spec (tested, at 3x); the A3 render finishes in headless Chrome with time and peak memory recorded; 9.2 passes for format A in every style (tested). Whether the phone manages A3 is for Pedro to try: say so under By hand.
+
+## Bundle 5: text layers, retouch
+
+Read spec 8.6.
+
+### R17. Text layers
+
+- The layer list, the six levels, add, remove, reorder, up to 8; each style's treatment and places per level; migration from the four slots.
+
+**Done when:** every v1 design in Kept opens and draws the same layout after migration (tested on the Scene); 9.2 passes for 1 to 8 layers in every mix of levels, per style (tested over 200 seeds); a layer that cannot fit is flagged, never dropped (tested); the Text tab fits without scrolling at 8 layers (page chips) (tested).
 
 ### R12. Retouch
 
 Needs Pedro's notes to run. Works every note and everything in Carried.
 
+## Bundle 6: mix
+
+Read spec 8.7 and 8.8.
+
+### R18. Mix (experimental)
+
+- Crosses of two styles by part, in Advanced only, labelled Experimental; the per-part parent switches; the fallback to parent A's part; the pair table.
+- A tuning pass per pair (six pairs), with sheets; pairs that only make mud are switched off, each with a reason in the changelog.
+
+**Done when:** every allowed pair passes 9.2 over 200 seeds in every format (tested); a failed part falls back and the design still draws (tested); Mix is unreachable in Simple (tested); a sheet per pair exists. Which crosses are worth keeping is Pedro's call.
+
 ## Done
+
+One line per closed row: id, title, date closed, chats it took, review file.
 
 - **Bundle 1 viewer check.** 23 Nov 2026. Fix: 0 errors, 2 should-fix, 7 minor; S2, M1 to M3 carried to R5, R6 and R9, the rest applied. `docs/reviews/bundle-1.md`.
 - **H1. Turn Pages on.** Done by Pedro; the Pages workflow deployed on every close (R1 to R4). Live URL not opened by an agent.

@@ -1,6 +1,6 @@
 # RSTR spec
 
-Settled on 23 Nov 2026. A builder follows this; a reviewer checks against it. Where it is silent, take the most reasonable reading and record the choice in the changelog.
+Settled on 23 Nov 2026, revised the same evening (plug and play, variety, photo, print, text layers, mix). A builder follows this; a reviewer checks against it. Where it is silent, take the most reasonable reading and record the choice in the changelog.
 
 ## 1. What it is
 
@@ -8,14 +8,16 @@ A poster generator for a phone. Pick a style, tap Shuffle until something lands,
 
 - **User:** Pedro only. Android phone, Chrome, portrait.
 - **Form:** a web app on GitHub Pages, later the same code in a Capacitor APK.
-- **Phase 1 (this spec): stills.** Phase 2 is motion, phase 3 is photos, assets and brand kits (section 10, outline only).
+- **This spec: stills**, including one uploaded photo and print-size export. Motion comes after (section 11, outline only).
+- **Plug and play.** Fonts, palettes, graphics and styles are fixed lists inside the app. Pedro never manages a library; he picks, shuffles, tweaks the design in front of him and exports.
 
 ## 2. What it is not
 
 - **No AI image generation.** Nothing calls a model. No server, no key, no cost per image.
-- **No figurative illustration.** Graphics are procedural: geometry, pattern, line, gradient, texture. Pictures of things arrive in phase 3 as files Pedro uploads.
+- **No figurative illustration.** Graphics are procedural: geometry, pattern, line, gradient, texture. The only picture is one photo Pedro uploads (8.9).
 - **No free-form editor.** Nothing is dragged. Pedro chooses and tunes rules; the engine places things.
 - **No licensed fonts.** Helvetica, Akzidenz and the like are never bundled.
+- **No libraries to manage.** No font upload, no saved palettes, no brand kits, no import or export of designs as data.
 - **No accounts, no sync.** Everything lives on the phone.
 
 ## 3. The design is data
@@ -25,12 +27,14 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
 ```
 { "v": 1,
   "style": "swiss",              // swiss | pomo | brutal | vapor
-  "format": "3:4",               // 1:1 | 3:4 | 9:16
+  "mix": null,                   // null, or { "b": "vapor", "parts": { ... } } (8.8, experimental)
+  "format": "3:4",               // 1:1 | 3:4 | 9:16 | A
   "mode": "light",               // light | dark
   "finish": "clean",             // clean | grain | grunge | vhs | glitch
   "marks": "off",                // off | light | full
   "seeds": { "layout": 1, "colour": 2, "graphic": 3, "type": 4 },
-  "pick": { "palette": null, "pairing": null, "motif": null, "layout": null },   // null = the seed decides
+  "pick": { "palette": null, "colours": null, "pairing": null, "motif": null, "layout": null, "dialect": null },   // null = the seed decides
+  "photo": null,                 // null, or { "id": "...", "treatment": null, "place": null } (8.9)
   "params": { },                 // Advanced values, per style; absent = the seed decides
   "text": { "title":    { "on": true, "v": "Signal and noise", "pos": null },
             "subtitle": { "on": true, "v": "...", "pos": null },
@@ -40,7 +44,7 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
 
 - **Four seeds, four independent streams.** Layout, colour, graphic, type. Changing one never changes what the other three produce (tested, 9.3). This is what Lock and the per-facet rerolls rest on.
 - **A pick overrides its seed.** `pick.palette` set means the colour seed is ignored for palette choice, and so on.
-- **Format, mode, finish and marks are not seeded.** Shuffle never changes them.
+- **Format, mode, finish, marks and the photo itself are not seeded.** Shuffle never changes them. Where the photo sits and how it is cropped is seeded (layout stream); its treatment is seeded (graphic stream).
 - **The same spec draws the same design** on the same device and build (tested).
 - A spec with an unknown field or an older `v` is migrated or the unknown part ignored; it never crashes the app.
 
@@ -52,7 +56,9 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
 | 3:4 | 1080 x 1440 | Default |
 | 9:16 | 1080 x 1920 | Text stays between y 260 and y 1600: the top 250 px and bottom 320 px belong to the story interface. Ground, graphics and marks may fill them. Same zones Pedro has used on his story posts. |
 
-One spec, all three formats: the same palette, pairing, motif and words, laid out again for the ratio. It should read as one design in three sizes, not three designs.
+| A | 1080 x 1527 on screen | The paper ratio, 1 to root 2. Prints as A5, A4 or A3. Print export is section 10.1 |
+
+One spec, every format: the same palette, pairing, motif and words, laid out again for the ratio. It should read as one design in three sizes, not three designs.
 
 ## 4. The engine
 
@@ -84,13 +90,15 @@ A **palette** is roles, not colours in fixed places:
 - **Every palette has a light and a dark form**, both written by hand in the data file. Dark is not an automatic inversion. Mode picks the form.
 - **Contrast:** any text against what is directly behind it reaches 4.5:1, or 3:1 for text of 60 px and up at 1080 wide (tested, 9.2). A style may put a plate behind text to get there.
 - Each style lists its palettes in `src/data/palettes/<style>.ts`, at least 8 each by the end of phase 1. The spike's palettes are the starting set.
-- **My palettes (Advanced):** edit any role of the current palette, save it under a name, delete it. Saved palettes join that style's list and the colour stream can pick them.
+- **Palettes are a fixed list.** Nothing is added, saved or deleted by the user.
+- **Edit for this design (Advanced):** the three to five colours of the design on screen can be changed one by one. The edit is stored in that design's spec as `pick.colours` and nowhere else. Shuffle clears it unless Colour is locked. Kept designs keep theirs.
+- An edited colour set must still pass contrast: the engine may swap a text item between ink and ground, or put a plate under it, to get there. If nothing passes, the text keeps its plate and the control shows a small warning; the edit is not refused.
 
 ## 6. Type
 
 A **pairing** is `{ id, name, display, text, mono, notes }` naming font families and the weights used. The starting list is `docs/design/pairings.md`: 42 pairings across the four styles, with Swiss leaning on single grotesque families.
 
-- **Free fonts only**, which here means families on Google Fonts. Nothing licensed is ever shipped or fetched.
+- **Free fonts only, a fixed list.** Families on Google Fonts, chosen in `pairings.md`. Nothing licensed is ever shipped or fetched, and there is no font upload.
 - **Web app: fonts are fetched online, on demand.** Picking or shuffling to a pairing loads its families and weights from Google Fonts, and only those. A service worker caches every font file fetched, so a pairing used once works offline afterwards.
 - **A core set is bundled** with the web app so it always draws, online or not: the eight families of the spike (Inter Tight, Bricolage Grotesque, Instrument Serif, DM Mono, Anton, Archivo Black, Unbounded, Silkscreen). Each style's default pairing uses only core fonts.
 - **APK: every font of every pairing is bundled.** `tools/fetch_fonts.py` downloads them at build time; licence texts go to `public/LICENSES.txt`.
@@ -99,7 +107,6 @@ A **pairing** is `{ id, name, display, text, mono, notes }` naming font families
 - Each style lists the pairings it allows. Swiss: grotesques, alone or with a serif for the subtitle. Brutalist: heavy display faces with a mono.
 - The type seed picks the pairing; `pick.pairing` overrides it.
 - Pairing lists found on the web (Typewolf and the like) are reading for whoever curates the file. The app fetches font files, never pairing data.
-- **Own fonts (row R11):** load a TTF, OTF or WOFF2 from the phone, kept in IndexedDB, usable as display or text in a custom pairing.
 
 ## 7. Finish and marks
 
@@ -133,7 +140,30 @@ A layer of small technical graphics over any style: brackets, tick rulers, a cro
 
 ## 8. Styles
 
-A style is a rule set: its layouts, the graphics it allows, how it sets type, its palettes and pairings. `docs/design/refs/` shows each. Swiss and Postmodern were approved by Pedro on 23 Nov 2026 ("I love the post modern style", "the swiss as well"): keep their character when extending them. Brutalist and Vaporwave refs are a first pass he has seen but not judged.
+A style is a rule set: its layouts, the graphics it allows, how it sets type, its grounds, its palettes and pairings. `docs/design/refs/` shows each.
+
+Approved by Pedro on 23 Nov 2026: Swiss and ice-cream Postmodern as first shown, then the variety pass on Swiss and the photocopy dialect of Postmodern (`refs/v2-*.jpg`, "this is it"). Those files are the target. Brutalist and Vaporwave refs are a first pass he has seen but not judged.
+
+### 8.0 Variety, every style, every level
+
+The first spike drew one kind of composition per style. That is not enough. These rules bind all four styles.
+
+**Layout**
+- At least 8 named layouts per style.
+- **Transforms** on top of a layout: a tilt of the whole composition (9 to 14 degrees either way) and a quarter turn (the layout drawn sideways, read from the edge), each on roughly one roll in six where the style allows it. Brutalist and Postmodern also turn single text items.
+- **Depth:** ground, back graphics, front graphics, text. Items overlap across layers and bleed off the canvas. A composition that sits politely inside its margins is one option among several, not the rule.
+- **Title size classes:** small, normal, oversize, chosen by the layout stream; each style sets what those mean.
+
+**Graphics**
+- At least 12 graphics per style, drawn from one shared library; a style lists the ones it allows.
+- Every graphic has at least three parameters with wide ranges (scale, weight, density, angle, count). Ranges go to the extremes: dots from a fine screen to a few huge discs, contour lines from hairline to thick bands, lines from pinstripe to slab.
+- **Combination:** about six rolls in ten cut a second graphic into the first, as a disc, a column, a band or inside a block, on a plate of ground, ink or accent. About one in ten adds a third. Topo with dots, lines with solid shapes, bars inside a disc.
+- A graphic may be drawn in ink, accent, a second accent or ground, positive or reversed.
+
+**Proof of variety (tested)**
+- In 60 consecutive shuffles of one style in one format, no two designs share layout, transform, first graphic, second graphic and palette.
+- In 300 shuffles, every layout, every graphic, every palette and every pairing of the style appears at least once.
+- No single layout takes more than 25% of 300 shuffles.
 
 ### 8.1 Swiss
 
@@ -141,21 +171,32 @@ After Müller-Brockmann. The grid is the design.
 
 - 6 columns, one margin (72 px at 1080), one rhythm unit between everything.
 - Flush left, ragged right, sentence case as typed. One grotesque family, heavy for the title, regular for the rest. Tight tracking on the title.
-- One accent. Ground, ink, accent, and nothing else in a design.
+- One accent, used boldly: a full field, a huge disc, a plate. Ground, ink, accent, and at most a second accent.
 - Title and subtitle share an axis that sits on a column line (column 0, 1 or 2). Info is up to three label/value columns on the same axis, above a rule; caption under the rule, small, tracked, upper case.
-- Layouts: graphic above, graphic below, full-bleed graphic with a ground-colour plate for text, graphic as a column band beside the text, type only. Graphics snap to grid modules and may bleed off the canvas edge.
-- Graphics: topo (contour lines, every fourth one heavier and in the accent), blocks, bars (stripes in arithmetic progression at an angle), dots (a field that swells toward a point), disc; added in R5: rules, numeral (one huge figure used as a shape), crosshairs, grid, rings, waves.
+- Layouts: graphic above, graphic below, full-bleed graphic with a ground-colour plate for text, graphic as a column band beside the text, type only, title vertical up the left edge, text block centred low on a full field, split field (two colours meeting on a column or row line).
+- Graphics: topo, blocks, bars, dots, disc, lines (weight progressions), rules, numeral (one huge figure used as a shape), crosshairs, grid, rings, waves.
+- The variety pass in the spike (`docs/archive/spike/engine.js`: `swiss`, `swissCore`, `lines`, the combination block) is the reference for tilt, quarter turn, combination and ranges. Known weakness to fix: a tilted layout shrinks its text block; keep the title at a readable size by letting graphics, not text, pay for the tilt.
 
 ### 8.2 Postmodern
 
-Memphis and new-wave energy. Loud, tilted, layered, friendly.
+Two dialects in one style. The layout stream picks one unless `pick.dialect` is set. Simple mode shows a Dialect control (Either, Ice cream, Photocopy) on the Look tab when the style is Postmodern.
 
-- Ground with a faint pattern: dots, grid or confetti.
-- Five to eight shapes on a jittered lattice, each rotated, each with a hard offset shadow in ink: striped block, half disc, triangle, squiggle, dot square, stairs, ring; added in R6: checker, arc, zigzag band, pill, cross, wedge.
-- Title in upper case, one tilted strip per line, each strip a different fill, strips stepping sideways, hard shadow.
+**Ice cream.** Memphis and new-wave energy. Loud, tilted, layered, friendly.
+
+- Ground with a faint pattern: dots, grid, confetti, and two more.
+- Five to eight shapes on a jittered lattice, each rotated, each with a hard offset shadow in ink: striped block, half disc, triangle, squiggle, dot square, stairs, ring, checker, arc, zigzag band, pill, cross, wedge.
+- Title in upper case, one tilted strip per line, each strip a different fill, strips stepping sideways, hard shadow. A second treatment: letters on separate tiles.
 - Subtitle in serif italic on a highlight plate, tilted the other way. Info in mono inside a bordered box with a shadow. Caption in mono running up the left edge.
-- Three accents plus ink and ground.
-- Shapes may sit behind text plates; they never sit on top of text.
+- Three accents plus ink and ground. Shapes may sit behind text plates; they never sit on top of text.
+
+**Photocopy.** Nineties magazine grunge: cut, paste, copy, copy again. `refs/v2-grunge-*.jpg`, spike function `grunge`.
+
+- Paper, ink and one spot colour (or none).
+- **Every title word gets its own face, size and case** from the pairing's display, serif and heavy faces. Negative leading so words collide. One word is sliced and its halves offset, one sits in an ink box, one has a ghost copy in the spot colour. Words may run a little off the canvas.
+- Found graphics underneath, four to six of: halftone disc, ink slab, scribble, tape strips, X marks, faint contours, line blocks, torn edge, registration marks, a redacted bar.
+- Subtitle on cut-out paper strips, two words each, stepping across. Info on a paper label with a heavy top edge. Caption repeated three times, fading.
+- **The copier pass is part of the dialect**, not a finish: grain, dust, streaks, dark edges, raised contrast, over everything including type. A finish may be added on top.
+- **Readable by default:** title words carry a paper-coloured edge so they hold over ink. Advanced has a Paper edge switch; with it off, invariant 4 of 9.2 is waived for title words in this dialect only. That is the rougher, truer look, and Pedro's to choose.
 
 ### 8.3 Brutalist
 
@@ -165,24 +206,77 @@ HEAVY TYPE. The title is the graphic.
 - One line sits on a full-bleed accent bar.
 - Thick rules. Caption in mono in a strip between rules at the top with a small format tag at the right. Subtitle in mono inside a solid ink bar. Info as a table: one row per pair, label left in mono, value right in the heavy face, a rule between rows.
 - Narrow margin (about 48 px at 1080). Two colours and one accent. No decoration.
-- Left-over space gets one blunt graphic: barcode stripes, an accent slab with a disc, a row of asterisks, an arrow, a huge numeral.
-- R8 adds: title set at 90 degrees up the edge, title cropped by the canvas edge (Advanced only, off by default), boxed variant with a full border.
+- Left-over space gets blunt graphics: barcode stripes, an accent slab with a disc, a row of asterisks, an arrow, a huge numeral, and the shared library drawn at its heaviest settings.
+- Layouts beyond the first: title set at 90 degrees up the edge, title cropped by the canvas edge (Advanced only, off by default), boxed variant with a full border, title split across top and bottom with the table between, one word per screen-filling line with the rest tiny, table-first with the title as the last row.
 
 ### 8.4 Vaporwave
 
 - Gradient sky, horizon between 56% and 64% of the height, a sun with slits that widen downward, a perspective grid floor with a glow, sparkle stars.
 - Title in a wide heavy face, upper case, centred: gradient fill split at the middle like chrome, a light outline, two offset copies in accent colours.
 - Subtitle in wide-tracked upper case. Info in a plain window with a title bar and three squares, pixel face inside. Caption centred at the bottom in mono.
-- R9 adds: wire sphere, checker floor, floating window stack, gradient bars, horizon mountains as a polyline, a second sun layout with the title in the sky or on the floor.
-- No statues, palms, logos of old software or Japanese text set for effect. Those need real assets and real words; phase 3 lets Pedro upload them.
+- More: wire sphere, checker floor, floating window stack, gradient bars, horizon mountains as a polyline, layouts with no horizon at all (windows on a gradient field; a grid tunnel; the sun huge and cropped), the title in the sky, on the floor or inside a window.
+- No statues, palms, logos of old software or Japanese text set for effect. A photo Pedro uploads may stand in.
 - Light mode is a pastel sky with dark ink.
 
-### 8.5 Text slots
+### 8.5 Text slots (until row R17)
 
 Title, subtitle, info (up to three label/value pairs), caption. Each is on or off. An off slot gives its space back. With every slot off, the design is a background plate.
 
 - Each style defines two or three positions per slot. The layout stream picks; `text.<slot>.pos` overrides (Advanced).
 - A line break typed in the title is kept.
+
+### 8.6 Text layers (row R17)
+
+The four slots become a list Pedro edits.
+
+```
+"text": [ { "id": "t1", "level": "headline", "v": "Signal and noise", "on": true },
+          { "id": "t2", "level": "subhead",  "v": "...", "on": true },
+          { "id": "t3", "level": "data",     "v": [ { "k": "Where", "v": "Lisboa" } ], "on": true } ]
+```
+
+- **Levels:** headline, subhead, body, label, caption, data (label/value pairs). A layer has one level; changing it changes how the style sets it.
+- Add, remove and reorder layers; up to 8. At least zero: no layers is a background plate.
+- Each style maps every level to a treatment and to the places it may go. Two layers of the same level are set alike and kept apart.
+- One headline is the anchor of the layout. With two, the first in the list leads.
+- The solver and the invariants of 9.2 apply unchanged. If the layers cannot all fit legally, the lowest levels shrink first; nothing is dropped silently, and a layer that cannot fit is flagged on its row.
+- A v1 spec migrates on load: title to headline, subtitle to subhead, info to data, caption to caption.
+
+### 8.7 Parts
+
+Every style is built as five parts behind one shared interface, from row R13 on:
+
+| Part | What it decides |
+|---|---|
+| ground | What fills the canvas before anything else, and any pass that belongs to the surface (the copier pass, the sky) |
+| layout | Where things go: boxes, transforms, depth |
+| type | How each text level is set: face, case, size class, plates, tilt |
+| graphics | Which graphics are drawn in the boxes layout gives them, with what parameters |
+| palette | Roles and their light and dark forms |
+
+- A style is a named set of five parts and nothing else. No part reads another part's internals; they meet only through the Scene.
+- This is what the mix of 8.8 needs. It is required now because it is cheap while the styles are being finished and expensive afterwards.
+
+### 8.8 Mix (experimental, Advanced only, row R18)
+
+A cross of two styles: each part comes from one parent.
+
+- `mix: { "b": "<style>", "parts": { "ground": "a"|"b"|null, ... } }`. A null part is decided by the layout stream, so each Shuffle is a different cross.
+- Advanced, Style tab: Mix on or off, the second style, and a parent switch per part. Labelled Experimental. Not in Simple.
+- The solver and invariants apply. A cross that cannot be drawn legally falls back to parent A's part for whichever part failed.
+- Each pair gets a tuning pass. A pair that only makes mud is switched off in a table in the data, with a line in the changelog saying why.
+
+### 8.9 Photo (rows R14, R15)
+
+One photo per design, chosen from the phone. It never leaves the phone.
+
+- Kept on the device (IndexedDB), scaled on import so its long edge is at most 5000 px, orientation corrected. The spec holds only its id.
+- **Shuffle moves it.** The layout stream decides its role and crop: full-bleed ground; inside the graphic box; cut into a disc, column or band; tilted with the composition. Scale from fitting to 2.5 times, offset anywhere that keeps the box covered. Locking Layout holds role and crop.
+- **Treatments,** picked by the graphic stream unless chosen: colour, monochrome, duotone (two palette roles), halftone, threshold, posterise (three to five palette colours), dither. Each style lists the treatments it allows and its favourite.
+- Finishes and the copier pass apply to the photo like any graphic.
+- **Text over a photo** sits on a plate or a scrim unless the measured contrast against the actual pixels behind it passes section 5.
+- Graphics still draw: a photo is one more graphic the combination rule of 8.0 can use, not a replacement for them.
+- Print: a photo smaller than the export needs is drawn anyway; the export sheet says how many pixels it has against how many the size wants.
 
 ## 9. Proof
 
@@ -210,7 +304,13 @@ Any failure prints the spec that caused it, so it can be opened in the app.
 - The same spec drawn twice gives identical pixels.
 - Changing only the colour seed leaves every box in the Scene where it was. The same for the type seed against graphics, and the graphic seed against text boxes.
 
-### 9.4 What the scripts cannot say
+### 9.4 Variety, photo, export
+
+- The three variety tests of 8.0, per style.
+- Photo: with a test photo, 9.2 passes in every role and treatment; text over the photo passes contrast measured on pixels (tested); the same spec and photo give identical pixels (tested).
+- Export: every size and file type gives a file of exactly the stated pixels (tested); the A3 print size completes in headless Chrome and its time and peak memory are recorded.
+
+### 9.5 What the scripts cannot say
 
 Whether it looks good. The reviewer looks at the sheets and lists seeds that are legal but clumsy (dead space, a cramped title, a graphic that fights the text). Pedro has the last word.
 
@@ -222,51 +322,66 @@ Same on every tab, both modes, nothing scrolls:
 
 1. **Header:** RSTR wordmark, the seed as a chip (tap copies it), Kept, the Simple/Advanced switch.
 2. **Stage:** the design, as large as fits.
-3. **Format** (1:1, 3:4, 9:16) and, from phase 2, Still/Motion.
+3. **Format** (1:1, 3:4, 9:16, A) and, once motion exists, Still/Motion.
 4. **Locks:** Layout, Colour, Graphic, Type. A locked facet survives Shuffle.
 5. **Panel:** the current tab's controls, fixed height, page chips when they do not fit.
 6. **Action row:** Back, Shuffle (the big one), Keep, Export.
 7. **Tab bar.**
 
-- **Shuffle** makes new seeds for every unlocked facet and clears that facet's pick.
+- **Shuffle** makes new seeds for every unlocked facet and clears that facet's picks.
 - **Back** returns to the design before the last change; 30 steps are kept.
 - **Keep** saves the spec to Kept. Kept is a sheet of thumbnails; tap opens one, hold deletes.
-- **Export sheet:** sizes (any of the three), JPEG or PNG, Save (download) and Share (the system share sheet with the files, shown only where the browser supports sharing files). Names: `rstr-<seed>-<format>.jpg`.
-- The current design, Back steps, Kept and My palettes are saved on the phone and return on reload.
+- The current design, Back steps and Kept are saved on the phone and return on reload.
 - Controls at least 48 px. Text on a tile or button never wraps and never overflows: it shrinks to fit, then shortens.
 - Look of the app: dark and quiet so the poster is the only colour on screen. `docs/design/refs/ui-*.jpg` is the reference. DM Sans only, bundled. Material Symbols outlined as SVG for icons.
 
+**Export sheet (row R16 completes it)**
+
+| Choice | Options |
+|---|---|
+| Formats | Any of 1:1, 3:4, 9:16, A; the current one is ticked |
+| Size | 1x (1080 wide), 2x (2160), 3x (3240). For A also Print: A3 at 300 dpi, 3508 x 4961 px, which prints A4 and A5 too |
+| Bleed | Print only: off, or 3 mm each side (3579 x 5032 px). Ground and bleeding graphics extend into it; text does not move |
+| File | JPEG (quality 0.92), PNG, WebP |
+
+- Save (download) and Share (the system share sheet with the files, shown only where the browser supports sharing files). Names: `rstr-<seed>-<format>-<width>.<ext>`.
+- Every size is drawn at that size from the spec, never scaled up from a smaller canvas. Finishes are generated at the export size so grain stays fine.
+- **Big renders:** if a canvas of the asked size cannot be made on the device, the engine draws it in horizontal strips and joins them. If that fails too, the sheet says which sizes this phone cannot make and offers the largest that works. Never a silent smaller file.
+- Colour is sRGB. The sheet says so beside Print, with one line: saturated colours print duller than they look on screen.
+- Before R16 the sheet has formats, JPEG or PNG, at 1x.
+
 ### 10.2 Simple
 
-For zero-thinking use. Three tabs.
+For zero-thinking use. Four tabs.
 
 | Tab | Controls |
 |---|---|
 | Style | The four styles as tiles, each tile a small live render |
-| Text | Four rows: slot name, field, on/off |
-| Look | Light/Dark, Finish (Clean, Grain, Grunge, VHS, Glitch), Marks (Off, Light, Full), and four reroll buttons: New layout, New colours, New graphic, New type; page chips if it does not fit one page |
+| Text | Slot or layer rows: name, field, on/off (from R17: add, remove, level) |
+| Look | Light/Dark, Finish, Marks, Dialect where the style has one, and four reroll buttons: New layout, New colours, New graphic, New type; page chips if it does not fit one page |
+| Photo (R14) | Add or change, Remove, Treatment tiles, New crop |
 
 ### 10.3 Advanced
 
-Everything Simple has, plus the parameters. Six tabs: Style, Layout, Graphic, Type, Colour, Text.
+Everything Simple has, plus the parameters. Seven tabs: Style, Layout, Graphic, Type, Colour, Text, Photo.
 
 | Tab | Controls |
 |---|---|
-| Style | Style tiles, Finish with a strength dial, Marks with a picker of which marks are allowed, Light/Dark |
-| Layout | Layout picker (the style's layouts by name), margin, graphic share, axis column or tilt or horizon (whatever the style has) |
-| Graphic | Motif picker, density, scale, line weight, angle, New graphic |
+| Style | Style tiles, Finish with a strength dial, Marks with a picker of which marks are allowed, Light/Dark; second page: Mix (R18) |
+| Layout | Layout picker (the style's layouts by name), transform (none, tilt, quarter turn), margin, graphic share, title size class, axis column or tilt or horizon (whatever the style has) |
+| Graphic | First and second graphic pickers, how the second is cut in, density, scale, line weight, angle, New graphic |
 | Type | Pairing picker, title case (as typed, upper, lower), title weight where the family has it, tracking, size cap |
-| Colour | Palette picker, each role editable, Save as mine |
-| Text | Each slot: field, on/off, position |
+| Colour | Palette picker; the design's three to five colours, each editable for this design only |
+| Text | Each slot or layer: field, on/off, position, and from R17 level, add, remove, reorder |
+| Photo | Role, scale, offset, treatment and its parameters (duotone roles, halftone screen, threshold level) |
 
 - Every Advanced control writes a `pick` or a `params` value. A value set by hand survives Shuffle only if its facet is locked; otherwise Shuffle clears it.
-- A style shows only the controls it has. Controls are generated from the style's parameter list, not written per style.
-- Spec in and out (Advanced, Style tab, second page): Copy spec, Paste spec.
+- A style shows only the controls it has. Controls are generated from the parts' parameter lists, not written per style.
 
 ## 11. Later, outline only
 
 Each needs a Fable chat to specify before it is built.
 
-- **Phase 2, motion:** a device test of MP4 export first (WebCodecs with an MP4 muxer; MediaRecorder as the fallback), then entrances and loops per style, 6 s default, 30 fps, silent. The motion vocabulary to start from is at the end of `docs/design/elements.md`.
-- **Phase 3:** photo as ground (crop, grade, duotone), uploaded PNG and SVG assets as graphics, brand kits (a saved palette, pairing, logo and fixed text layout; no particular brand planned), batch from a list, sound from the groovebox engine, the APK.
+- **Motion:** a device test of MP4 export first (WebCodecs with an MP4 muxer; MediaRecorder as the fallback), then entrances and loops per style, 6 s default, 30 fps, silent. The motion vocabulary to start from is at the end of `docs/design/elements.md`.
+- **The APK.**
 - **More styles:** Bauhaus, Constructivist, Y2K. Not before the first four hold up.

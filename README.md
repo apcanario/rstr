@@ -8,25 +8,30 @@ A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwav
 
 ## Where it is going
 
-- **Four styles:** Swiss, Postmodern, Brutalist, Vaporwave.
+- **Plug and play:** fonts, palettes and graphics are built in. Nothing to manage.
+- **Four styles:** Swiss, Postmodern (ice cream and photocopy grunge), Brutalist, Vaporwave, each with wide variety: many layouts, tilts and turns, graphics combined and pushed to extremes.
 - **Five finishes** over any style: Clean, Grain, Grunge, VHS, Glitch.
-- **Marks:** an optional layer of small technical graphics (brackets, rulers, crosshair, barcode, micro labels).
-- **Light and dark** for every palette; palettes you can edit and save.
-- **Font pairings** from free Google Fonts, fetched online and cached, bundled in the APK; your own font files later.
-- **Four text slots:** title, subtitle, info, caption, each on or off.
-- **Three sizes** from one design: 1080 x 1080, 1080 x 1440, 1080 x 1920.
+- **Marks:** an optional layer of small technical graphics.
+- **Light and dark** for every palette; the colours of the design on screen can be edited.
+- **42 font pairings** from free Google Fonts.
+- **One photo** you upload: Shuffle moves and crops it; monochrome, duotone, halftone and more.
+- **Text:** four slots at first, then layers you add, remove and rank.
+- **Sizes:** 1:1, 3:4, 9:16 and paper ratio; JPEG, PNG or WebP at 1x to 3x; a print file good for A3.
 - **Simple and Advanced** modes on one switch.
-- Then motion (MP4), then photos, uploaded assets and brand kits.
+- **Mix (experimental):** crosses of two styles.
+- Then motion (MP4), then the APK.
 
 ## Status
 
 | Bundle | What | State |
 |---|---|---|
 | 1 | Engine, colour, type, frame and Simple mode | Done: R1 to R4 and the viewer check; R3's online lines open (H3) |
-| 2 | Swiss and Postmodern finished, finishes, marks | Queued |
+| 2 | Parts and variety, Swiss, Postmodern, finishes, marks | Queued |
 | 3 | Brutalist, Vaporwave, Advanced mode | Queued |
-| 4 | My palettes, own fonts, retouch | Queued |
+| 4 | Photo and export, A3 print | Queued |
+| 5 | Text layers, retouch | Queued |
+| 6 | Mix | Queued |
 
 ## How it is built
 
-`docs/SPEC.md` is the app, `docs/RUN.md` is how a chat builds a row, `docs/BACKLOG.md` is the queue, `docs/CHANGELOG.md` is the record. `docs/archive/` keeps the plans and the spike.
+`docs/SPEC.md` is the app, `docs/RUN.md` is how a chat builds a row, `docs/BACKLOG.md` is the queue, `docs/CHANGELOG.md` is the record of what changed, `docs/PROCESS.md` the record of how each chat went, `docs/reviews/` every review. `docs/plan.html` is the plan as a page (open it in a browser; it has a live demo of the spike). `docs/archive/` keeps the first plan and the spike.

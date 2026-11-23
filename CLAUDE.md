@@ -30,4 +30,7 @@ TypeScript, Vite, Preact, Canvas 2D. Vitest for unit tests, Python + Playwright 
 - Phone first: portrait, one thumb, controls at least 48 px, no hover states, nothing scrolls.
 - Free fonts only (Google Fonts). The web app fetches them on demand and caches them, with a small core set bundled; the APK bundles all of them. Licences of bundled fonts go in `public/LICENSES.txt`.
 - No Shōmen branding anywhere. Its visual elements (`docs/design/elements.md`) are reused; its name, logo, colours and content are not.
+- Plug and play: no screen for managing fonts, palettes or libraries. The only thing the user brings is text and one photo.
+- Every style is five parts (ground, layout, type, graphics, palette) behind one interface; a part never reads another part's internals.
+- The record is part of the product. `docs/CHANGELOG.md`, `docs/BACKLOG.md`, `docs/PROCESS.md` and `docs/reviews/` are kept complete and honest in every chat: what actually ran, every failure, nothing estimated, nothing tidied out later. They will be analysed.
 - Tone: direct. No flattery, no filler.
