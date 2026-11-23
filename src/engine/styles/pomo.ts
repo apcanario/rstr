@@ -28,6 +28,7 @@ export const pomo: Style = {
     // frame
     const li = LAYOUTS.indexOf(spec.pick.layout ?? '');
     const titleTop = li >= 0 ? li === 0 : b.rf() < 0.5;
+    b.frame = LAYOUTS[titleTop ? 0 : 1];
     const gx = 3, gy = story ? 5 : spec.format === '3:4' ? 4 : 3;
     const cells: [number, number][] = [];
     for (let j = 0; j < gy; j++) for (let i = 0; i < gx; i++) cells.push([i, j]);

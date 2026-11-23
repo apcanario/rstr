@@ -26,6 +26,7 @@ export const vapor: Style = {
     const li = ['title-sky', 'title-floor'].indexOf(spec.pick.layout ?? '');
     const upperPos = b.cand([true, false], false);
     const isUpper = li >= 0 ? li === 0 : upperPos;
+    b.frame = isUpper ? 'title-sky' : 'title-floor';
     const right = b.cand([true, false]);
 
     const items: Item[] = [];

@@ -35,6 +35,7 @@ export const brutal: Style = {
     const hot = b.cand([0, 1, 2]);
     const li = ['title-top', 'title-bottom'].indexOf(spec.pick.layout ?? '');
     const flip = li >= 0 ? li === 1 : b.rf() < 0.4;
+    b.frame = flip ? 'title-bottom' : 'title-top';
     const fam = T.display, mono = T.mono;
     const rects: Item[] = [], texts: TextItem[] = [], graphics: Item[] = [];
     let y = top, yb = bot;

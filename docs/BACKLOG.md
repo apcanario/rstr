@@ -14,8 +14,9 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 
 - **R3.** Needs a run where fonts.googleapis.com, fonts.gstatic.com and raw.githubusercontent.com are reachable (this workspace's proxy blocks Google Fonts). (1) `npm run smoke` must end `smoke: passed` with no `online checks SKIPPED`: every pairing passes 9.2 and 9.3 with its real fonts, and the used-pairing-offline check runs against Google itself. Review R3 S1, M5. (2) `python3 tools/fetch_fonts.py --check` must report 0 problems; if `Big Shoulders Display` or any other family fails, swap it for the family that replaced it as a `sources` alias in `src/data/pairings.json` (as `Archivo Expanded` is) and record the swap in the changelog. Review R3 S5; also confirm Archivo's wdth axis reaches 125. (3) `npm run sheet` must print no `pairings NOT LOADED` line, so the four `shots/pairings-*.jpg` show all 42 pairings; then Pedro looks at them, the Vaporwave sheet with Monoton, Syncopate and Krona One first. Review R3 S2. (4) Re-derive the vapor picked-fallback ceiling of 12 in `tests/proof.test.ts` from that run's real metrics. Review R3 M6.
 - **R8.** Brutalist 1:1 Anton (Klein, Alarm): title lines leave about a third of the width empty when height binds (`styles/brutal.ts`, `kx < 1`); spec 8.3 says every line fills the width. Review R1 M4.
-- **R9.** A sky-title treatment that passes for every palette (dark plate band or wider outline) so the spike's sky layout comes back over the sun; revisit the outline next to the echoes (outline-as-ink choice). Vaporwave 1:1 caption crowds the subtitle (`vapor.ts`, caption anchored at `bot`); 3:4 Mint c0 sun cut by the edge with an empty floor. Review R1 S2, S4, M6.
-- **R5.** Swiss 9:16 Cobalt and Pine: small text with dead ground between the rule and the story zone. Review R1.
+- **R9.** A sky-title treatment that passes for every palette (dark plate band or wider outline) so the spike's sky layout comes back over the sun; revisit the outline next to the echoes (outline-as-ink choice). Vaporwave 1:1 caption crowds the subtitle (`vapor.ts`, caption anchored at `bot`); 3:4 Mint c0 sun cut by the edge with an empty floor. Review R1 S2, S4, M6. The treatment must bring back the refs `vapor-3x4` and `vapor-9x16` (title in the sky over the sun; in 9:16 the info window on the floor); R1's refs line stays open for them until then. Review bundle 1 S1. The 1:1 info window covers the top left of the sun (vapor, 1:1, lagoon, light and dark, c0, seeds `{layout: 48514, colour: 630374, graphic: 7801254, type: 4186}`); an 8-word title at 1:1 gets a pale plate on the floor and an orphan last word (`shots/text-vapor.jpg`, fourth cell): fold into the title-legibility work. Review bundle 1 M2, M3.
+- **R5.** Swiss 9:16 Cobalt and Pine: small text with dead ground between the rule and the story zone. Review R1. The Swiss disc is clipped flat by its own box into a barrel or bowl and its satellite is cut away (`src/engine/graphics/swiss.ts:106-112`, radius up to 0.72 x the box's short side; every cell of `shots/palettes-swiss.jpg`; swiss, 9:16, light, no picks, seeds `{layout: 88109, colour: 1154019, graphic: 14299799, type: 4341}`): keep the disc inside its box (radius at most half the short side, centre clamped) or let it bleed only at a canvas edge. Review bundle 1 S2.
+- **R6.** Postmodern 3:4: shapes and type packed into the upper 60%, the lower 40% empty ground with confetti (all 16 cells of `shots/palettes-pomo.jpg`). Review bundle 1 M1.
 - **R7.** Finish and Marks: only Clean and Off can be chosen until R7 draws the others (`DRAWN_FINISH`, `DRAWN_MARKS` in `src/app/App.tsx`); add each to its list as it draws, and drop the `appcheck.py` check that the rest are disabled. Measure the Style tab's four tile renders per change on a phone alongside the export timing; if Shuffle lags, start tile renders after a 150 ms delay (the `stop` flag already cancels stale ones). Review R4 S1, M7.
 - **R10.** The Advanced switch now reads "Advanced" with its on state as the pressed edge, and still shows Simple's tabs; R10 gives it its six tabs. The Type lock shows only the display family; the full pairing name goes on the Type tab. Review R4 M4, M6.
 
@@ -23,10 +24,6 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 
 - **H3. Run the online type checks.** Where Google Fonts is reachable (your computer): `npm ci`, `npm run smoke`, `python3 tools/fetch_fonts.py --check`, `npm run sheet`; report the output or send it as `Notes:`. Detail in Carried R3. Open until done.
 - **H2. Look and use.** After each bundle, shuffle each style on the phone for a few minutes and send what is off in the next starter's `Notes:` line. Open until Pedro says done.
-
-## Bundle 1: engine, colour, type, frame
-
-Read spec 3, 4, 5, 6, 9 and 10 in full before any row of this bundle.
 
 ## Bundle 2: Swiss, Postmodern, finishes
 
@@ -90,7 +87,9 @@ Needs Pedro's notes to run. Works every note and everything in Carried.
 
 ## Done
 
+- **Bundle 1 viewer check.** 23 Nov 2026. Fix: 0 errors, 2 should-fix, 7 minor; S2, M1 to M3 carried to R5, R6 and R9, the rest applied. `docs/reviews/bundle-1.md`.
+- **H1. Turn Pages on.** Done by Pedro; the Pages workflow deployed on every close (R1 to R4). Live URL not opened by an agent.
 - **R4. The frame and Simple mode.** 23 Nov 2026. Review R4 applied; see `docs/CHANGELOG.md` and `docs/reviews/R4.md`.
 - **R3. Type.** 23 Nov 2026, built and reviewed; three online Done-when lines UNVERIFIED (Google Fonts blocked in the workspace), see Carried R3 and H3. `docs/reviews/R3.md`.
 - **R2. Colour, light and dark.** 23 Nov 2026. Review R2 applied; see `docs/CHANGELOG.md` and `docs/reviews/R2.md`.
-- **R1. The engine.** 23 Nov 2026. Review R1 applied; see `docs/CHANGELOG.md` and `docs/reviews/R1.md`.
+- **R1. The engine.** 23 Nov 2026. Review R1 applied; see `docs/CHANGELOG.md` and `docs/reviews/R1.md`. Refs line open for Vaporwave 3:4 and 9:16: the title moved from the sky to the floor, and the 9:16 info window from the floor to the top left (sky titles rejected while any palette cannot carry them); see Carried R9. `swiss-blocks-9x16` lost its red block (an R1 choice; Pedro to look).

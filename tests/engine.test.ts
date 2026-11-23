@@ -95,7 +95,7 @@ describe('text fitting', () => {
 
 describe('the 9.2 checker catches each rule', () => {
   const m = stubMeasure, font = { family: 'Inter Tight', weight: 400 };
-  const base = (items: Scene['items'], format = '3:4'): Scene => ({ w: 1080, h: format === '9:16' ? 1920 : 1440, style: 'swiss', format, palette: 'p', pairing: 't', layout: 'c0', ground: '#FFFFFF', items, fonts: [], faces: [] });
+  const base = (items: Scene['items'], format = '3:4'): Scene => ({ w: 1080, h: format === '9:16' ? 1920 : 1440, style: 'swiss', format, palette: 'p', pairing: 't', layout: 'c0', frame: 'graphic-above', ground: '#FFFFFF', items, fonts: [], faces: [] });
   const txt = (x: number, y: number, ink = '#000000', size = 40) => mkText(m, { slot: 'title', part: 'a' + x + y, font, size, runs: [{ s: 'Hello', x, y }], fill: ink, ink: [ink], min: 30 });
   test('a clean scene passes', () => expect(check(base([txt(100, 200)]))).toEqual([]));
   test('1: off the canvas, and into a story zone', () => {
@@ -136,6 +136,25 @@ describe('layout', () => {
       const s = defaultSpec({ layout: 9, colour: 8, graphic: 7, type: 6 });
       s.style = style;
       expect(JSON.stringify(layout(s, stubMeasure))).toBe(JSON.stringify(layout(structuredClone(s), stubMeasure)));
+    }
+  });  test('the Scene names the layout it drew, and a picked layout is the one drawn (the Layout lock shows it)', async () => {
+    const { STYLES } = await import('../src/engine/styles');
+    for (const style of ['swiss', 'pomo', 'brutal', 'vapor'] as const) {
+      const seen = new Set<string>();
+      for (let i = 0; i < 40; i++) {
+        const s = defaultSpec({ layout: 1000 + i, colour: 8, graphic: 7, type: 6 });
+        s.style = style;
+        const sc = layout(s, stubMeasure);
+        expect(STYLES[style].layouts).toContain(sc.frame);
+        seen.add(sc.frame);
+      }
+      expect(seen.size, style).toBe(STYLES[style].layouts.length);
+      for (const id of STYLES[style].layouts) {
+        const s = defaultSpec({ layout: 5, colour: 8, graphic: 7, type: 6 });
+        s.style = style; s.pick.layout = id;
+        const sc = layout(s, stubMeasure);
+        if (sc.layout !== 'fallback') expect(sc.frame).toBe(id);
+      }
     }
   });
 });

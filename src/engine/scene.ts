@@ -67,6 +67,7 @@ export interface Scene {
   palette: string;
   pairing: string;
   layout: string;            // the candidate that passed, or 'fallback'
+  frame: string;             // which of the style's layouts was drawn (title-top, graphic-above, ...)
   ground: string;
   items: Item[];
   fonts: string[];           // families the layout measured with or drew

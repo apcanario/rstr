@@ -329,7 +329,8 @@ export function App({ ready }: { ready: Promise<void> }) {
   // what each lock holds now, from the drawn Scene
   const value = (f: Facet): string => {
     if (!scene) return '';
-    if (f === 'layout') return spec.pick.layout ? human(spec.pick.layout) : '#' + (spec.seeds.layout >>> 0).toString(16).toUpperCase().padStart(8, '0').slice(0, 4);
+    // the layout the Scene drew, as the Graphic lock names its motif
+    if (f === 'layout') return human(scene.frame) || 'Fallback';
     if (f === 'colour') return PALETTES[spec.style].find((p) => p.id === scene.palette)?.name ?? '';
     // the display family only; the full pairing name belongs to the Type tab (R10)
     if (f === 'type') return choosePairing(spec).name.split(' / ')[0];

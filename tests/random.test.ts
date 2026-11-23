@@ -9,11 +9,19 @@ function files(dir: string): string[] {
   });
 }
 
+const root = join(__dirname, '..');
+const publicJs = (dir: string): string[] => readdirSync(dir).flatMap((f) => {
+  const p = join(dir, f);
+  return statSync(p).isDirectory() ? publicJs(p) : /\.(js|mjs)$/.test(f) ? [p] : [];
+});
+
 test('Math.random appears only in seed creation (newSeed in src/engine/spec.ts)', () => {
   const hits: string[] = [];
-  for (const f of files(join(__dirname, '..', 'src'))) {
+  const scanned = [...files(join(root, 'src')), ...publicJs(join(root, 'public')), join(root, 'index.html')];
+  expect(scanned.some((f) => f.endsWith('sw.js'))).toBe(true);
+  for (const f of scanned) {
     readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
-      if (line.includes('Math.random')) hits.push(`${f.split('src')[1]}:${i + 1}`);
+      if (line.includes('Math.random')) hits.push(`${f.slice(root.length)}:${i + 1}`);
     });
   }
   expect(hits).toHaveLength(1);

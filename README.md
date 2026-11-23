@@ -22,7 +22,7 @@ A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwav
 
 | Bundle | What | State |
 |---|---|---|
-| 1 | Engine, colour, type, frame and Simple mode | In progress: R1 to R4 done, viewer check next |
+| 1 | Engine, colour, type, frame and Simple mode | Done: R1 to R4 and the viewer check; R3's online lines open (H3) |
 | 2 | Swiss and Postmodern finished, finishes, marks | Queued |
 | 3 | Brutalist, Vaporwave, Advanced mode | Queued |
 | 4 | My palettes, own fonts, retouch | Queued |

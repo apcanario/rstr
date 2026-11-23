@@ -21,6 +21,7 @@ export const swiss: Style = {
     // frame, in the spike's order: archetype, axis (a candidate), then bleed or panel side
     const li = LAYOUTS.indexOf(spec.pick.layout ?? '');
     const arche = li >= 0 ? li : Math.floor(b.rf() * 3);
+    b.frame = LAYOUTS[arche];
     const axis = b.cand([0, 0, 1, 2]);
     const flag = b.rf() < 0.5;
     const tx = spec.text, any = SLOTS.some((s) => tx[s].on);

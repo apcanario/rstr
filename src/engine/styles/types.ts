@@ -27,6 +27,8 @@ export interface BuildCtx {
   cap: number;
   k: number;           // candidate index; -1 is the fallback
   fallback: boolean;
+  /** Set by build: which of the style's `layouts` it drew (the Layout lock names it). */
+  frame: string;
 }
 
 export interface Style {
