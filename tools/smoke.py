@@ -35,6 +35,13 @@ with served() as url, browser() as b:
             print(f'9.2 {style:6} {fmt:4}  picked: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
             for f in r['failures'][:5]:
                 fail(f'9.2 picked {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    # 9.2 with every palette picked, in light and dark (row R2)
+    for style in STYLES:
+        for fmt in FORMATS:
+            r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': [style], 'formats': [fmt], 'n': max(18, N // 8), 'palettes': True, 'variants': 'cycle'})
+            print(f'9.2 {style:6} {fmt:4}  each palette, light and dark: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+            for f in r['failures'][:5]:
+                fail(f'9.2 palette {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
     # knock-outs: stars and grid in a marker colour never show inside any text item's mask, with and without the layer
     nk = 0
     for fmt in FORMATS:
@@ -62,17 +69,17 @@ with served() as url, browser() as b:
                 if f:
                     fail(f'fallback {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f[:4]), spec)
     print(f'fallback: 72 over-long designs, {nfb} fell back, all checked')
-    # 9.3: independence of the four streams
+    # 9.3: independence of the four streams, in light and dark; switching the mode moves no box either
     for style in STYLES:
-        r = pg.evaluate('(o) => window.__rstr.proof.independence(o)', {'styles': [style], 'n': max(20, N // 4), 'modes': ['light'], 'variants': 'cycle'})
-        print(f'9.3 {style:6} streams: {r["count"]} designs, {len(r["failures"])} failing')
+        r = pg.evaluate('(o) => window.__rstr.proof.independence(o)', {'styles': [style], 'n': max(20, N // 4), 'variants': 'cycle'})
+        print(f'9.3 {style:6} streams, light and dark: {r["count"]} designs, {len(r["failures"])} failing')
         for f in r['failures'][:5]:
             fail(f'9.3 {style}: {f["facet"]}', f['spec'])
     # 9.3: the same spec drawn twice gives identical pixels
     for style in STYLES:
         for fmt in FORMATS:
-            for i in range(3):
-                spec = pg.evaluate('([s, f, i]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.seeds = {layout: 11 + i, colour: 23 + i, graphic: 37 + i, type: 41 + i}; return x; }', [style, fmt, i])
+            for i in range(4):
+                spec = pg.evaluate('([s, f, i]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i % 2 ? "dark" : "light"; x.seeds = {layout: 11 + i, colour: 23 + i, graphic: 37 + i, type: 41 + i}; return x; }', [style, fmt, i])
                 a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
                 c = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
                 if a != c:
@@ -114,6 +121,18 @@ with served() as url, browser() as b:
                 cw, ch = pg.evaluate('() => { const c = document.querySelector("canvas"); return [c.width, c.height]; }')
                 if (cw, ch) != SIZES[fmt]:
                     fail(f'app {w}x{h}: stage canvas is {cw}x{ch} for {fmt}')
+        # Light / Dark: the switch changes the mode and nothing else, and the design stays legal
+        for _ in range(2):
+            before = pg.evaluate('() => window.__rstr.spec()')
+            pg.click('[data-testid="mode"]')
+            after = pg.evaluate('() => window.__rstr.spec()')
+            if after['mode'] == before['mode'] or after['seeds'] != before['seeds'] or after['style'] != before['style']:
+                fail(f'app {w}x{h}: the mode switch did not change only the mode')
+            if pg.inner_text('[data-testid="mode"]').strip().lower() != after['mode']:
+                fail(f'app {w}x{h}: the mode switch shows the wrong label')
+            f = pg.evaluate('(s) => window.__rstr.check(s)', after)
+            if f:
+                fail(f'app {w}x{h} mode {after["mode"]}: {f[:3]}', after)
         sc = pg.evaluate('() => [document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]')
         if sc[0] > sc[1] or sc[2] > sc[3]:
             fail(f'app {w}x{h}: the page scrolls {sc}')

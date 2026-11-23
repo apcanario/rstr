@@ -56,6 +56,7 @@ export function App({ ready }: { ready: Promise<void> }) {
       <header>
         <div class="wm">RS<b>T</b>R</div>
         <div class="seed" data-testid="seed">#{seedCode(spec.seeds)}</div>
+        <button class="mode" data-testid="mode" aria-pressed={spec.mode === 'dark'} onClick={() => set({ mode: spec.mode === 'dark' ? 'light' : 'dark' })}>{spec.mode === 'dark' ? 'Dark' : 'Light'}</button>
       </header>
       <div class="stage"><canvas ref={cv} data-testid="stage" /></div>
       <div class="seg" role="group" aria-label="Style">

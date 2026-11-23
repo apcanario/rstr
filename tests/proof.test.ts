@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { PAIRINGS, type Pairing } from '../src/data/pairings';
+import { PALETTES } from '../src/data/palettes';
 import { stubMeasure } from '../src/engine/measure';
 import { picksOf, runIndependence, runInvariants, specs, textVariants } from '../src/engine/proof';
 import { solve } from '../src/engine/layout';
@@ -36,12 +37,28 @@ describe('9.2 with every value of pick.layout and pick.motif', () => {
   });
 });
 
-describe('9.3 stream independence on the stub measure', () => {
+describe('9.2 with every palette picked, in both modes', () => {
   for (const style of STYLE_IDS) {
     test(style, () => {
-      const r = runIndependence(stubMeasure, { styles: [style], n: 30, modes: ['light'], variants: 'cycle' });
+      const r = runInvariants(stubMeasure, { styles: [style], n: 9, palettes: true, variants: 'cycle' });
+      expect(r.count).toBe(PALETTES[style].length * 9 * 3 * 2);
       expect(r.failures, show(r.failures)).toEqual([]);
-      const p = runIndependence(stubMeasure, { styles: [style], n: 6, modes: ['light'], picks: 'each', variants: 'cycle' });
+    });
+  }
+  test('the specs carry the palettes and both modes', () => {
+    const got = [...specs({ styles: ['pomo'], formats: ['1:1'], n: 1, palettes: true, variants: 'cycle' })];
+    expect(new Set(got.map((s) => s.pick.palette))).toEqual(new Set(PALETTES.pomo.map((p) => p.id)));
+    expect(new Set(got.map((s) => s.mode))).toEqual(new Set(['light', 'dark']));
+  });
+});
+
+describe('9.3 stream independence on the stub measure, light and dark', () => {
+  for (const style of STYLE_IDS) {
+    test(style, () => {
+      const r = runIndependence(stubMeasure, { styles: [style], n: 30, variants: 'cycle' });
+      expect(r.count).toBe(30 * 3 * 2);
+      expect(r.failures, show(r.failures)).toEqual([]);
+      const p = runIndependence(stubMeasure, { styles: [style], n: 6, picks: 'each', variants: 'cycle' });
       expect(p.failures, show(p.failures)).toEqual([]);
     });
   }
@@ -62,11 +79,11 @@ describe('9.3 type seed with a second pairing of different widths', () => {
       const extra = stubPairing(style);
       PAIRINGS[style].push(extra);
       try {
-        const r = runIndependence(stubMeasure, { styles: [style], n: 20, modes: ['light'], variants: 'cycle' });
+        const r = runIndependence(stubMeasure, { styles: [style], n: 20, variants: 'cycle' });
         expect(r.failures, show(r.failures)).toEqual([]);
         // the test means something only if the type seed did change the pairing and the text for some specs
         let moved = 0;
-        for (const s of specs({ styles: [style], n: 20, modes: ['light'], variants: 'cycle' })) {
+        for (const s of specs({ styles: [style], n: 20, variants: 'cycle' })) {
           const t = structuredClone(s);
           t.seeds.type = mix(t.seeds.type, 77);
           const a = solve(s, stubMeasure).scene, b = solve(t, stubMeasure).scene;

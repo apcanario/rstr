@@ -47,7 +47,7 @@ export const swiss: Style = {
     const items: Item[] = [];
     const colours: Record<string, string> = motif === 'topo'
       ? (invert ? { line: P.ground, hi: P.ground, fill: P.accent } : { line: P.ink, hi: P.accent })
-      : { accent: P.accent, accent2: P.accent2 ?? P.ink, ink: P.ink, ground: P.ground };
+      : { accent: P.accent, ink: P.ink, ground: P.ground };   // one accent (spec 8.1): ground, ink, accent, nothing else
     items.push(mkGraphic(motif, MR, spec.seeds.graphic, rg.n, colours, [...new Set(Object.values(colours))], { W, mod }));
     if (!any) return items;
     if (panel) items.push(mkRect(panel, P.ground, { plate: true }));

@@ -1,20 +1,20 @@
 {
-  "_note": "The reference specs of docs/archive/spike/shots.py in v1 form. sd(s) = layout s*7919+1, colour s*104729+3, graphic s*1299709+5. Brutal pairing is the face the spike's layout stream chose.",
+  "_note": "The reference specs of docs/archive/spike/shots.py in v1 form. sd(s) = layout s*7919+1, colour s*104729+3, graphic s*1299709+5. Brutal pairing is the face the spike's layout stream chose. Palettes are pinned to what the spike drew from its shorter lists, and mode is the form that palette had in the spike (R2).",
   "refs": [
-    {"name": "swiss-topo-1x1", "style": "swiss", "format": "1:1", "s": 21, "pick": {"motif": "topo", "palette": "cobalt", "layout": "graphic-below"}, "text": "tx"},
-    {"name": "swiss-topo-3x4", "style": "swiss", "format": "3:4", "s": 21, "pick": {"motif": "topo", "palette": "cobalt", "layout": "graphic-below"}, "text": "tx"},
-    {"name": "swiss-topo-9x16", "style": "swiss", "format": "9:16", "s": 21, "pick": {"motif": "topo", "palette": "cobalt", "layout": "graphic-below"}, "text": "tx"},
-    {"name": "swiss-bars-3x4", "style": "swiss", "format": "3:4", "s": 5, "pick": {"motif": "bars", "palette": "pine"}, "text": ["Form follows grid", "Twelve posters, one rule set", "Series B — bars / pine"]},
-    {"name": "swiss-dots-1x1", "style": "swiss", "format": "1:1", "s": 1, "pick": {"motif": "dots", "palette": "night"}, "text": ["Quiet systems", "Evening programme", "Series C — dots / night"]},
-    {"name": "swiss-blocks-9x16", "style": "swiss", "format": "9:16", "s": 9, "pick": {"motif": "blocks", "palette": "paper"}, "text": ["Raster", "Blocks, rules and one red", "Series A — blocks / paper"]},
-    {"name": "swiss-notext-1x1", "style": "swiss", "format": "1:1", "s": 23, "pick": {"motif": "topo", "palette": "night"}, "text": "off"},
-    {"name": "pomo-1x1", "style": "pomo", "format": "1:1", "s": 11, "pick": {}, "text": "tx"},
-    {"name": "pomo-9x16", "style": "pomo", "format": "9:16", "s": 16, "pick": {}, "text": "tx"},
-    {"name": "brutal-1x1", "style": "brutal", "format": "1:1", "s": 4, "pick": {}, "text": "tx"},
-    {"name": "brutal-3x4", "style": "brutal", "format": "3:4", "s": 2, "pick": {}, "text": "tx"},
-    {"name": "brutal-9x16", "style": "brutal", "format": "9:16", "s": 6, "pick": {}, "text": "tx"},
-    {"name": "vapor-1x1", "style": "vapor", "format": "1:1", "s": 4, "pick": {}, "text": "tx"},
-    {"name": "vapor-3x4", "style": "vapor", "format": "3:4", "s": 2, "pick": {}, "text": "tx"},
-    {"name": "vapor-9x16", "style": "vapor", "format": "9:16", "s": 3, "pick": {}, "text": "tx"}
+    {"name": "swiss-topo-1x1", "style": "swiss", "format": "1:1", "s": 21, "pick": {"motif": "topo", "palette": "cobalt", "layout": "graphic-below"}, "text": "tx", "mode": "light"},
+    {"name": "swiss-topo-3x4", "style": "swiss", "format": "3:4", "s": 21, "pick": {"motif": "topo", "palette": "cobalt", "layout": "graphic-below"}, "text": "tx", "mode": "light"},
+    {"name": "swiss-topo-9x16", "style": "swiss", "format": "9:16", "s": 21, "pick": {"motif": "topo", "palette": "cobalt", "layout": "graphic-below"}, "text": "tx", "mode": "light"},
+    {"name": "swiss-bars-3x4", "style": "swiss", "format": "3:4", "s": 5, "pick": {"motif": "bars", "palette": "pine"}, "text": ["Form follows grid", "Twelve posters, one rule set", "Series B — bars / pine"], "mode": "dark"},
+    {"name": "swiss-dots-1x1", "style": "swiss", "format": "1:1", "s": 1, "pick": {"motif": "dots", "palette": "night"}, "text": ["Quiet systems", "Evening programme", "Series C — dots / night"], "mode": "dark"},
+    {"name": "swiss-blocks-9x16", "style": "swiss", "format": "9:16", "s": 9, "pick": {"motif": "blocks", "palette": "paper"}, "text": ["Raster", "Blocks, rules and one red", "Series A — blocks / paper"], "mode": "light"},
+    {"name": "swiss-notext-1x1", "style": "swiss", "format": "1:1", "s": 23, "pick": {"motif": "topo", "palette": "night"}, "text": "off", "mode": "dark"},
+    {"name": "pomo-1x1", "style": "pomo", "format": "1:1", "s": 11, "pick": {"palette": "lilac"}, "text": "tx", "mode": "light"},
+    {"name": "pomo-9x16", "style": "pomo", "format": "9:16", "s": 16, "pick": {"palette": "milano"}, "text": "tx", "mode": "light"},
+    {"name": "brutal-1x1", "style": "brutal", "format": "1:1", "s": 4, "pick": {"palette": "blackout"}, "text": "tx", "mode": "dark"},
+    {"name": "brutal-3x4", "style": "brutal", "format": "3:4", "s": 2, "pick": {"palette": "alarm"}, "text": "tx", "mode": "light"},
+    {"name": "brutal-9x16", "style": "brutal", "format": "9:16", "s": 6, "pick": {"palette": "klein"}, "text": "tx", "mode": "dark"},
+    {"name": "vapor-1x1", "style": "vapor", "format": "1:1", "s": 4, "pick": {"palette": "night"}, "text": "tx", "mode": "dark"},
+    {"name": "vapor-3x4", "style": "vapor", "format": "3:4", "s": 2, "pick": {"palette": "miami"}, "text": "tx", "mode": "dark"},
+    {"name": "vapor-9x16", "style": "vapor", "format": "9:16", "s": 3, "pick": {"palette": "miami"}, "text": "tx", "mode": "dark"}
   ]
 }

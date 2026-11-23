@@ -1,4 +1,5 @@
 /** window.__rstr: the hook the tools use (spec 4). */
+import { PALETTES } from './data/palettes';
 import { FORMATS } from './engine/formats';
 import { render, scene } from './engine';
 import { check } from './engine/invariants';
@@ -32,6 +33,8 @@ export function installApi(ready: Promise<void>, current: () => Spec) {
     },
     /** Marker-colour pixels of knocked-out graphics found inside text masks, with and without the offscreen layer. */
     knock: (raw: unknown) => ({ layer: knockLeak(migrate(raw)), noLayer: knockLeak(migrate(raw), true) }),
+    /** Palette ids of a style, in list order. */
+    palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),
     proof: {
       invariants: (o: Opts) => runInvariants(browserMeasure(), o),
       picks: (style: StyleId) => picksOf(style),

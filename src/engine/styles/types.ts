@@ -1,4 +1,4 @@
-import type { Palette } from '../../data/palettes/types';
+import type { Form } from '../../data/palettes/types';
 import type { Pairing } from '../../data/pairings';
 import type { Measure } from '../measure';
 import type { Rng } from '../rng';
@@ -13,7 +13,8 @@ export interface BuildCtx {
   top: number;         // text area, y
   bot: number;
   m: Measure;
-  P: Palette;
+  /** The palette's form for the spec's mode: roles only. */
+  P: Form;
   T: Pairing;
   /** The layout stream from its start, read in a fixed order (the spike's) whatever the candidate. */
   rf: Rng;

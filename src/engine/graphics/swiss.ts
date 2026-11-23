@@ -60,7 +60,8 @@ export const blocks: Draw = (ctx, g, r, T) => {
   const cells = side
     ? [[0, 0, vc, rows], [vc, 0, cols - vc, hr], [vc, hr, cols - vc, rows - hr]]
     : [[0, 0, vc, hr], [0, hr, vc, rows - hr], [vc, 0, cols - vc, rows]];
-  const fills = shuffle(r, [C.accent, C.ink, C.accent2 === C.ink ? null : C.accent2, null] as (string | null)[]);
+  // four slots shuffled as the spike did; the spike's accent2 slot stays empty so the draws are unchanged
+  const fills = shuffle(r, [C.accent, C.ink, null, null] as (string | null)[]);
   if (!fills[0] && !fills[1]) fills[0] = C.accent;
   cells.forEach((c, i) => {
     const e = T.rev(i * 0.6), x = R.x + c[0] * cw, y = R.y + c[1] * rh, w = c[2] * cw, h = c[3] * rh;

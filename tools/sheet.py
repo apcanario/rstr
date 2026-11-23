@@ -36,21 +36,34 @@ def strip(rows, h=560, gap=12, label_h=0):
 
 with served() as url, browser() as b:
     pg, errors = open_app(b, url)
-    # per style: 12 designs across the three formats
+    # per style: 12 designs across the three formats, in light and in dark (the same seeds in both)
     for style in STYLES:
+        for mode in ['light', 'dark']:
+            rows = []
+            for row in range(2):
+                cells = []
+                for i in range(6):
+                    n = row * 6 + i
+                    fmt = FORMATS[n % 3]
+                    spec = pg.evaluate('([s, f, n, md]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = md; x.seeds = {layout: 1000 + n * 7919, colour: 2000 + n * 104729, graphic: 3000 + n * 1299709, type: 4000 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null}; return x; }', [style, fmt, n, mode])
+                    sol = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
+                    sc = pg.evaluate('(s) => { const c = window.__rstr.scene(s); return c.palette + " " + c.pairing; }', spec)
+                    cells.append((img(pg, spec), f'{fmt} {mode} {sc} {sol["layout"]}'))
+                rows.append(cells)
+            strip(rows).save(os.path.join(OUT, f'sheet-{style}-{mode}.jpg'), quality=85)
+            print('wrote', f'shots/sheet-{style}-{mode}.jpg')
+    # per style: every palette, light above dark, one layout at 3:4, so the two forms can be compared
+    for style in STYLES:
+        ids = pg.evaluate('(s) => window.__rstr.palettes(s)', style)
         rows = []
-        for row in range(2):
+        for mode in ['light', 'dark']:
             cells = []
-            for i in range(6):
-                n = row * 6 + i
-                fmt = FORMATS[n % 3]
-                spec = pg.evaluate('([s, f, n]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.seeds = {layout: 1000 + n * 7919, colour: 2000 + n * 104729, graphic: 3000 + n * 1299709, type: 4000 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null}; return x; }', [style, fmt, n])
-                sol = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
-                sc = pg.evaluate('(s) => { const c = window.__rstr.scene(s); return c.palette + " " + c.pairing; }', spec)
-                cells.append((img(pg, spec), f'{fmt} {sc} {sol["layout"]}'))
+            for pid in ids:
+                spec = pg.evaluate('([s, p, md]) => { const x = window.__rstr.spec(); x.style = s; x.format = "3:4"; x.mode = md; x.seeds = {layout: 4242, colour: 1, graphic: 5151, type: 6}; x.pick = {palette: p, pairing: null, motif: null, layout: null}; return x; }', [style, pid, mode])
+                cells.append((img(pg, spec), f'{pid} {mode}'))
             rows.append(cells)
-        strip(rows).save(os.path.join(OUT, f'sheet-{style}.jpg'), quality=85)
-        print('wrote', f'shots/sheet-{style}.jpg')
+        strip(rows, h=420).save(os.path.join(OUT, f'palettes-{style}.jpg'), quality=85)
+        print('wrote', f'shots/palettes-{style}.jpg')
     # text variants: one word, eight words, each slot alone
     for style in STYLES:
         cells = []
@@ -83,6 +96,9 @@ with served() as url, browser() as b:
             pg.click(f'button[data-style="{style}"]')
             pg.wait_for_timeout(100)
             pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-{style}.png'))
+        pg.click('[data-testid="mode"]')
+        pg.wait_for_timeout(100)
+        pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-{STYLES[-1]}-dark.png'))
         pg.close()
     print('wrote shots/screen-*.png')
     if errors:

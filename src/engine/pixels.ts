@@ -1,4 +1,5 @@
 /** Pixel reads for the tools: a hash of a render, and the knock-out proof. Kept in the engine (CLAUDE.md). */
+import { MARKER, MASK } from '../data/palettes/system';
 import { FORMATS } from './formats';
 import type { Ctx } from './graphics/types';
 import { paint, paintText } from './paint';
@@ -19,7 +20,7 @@ export function pixelHash(c: HTMLCanvasElement | OffscreenCanvas): string {
   return (h >>> 0).toString(16) + ':' + d.length;
 }
 
-export const MARKER = '#13F7A9';
+export { MARKER };
 
 /**
  * Knock-out proof (spec 9.2 rule 3 for graphics that keep off text): paint the design without its text and
@@ -40,7 +41,7 @@ export function knockLeak(spec: Spec, noLayer = false): { leaks: number; masked:
   const mask = canvas(W, H);
   for (const it of sc.items) {
     if (it.kind !== 'text') continue;
-    const t: TextItem = { ...it, fill: '#000000', stroke: it.stroke && { ...it.stroke, paint: '#000000' }, echoes: it.echoes?.map((e) => ({ ...e, paint: '#000000' })) };
+    const t: TextItem = { ...it, fill: MASK, stroke: it.stroke && { ...it.stroke, paint: MASK }, echoes: it.echoes?.map((e) => ({ ...e, paint: MASK })) };
     paintText(mask, t);
   }
   const a = main.getImageData(0, 0, W, H).data, b = mask.getImageData(0, 0, W, H).data;

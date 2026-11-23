@@ -17,7 +17,7 @@ export const vapor: Style = {
     const { W, H, spec, m, P, T, story } = b;
     const M = Math.round(W * 0.0667), { top, bot } = textArea(story, H, M), tx = spec.text, force = b.fallback;
     const sky = P.gradient ?? [P.ground, P.ground];
-    const chrome = P.chrome ?? '#FFFFFF', win = P.window ?? P.ground, winInk = P.windowInk ?? P.ink;
+    const chrome = P.chrome ?? P.window ?? P.ground, win = P.window ?? P.ground, winInk = P.windowInk ?? P.ink;
     const A2 = P.accent2 ?? P.accent, A3 = P.accent3 ?? P.accent;
     // frame, in the spike's order: horizon, sun x, sun radius, sun height, then title side and window side
     const hz = Math.round(H * (0.56 + b.rf() * 0.08));

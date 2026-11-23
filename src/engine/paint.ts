@@ -1,4 +1,5 @@
 /** paint(ctx, scene, t): draws a Scene. No decisions, no randomness beyond the seeds the Scene carries. */
+import { MASK } from '../data/palettes/system';
 import { GRAPHICS } from './graphics';
 import { clock, type Time } from './graphics/clock';
 import type { Ctx } from './graphics/types';
@@ -67,8 +68,8 @@ function knockText(ctx: Ctx, it: TextItem, pad: number) {
   ctx.font = fontCss(it.font, it.size);
   (ctx as any).letterSpacing = it.tracking + 'px';
   ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#000';
-  ctx.strokeStyle = '#000';
+  ctx.fillStyle = MASK;
+  ctx.strokeStyle = MASK;
   ctx.lineJoin = 'round';
   const offs = [{ dx: 0, dy: 0 }, ...(it.echoes ?? [])];
   for (const r of it.runs) {
@@ -131,10 +132,10 @@ function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, n
       const t = scene.items[i];
       if (t && t.kind === 'text') knockText(L, t, it.knock.pad);
     }
-    L.fillStyle = '#000';
+    L.fillStyle = MASK;
     for (const q of it.knock.boxes) { L.beginPath(); quadPath(L, q); L.fill(); }
   } else {
-    L.fillStyle = '#000';
+    L.fillStyle = MASK;
     for (const q of it.avoid) { L.beginPath(); quadPath(L, q); L.fill(); }
   }
   L.restore();

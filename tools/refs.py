@@ -42,7 +42,7 @@ def ref_specs():
         pick.update(r['pick'])
         if r['style'] == 'brutal':
             pick['pairing'] = 'br-anton' if mulberry32(seeds['layout'])() < 0.5 else 'br-archivo-black'
-        spec = {"v": 1, "style": r['style'], "format": r['format'], "mode": "light", "finish": "clean", "marks": "off",
+        spec = {"v": 1, "style": r['style'], "format": r['format'], "mode": r.get("mode", "light"), "finish": "clean", "marks": "off",
                 "seeds": seeds, "pick": pick, "params": {}, "text": text(r['text'])}
         out.append((r['name'], spec))
     return out

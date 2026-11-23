@@ -7,6 +7,8 @@ header { display: flex; align-items: center; justify-content: space-between; hei
 .wm { font-weight: 700; letter-spacing: 0.22em; font-size: 16px; }
 .wm b { color: #ff6b6b; }
 .seed { font-size: 13px; letter-spacing: 0.08em; color: #f1efe9aa; background: #131316; height: 36px; display: flex; align-items: center; padding: 0 12px; border-radius: 8px; white-space: nowrap; }
+.mode { height: 48px; min-width: 72px; padding: 0 14px; border-radius: 8px; background: #131316; font-size: 13px; font-weight: 500; letter-spacing: 0.08em; color: #f1efe9cc; white-space: nowrap; }
+header .seed { margin-left: auto; margin-right: 8px; }
 .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; background: #131316; border-radius: 14px; padding: 10px; }
 .stage canvas { max-width: 100%; max-height: 100%; display: block; box-shadow: 0 6px 30px #0009; }
 .seg { display: flex; flex: none; gap: 3px; background: #131316; border-radius: 12px; padding: 3px; }

@@ -1,6 +1,6 @@
 /** layout(spec, measure) -> Scene. A solver: candidates from the layout stream, the first that passes 9.2 wins. */
 import { PAIRINGS, type Pairing } from '../data/pairings';
-import { PALETTES, type Palette } from '../data/palettes';
+import { formOf, PALETTES, type Form, type Mode } from '../data/palettes';
 import { FORMATS } from './formats';
 import { check, type Failure } from './invariants';
 import type { Measure } from './measure';
@@ -14,16 +14,17 @@ export const CANDIDATES = 20;
 /** Title cap per candidate: later candidates try a smaller title. */
 const capFor = (k: number) => (k <= 0 ? 1 : [1, 0.85, 0.72, 0.6][Math.floor(k / 2) % 4]);
 
-export function choosePalette(spec: Spec): Palette {
+/** The palette (pick, else the colour seed) in the spec's mode. */
+export function choosePalette(spec: Spec): Form {
   const list = PALETTES[spec.style];
-  return list.find((p) => p.id === spec.pick.palette) ?? pick(rng(spec.seeds.colour), list);
+  return formOf(list.find((p) => p.id === spec.pick.palette) ?? pick(rng(spec.seeds.colour), list), spec.mode);
 }
 export function choosePairing(spec: Spec): Pairing {
   const list = PAIRINGS[spec.style];
   return list.find((p) => p.id === spec.pick.pairing) ?? pick(rng(spec.seeds.type), list);
 }
 
-function build(spec: Spec, m: Measure, P: Palette, T: Pairing, k: number): Item[] | null {
+function build(spec: Spec, m: Measure, P: Form, T: Pairing, k: number): Item[] | null {
   const style = STYLES[spec.style];
   const [W, H] = FORMATS[spec.format];
   const story = spec.format === '9:16';
@@ -42,7 +43,7 @@ function build(spec: Spec, m: Measure, P: Palette, T: Pairing, k: number): Item[
   return style.build(b);
 }
 
-function sceneOf(spec: Spec, items: Item[], P: Palette, T: Pairing, layoutName: string): Scene {
+function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: string): Scene {
   const [W, H] = FORMATS[spec.format];
   const fonts = [...new Set(items.filter((i): i is TextItem => i.kind === 'text').map((i) => i.font.family))];
   return { w: W, h: H, style: spec.style, format: spec.format, palette: P.id, pairing: T.id, layout: layoutName, ground: P.ground, items, fonts };
@@ -50,11 +51,20 @@ function sceneOf(spec: Spec, items: Item[], P: Palette, T: Pairing, layoutName: 
 
 export interface Solved { scene: Scene; tried: number; failures: Failure[]; }
 
-/** True if these items pass 9.2 for the palette in use and rule 4 for every other palette of the style. */
-function passesAll(spec: Spec, m: Measure, P: Palette, T: Pairing, k: number, name: string): { first: Scene | null; failures: Failure[] } {
-  const palettes = [P, ...PALETTES[spec.style].filter((p) => p !== P)];
+/**
+ * Every form of every palette of the style, the one in use first: light and dark of each, so neither the
+ * colour seed nor the mode can move a box.
+ */
+function formsFor(spec: Spec, P: Form): Form[] {
+  const modes: Mode[] = spec.mode === 'dark' ? ['dark', 'light'] : ['light', 'dark'];
+  const all = modes.flatMap((md) => PALETTES[spec.style].map((p) => formOf(p, md)));
+  return [P, ...all.filter((q) => !(q.id === P.id && q.mode === P.mode))];
+}
+
+/** True if these items pass 9.2 for the form in use and rule 4 for every other form of the style. */
+function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name: string): { first: Scene | null; failures: Failure[] } {
   let first: Scene | null = null;
-  for (const Q of palettes) {
+  for (const Q of formsFor(spec, P)) {
     const items = build(spec, m, Q, T, k);
     if (!items) return { first: null, failures: [{ rule: 0, part: '-', msg: 'text does not fit' }] };
     const sc = sceneOf(spec, items, Q, T, name);
@@ -66,8 +76,8 @@ function passesAll(spec: Spec, m: Measure, P: Palette, T: Pairing, k: number, na
 }
 
 /**
- * A candidate passes only if it passes for every palette of the style: so the colour seed can never
- * move a box (9.3). The fallback keeps the frame and shortens text to fit. A picked layout or motif
+ * A candidate passes only if it passes for every form (light and dark) of every palette of the style: so
+ * the colour seed can never move a box (9.3), and switching mode keeps the layout. The fallback keeps the frame and shortens text to fit. A picked layout or motif
  * the fallback cannot carry is dropped (layout first, then motif), so the fallback always passes.
  */
 export function solve(spec: Spec, m: Measure): Solved {

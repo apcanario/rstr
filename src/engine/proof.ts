@@ -6,6 +6,7 @@ import type { Measure } from './measure';
 import { mix } from './rng';
 import type { Item, Scene } from './scene';
 import { STYLES } from './styles';
+import { PALETTES } from '../data/palettes';
 import { DEFAULT_TEXT, defaultSpec, SLOTS, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
 
 export const TITLES = { one: 'Signal', three: 'Signal and noise', eight: 'Eight plain words make a long poster title' };
@@ -38,6 +39,8 @@ export function seedSet(i: number): Spec['seeds'] {
 export interface Opts {
   styles?: StyleId[]; formats?: Format[]; modes?: Mode[]; n?: number; start?: number;
   picks?: 'none' | 'each'; variants?: 'all' | 'cycle';
+  /** Run one spec set per palette of the style, with pick.palette set (every palette in every mode). */
+  palettes?: boolean;
 }
 export interface Report { count: number; fallbacks: number; failures: { spec: Spec; failures: Failure[] }[]; }
 
@@ -48,11 +51,16 @@ export function picksOf(style: StyleId): Pick[] {
   return [...st.layouts.map((layout) => ({ layout })), ...st.motifs.map((motif) => ({ motif }))];
 }
 
+function palettePicks(style: StyleId, o: Opts, picks: Pick[]): Pick[] {
+  if (!o.palettes) return picks;
+  return PALETTES[style].flatMap((p) => picks.map((pk) => ({ ...pk, palette: p.id })));
+}
+
 export function* specs(o: Opts = {}): Generator<Spec> {
   const variants = textVariants();
   const start = o.start ?? 0, n = o.n ?? 200;
   for (const style of o.styles ?? STYLE_IDS)
-    for (const pk of o.picks === 'each' ? picksOf(style) : [{} as Pick])
+    for (const pk of palettePicks(style, o, o.picks === 'each' ? picksOf(style) : [{} as Pick]))
       for (const format of o.formats ?? FORMAT_LIST)
         for (const mode of o.modes ?? (['light', 'dark'] as Mode[]))
           for (let i = start; i < start + n; i++)
@@ -81,7 +89,10 @@ const round = (q: number[][]) => q.map((p) => p.map((v) => Math.round(v * 100) /
 const boxes = (sc: Scene, keep: (i: Item) => boolean) =>
   JSON.stringify(sc.items.filter(keep).map((i) => [i.kind, i.kind === 'graphic' ? [i.name, i.box, i.seed, i.skip, i.params, i.xf] : i.kind === 'text' ? [i.slot, i.part] : 0, round(i.quad)]));
 
-/** 9.3: the colour seed moves no box; the type seed moves no graphic; the graphic seed moves no text box. */
+/**
+ * 9.3: the colour seed moves no box; the type seed moves no graphic; the graphic seed moves no text box.
+ * Also: switching the mode moves no box (a candidate passes for both forms of every palette).
+ */
 export function runIndependence(m: Measure, o: Opts = {}): { count: number; failures: { spec: Spec; facet: string }[] } {
   const out = { count: 0, failures: [] as { spec: Spec; facet: string }[] };
   for (const spec of specs(o)) {
@@ -98,6 +109,9 @@ export function runIndependence(m: Measure, o: Opts = {}): { count: number; fail
     if (boxes(base, (i) => i.kind === 'graphic') !== boxes(t, (i) => i.kind === 'graphic')) out.failures.push({ spec, facet: 'type moved a graphic' });
     const g = vary('graphic');
     if (boxes(base, (i) => i.kind === 'text') !== boxes(g, (i) => i.kind === 'text')) out.failures.push({ spec, facet: 'graphic moved a text box' });
+    const md = structuredClone(spec);
+    md.mode = spec.mode === 'light' ? 'dark' : 'light';
+    if (boxes(base, () => true) !== boxes(solve(md, m).scene, () => true)) out.failures.push({ spec, facet: 'mode moved a box' });
   }
   return out;
 }

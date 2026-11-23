@@ -12,8 +12,6 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 
 ## Carried
 
-- **R2.** Run the 9.3 independence check in dark mode too once dark differs (`tests/proof.test.ts`, `tools/smoke.py`). Review R1 M3.
-- **R2/R5.** Swiss Cobalt shows two accents: `styles/swiss.ts` passes accent2 (#E4002B) to blocks, against spec 8.1 "one accent". Review R1 M5.
 - **R3.** The 9.3 type-seed test is meaningful only with a second pairing; a unit test with a stub pairing covers it until R3 adds real ones. Show the note when a core font fails (fonts load with `allSettled` now). Review R1 M2, M10.
 - **R4.** App chrome: the coral wordmark letter, selected segments, Shuffle and the orange export icon go against spec 10.1 "dark and quiet"; follow `ui-*.jpg`. Review R1 M8.
 - **R8.** Brutalist 1:1 Anton (Klein, Alarm): title lines leave about a third of the width empty when height binds (`styles/brutal.ts`, `kx < 1`); spec 8.3 says every line fills the width. Review R1 M4.
