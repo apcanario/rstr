@@ -20,21 +20,11 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 
 ## By hand (Pedro)
 
-- **H1. Turn Pages on** after bundle 1's first push: repo Settings, Pages, Source: GitHub Actions. Then the app is at https://apcanario.github.io/rstr/.
 - **H2. Look and use.** After each bundle, shuffle each style on the phone for a few minutes and send what is off in the next starter's `Notes:` line. Open until Pedro says done.
 
 ## Bundle 1: engine, colour, type, frame
 
 Read spec 3, 4, 5, 6, 9 and 10 in full before any row of this bundle.
-
-### R2. Colour, light and dark
-
-- Palettes as role data per style (spec 5), the spike's palettes moved over, each with a hand-written light and dark form, 8 per style.
-- `mode` in the spec; every style reads roles only, never a literal colour.
-- The contrast rule, with plates where a style needs them.
-- Vaporwave light mode as spec 8.4 says.
-
-**Done when:** every palette of every style passes 9.2 in both modes (tested); no colour literal outside `src/data/palettes/` and the app's own stylesheet (tested); sheets show each style in light and dark. Whether the dark forms look right is Pedro's call.
 
 ### R3. Type
 
@@ -117,4 +107,5 @@ Needs Pedro's notes to run. Works every note and everything in Carried.
 
 ## Done
 
+- **R2. Colour, light and dark.** 23 Nov 2026. Review R2 applied; see `docs/CHANGELOG.md` and `docs/reviews/R2.md`.
 - **R1. The engine.** 23 Nov 2026. Review R1 applied; see `docs/CHANGELOG.md` and `docs/reviews/R1.md`.
