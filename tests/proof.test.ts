@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { CORE_FAMILIES, defaultPairing, facesOf, isCoreFace, PAIRINGS, type Pairing } from '../src/data/pairings';
+import { CORE_FAMILIES, CORE_FONTS, defaultPairing, faceKey, facesOf, isCoreFace, PAIRINGS, type Pairing } from '../src/data/pairings';
 import { PALETTES } from '../src/data/palettes';
 import { stubMeasure } from '../src/engine/measure';
 import { picksOf, runIndependence, runInvariants, seedSet, specs, textVariants } from '../src/engine/proof';
-import { resolvePairing, solve } from '../src/engine/layout';
+import { resolvePairing, solve, unloadedFaces } from '../src/engine/layout';
 import { defaultSpec, STYLE_IDS, type Spec, type StyleId } from '../src/engine/spec';
 
 const show = (fs: { spec: unknown }[]) => fs.slice(0, 3).map((f) => JSON.stringify(f)).join('\n');
@@ -13,7 +13,9 @@ const showFb = (r: { fallbackSpecs: unknown[] }) => r.fallbackSpecs.slice(0, 3).
  * Fallbacks allowed when a layout or motif is picked (review R2 S1): a picked Vaporwave sky title cannot
  * always fit. Counts as of R2; a rise means a change cut candidates. Unpicked and per-palette runs allow none.
  */
-const PICKED_FALLBACKS: Record<StyleId, number> = { swiss: 0, pomo: 0, brutal: 0, vapor: 12 };   // vapor 10 -> 12 in R3: the type seed now reaches wider display faces
+// vapor 10 -> 12 in R3: the type seed now reaches wider display faces. The 12 is stub-only: it rests on the stub's
+// name-hash widths (src/engine/measure.ts), not real metrics. Re-derive it from the online smoke run when possible.
+const PICKED_FALLBACKS: Record<StyleId, number> = { swiss: 0, pomo: 0, brutal: 0, vapor: 12 };
 
 describe('9.2 on the stub measure, every style x format x mode, every text variant on every seed set', () => {
   for (const style of STYLE_IDS) {
@@ -107,6 +109,7 @@ describe('layout never measures with a face that is not loaded', () => {
       const r = runInvariants(stubMeasure, { styles: [style], n: 12, variants: 'cycle' }, resolve);
       expect(r.failures, show(r.failures)).toEqual([]);
       expect(r.fonts.filter((f) => !CORE_FAMILIES.includes(f))).toEqual([]);
+      expect(r.faces.filter((k) => !CORE_FONTS.some((c) => faceKey(c) === k))).toEqual([]);
       expect(r.pairings.every((id) => core(PAIRINGS[style].find((p) => p.id === id)!))).toBe(true);
     }
   });
@@ -128,6 +131,25 @@ describe('layout never measures with a face that is not loaded', () => {
     const sc = solve(s, stubMeasure).scene;
     expect(sc.pairing).toBe('br-bebas');
     expect(sc.fonts).toEqual(expect.arrayContaining(['Bebas Neue', 'IBM Plex Mono', 'Anton', 'Archivo Black']));
+    expect(sc.faces).toEqual(expect.arrayContaining(['Anton|400|n', 'Archivo Black|400|n']));
+  });
+  test('the font check is by face: a weight the registry lacks is reported though its family is loaded (review R3 S3)', () => {
+    // Inter Tight is core at 400, 500, 700 and 800; ask for 300 as well
+    const T = defaultPairing('swiss');
+    const light: Pairing = { ...T, id: 'sw-test-300', text: { ...T.text, weight: 300 } };
+    PAIRINGS.swiss.push(light);
+    try {
+      const s = defaultSpec();
+      s.style = 'swiss';
+      s.pick.pairing = light.id;
+      const sc = solve(s, stubMeasure).scene;
+      const loaded = (k: string) => CORE_FONTS.some((c) => faceKey(c) === k);
+      expect(sc.fonts.every((f) => CORE_FAMILIES.includes(f))).toBe(true);   // family-level would pass
+      expect(unloadedFaces(sc, loaded)).toEqual(['Inter Tight|300|n']);
+      expect(unloadedFaces(solve({ ...s, pick: { ...s.pick, pairing: T.id } }, stubMeasure).scene, loaded)).toEqual([]);
+    } finally {
+      PAIRINGS.swiss.pop();
+    }
   });
   test('the Brutalist band is measured with bundled faces only', () => {
     for (let i = 0; i < 20; i++) {

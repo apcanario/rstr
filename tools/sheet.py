@@ -68,15 +68,16 @@ with served() as url, browser() as b:
     # draws with the style's default, and its label says so.
     for style in STYLES:
         ids = pg.evaluate('(s) => window.__rstr.fonts.pairings(s)', style)
-        cells = []
+        cells, missing = [], 0
         for pid in ids:
             pg.evaluate('(id) => window.__rstr.fonts.ensure(id, 8000)', pid)
             spec = pg.evaluate('([s, p]) => { const x = window.__rstr.spec(); x.style = s; x.format = "3:4"; x.mode = "light"; x.seeds = {layout: 4242, colour: 1, graphic: 5151, type: 6}; x.pick = {palette: null, pairing: p, motif: null, layout: null}; return x; }', [style, pid])
             drawn = pg.evaluate('(s) => window.__rstr.scene(s).pairing', spec)
+            missing += drawn != pid
             cells.append((img(pg, spec), pid if drawn == pid else f'{pid}: NOT LOADED, drawn as {drawn}'))
         rows = [cells[i:i + 8] for i in range(0, len(cells), 8)]
         strip(rows, h=420).save(os.path.join(OUT, f'pairings-{style}.jpg'), quality=85)
-        print('wrote', f'shots/pairings-{style}.jpg')
+        print('wrote', f'shots/pairings-{style}.jpg' + (f': {missing} of {len(ids)} pairings NOT LOADED (drawn as the default)' if missing else ''))
     # text variants: one word, eight words, each slot alone
     for style in STYLES:
         cells = []

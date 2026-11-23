@@ -34,10 +34,22 @@ async function fontsFor(ready: Promise<void>, spec: Spec): Promise<{ use: Use; d
   const want = choosePairing(spec), def = defaultPairing(spec.style);
   const ok = available(want) || (await ensure(want));
   const notes: string[] = [];
-  if (!ok) notes.push(`${want.name} fonts not available, shown in ${def.name}`);
+  if (!ok) notes.push(`${want.name} offline · ${def.name}`);
   const failed = coreFailures();
   if (failed.length) notes.push(`Bundled font failed: ${failed.join(', ')}`);
   return { use: { pairing: ok ? want.id : def.id }, drawn: { wanted: want.id, pairing: ok ? want.id : def.id, note: notes.join(' · ') } };
+}
+
+/**
+ * Spec 6: offline, prefer a type seed whose pairing's fonts are already here. Keeps the seed when its pairing
+ * is available or the app is online; else draws new type seeds until one resolves to an available pairing
+ * (every style's default is core, so one always exists).
+ */
+function preferAvailable(s: Spec): Spec {
+  if (navigator.onLine || s.pick.pairing || available(choosePairing(s))) return s;
+  const next = { ...s, seeds: { ...s.seeds } };
+  for (let i = 0; i < 1000 && !available(choosePairing(next)); i++) next.seeds.type = newSeed();
+  return next;
 }
 
 export function App({ ready }: { ready: Promise<void> }) {
@@ -79,12 +91,8 @@ export function App({ ready }: { ready: Promise<void> }) {
   }, [spec, loaded]);
 
   const set = (p: Partial<Spec>) => setSpec((s) => ({ ...s, ...p }));
-  const shuffle = () => setSpec((s) => {
-    const next: Spec = { ...s, seeds: newSeeds(), pick: { palette: null, pairing: null, motif: null, layout: null } };
-    // spec 6: offline, prefer a pairing whose fonts are already here
-    for (let i = 0; i < 32 && !navigator.onLine && !available(choosePairing(next)); i++) next.seeds = { ...next.seeds, type: newSeed() };
-    return next;
-  });
+  const shuffle = () => setSpec((s) => preferAvailable({ ...s, seeds: newSeeds(), pick: { palette: null, pairing: null, motif: null, layout: null } }));
+  const pickStyle = (id: StyleId) => setSpec((s) => preferAvailable({ ...s, style: id, pick: { palette: null, pairing: null, motif: null, layout: null } }));
   const save = async () => {
     const { use } = await fontsFor(ready, spec);   // spec 6: export waits for fonts the same way the stage does
     const c = document.createElement('canvas');
@@ -112,7 +120,7 @@ export function App({ ready }: { ready: Promise<void> }) {
       </div>
       <div class="seg" role="group" aria-label="Style">
         {STYLE_IDS.map((id: StyleId) => (
-          <button class={spec.style === id ? 'on' : ''} data-style={id} onClick={() => set({ style: id, pick: { palette: null, pairing: null, motif: null, layout: null } })}>{STYLES[id].name}</button>
+          <button class={spec.style === id ? 'on' : ''} data-style={id} onClick={() => pickStyle(id)}>{STYLES[id].name}</button>
         ))}
       </div>
       <div class="seg" role="group" aria-label="Format">

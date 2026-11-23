@@ -4,3 +4,4 @@ dist-single
 *.log
 __pycache__
 shots/
+public/fonts/gf/

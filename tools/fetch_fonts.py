@@ -55,8 +55,8 @@ def css_url(family, faces, sources):
     return f'{CSS_HOST}/css2?family={urllib.parse.quote(real).replace("%20", "+")}:{axes}@{body}&display=block', real
 
 
-def get(url, binary=False):
-    req = urllib.request.Request(url, headers={'User-Agent': UA})
+def get(url, binary=False, head=False):
+    req = urllib.request.Request(url, headers={'User-Agent': UA}, method='HEAD' if head else 'GET')
     with urllib.request.urlopen(req, timeout=30) as r:
         data = r.read()
     return data if binary else data.decode('utf8')
@@ -75,6 +75,30 @@ def parse_css(css):
         out.append({'subset': 'n' if re.fullmatch(r'\[\d+\]', sub) else sub, 'italic': (g('font-style') or '').strip() == 'italic',
                     'weight': int((g('font-weight') or '400').split()[0]), 'url': u.group(1), 'range': (g('unicode-range') or '').strip()})
     return out
+
+
+def covers(rng, lo=0x41, hi=0x5A):
+    """The same as src/fontcss.ts covers: does a unicode-range (empty: everything) cover lo..hi?"""
+    if not rng:
+        return True
+    spans = []
+    for t in rng.split(','):
+        t = re.sub(r'^U\+', '', t.strip(), flags=re.I)
+        if not t:
+            continue
+        if '?' in t:
+            spans.append((int(t.replace('?', '0'), 16), int(t.replace('?', 'F'), 16)))
+        else:
+            a, _, b = t.partition('-')
+            spans.append((int(a, 16), int(b or a, 16)))
+    return all(any(a <= c <= b for a, b in spans) for c in range(lo, hi + 1))
+
+
+def core_families():
+    """The bundled core families (CORE_FONTS in src/data/pairings.ts): their licences are in public/LICENSES.txt."""
+    src = open(os.path.join(ROOT, 'src', 'data', 'pairings.ts'), encoding='utf8').read()
+    block = src.split('export const CORE_FONTS', 1)[1].split('];', 1)[0]
+    return set(re.findall(r"family: '([^']+)'", block))
 
 
 def slug(s):
@@ -106,6 +130,7 @@ def main():
             print(fam, css_url(fam, faces, sources)[0])
         return 0
     bad, manifest, licences = [], [], {}
+    core = core_families()   # licences already in public/LICENSES.txt
     if not a.check:
         os.makedirs(a.out, exist_ok=True)
     for fam, faces in sorted(fams.items()):
@@ -118,7 +143,8 @@ def main():
             continue
         for w, it in sorted(faces):
             mine = [r for r in rules if r['weight'] == w and r['italic'] == it]
-            kept = [r for r in mine if r['subset'] in KEEP] or mine
+            # latin and latin-ext; a font with neither keeps only the slices that cover A-Z (review R3 M3)
+            kept = [r for r in mine if r['subset'] in KEEP] or [r for r in mine if covers(r['range'])]
             if not kept:
                 bad.append(f'{fam} {w}{" italic" if it else ""}: not in the css2 response')
                 print('FAIL', bad[-1])
@@ -126,7 +152,7 @@ def main():
             for r in kept:
                 name = f'{slug(fam)}-{w}-{"italic" if it else "normal"}-{slug(r["subset"] or "all")}.woff2'
                 try:
-                    body = get(r['url'], binary=True)
+                    body = get(r['url'], binary=True, head=a.check)   # --check only asks that the file exists
                 except Exception as e:  # noqa: BLE001
                     bad.append(f'{fam} {w}: {r["url"]} -> {e}')
                     print('FAIL', bad[-1])
@@ -136,7 +162,7 @@ def main():
                         f.write(body)
                     manifest.append({'family': fam, 'weight': w, 'italic': it, 'file': name, 'range': r['range']})
         print('ok  ', fam, sorted(faces))
-        if not a.check and real not in licences:
+        if not a.check and real not in licences and real not in core:
             try:
                 licences[real] = licence(real)
             except Exception as e:  # noqa: BLE001

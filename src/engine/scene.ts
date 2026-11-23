@@ -69,5 +69,6 @@ export interface Scene {
   layout: string;            // the candidate that passed, or 'fallback'
   ground: string;
   items: Item[];
-  fonts: string[];           // families the layout measured with
+  fonts: string[];           // families the layout measured with or drew
+  faces: string[];           // faces (faceKey) the layout measured with or drew: what the font check tests
 }

@@ -3,11 +3,11 @@ import { PALETTES } from './data/palettes';
 import { FORMATS } from './engine/formats';
 import { choosePairing, render, resolvePairing, scene } from './engine';
 import { PAIRINGS } from './data/pairings';
-import { available, coreFailures, ensure, isLoaded, loadedFamilies, pairingById, unloaded } from './fonts';
+import { available, coreFailures, ensure, isKeyLoaded, loadedFamilies, pairingById } from './fonts';
 import type { Drawn } from './app/App';
-import type { FontRef, Scene } from './engine/scene';
+import type { Scene } from './engine/scene';
 import { check } from './engine/invariants';
-import { solve } from './engine/layout';
+import { solve, unloadedFaces } from './engine/layout';
 import { browserMeasure } from './engine';
 import { picksOf, runIndependence, runInvariants, type Opts } from './engine/proof';
 import { knockLeak, pixelHash } from './engine/pixels';
@@ -67,11 +67,7 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       loaded: () => loadedFamilies(),
       coreFailures: () => coreFailures(),
       /** Faces a Scene used or measured that are not loaded: must always be empty (spec 6). */
-      unloaded(sc: Scene): string[] {
-        const loaded = new Set(loadedFamilies());
-        const faces: FontRef[] = sc.items.flatMap((i) => (i.kind === 'text' ? [i.font] : []));
-        return [...new Set([...unloaded(faces.filter((f) => !isLoaded(f))), ...sc.fonts.filter((f) => !loaded.has(f)).map((f) => f + ' (measured)')])];
-      },
+      unloaded: (sc: Scene): string[] => unloadedFaces(sc, isKeyLoaded),
     },
   };
   (window as unknown as { __rstr: typeof api }).__rstr = api;

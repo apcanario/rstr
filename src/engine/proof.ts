@@ -48,7 +48,7 @@ export interface Opts {
 /** What layout may use for a spec: the app's font check (spec 6). Absent: every pairing is drawn as asked. */
 export type Resolve = (spec: Spec) => Use;
 /** fallbackSpecs: the first 20 specs that fell back, so an unexpected fallback can be printed. */
-export interface Report { count: number; fallbacks: number; fallbackSpecs: Spec[]; failures: { spec: Spec; failures: Failure[] }[]; pairings: string[]; fonts: string[]; }
+export interface Report { count: number; fallbacks: number; fallbackSpecs: Spec[]; failures: { spec: Spec; failures: Failure[] }[]; pairings: string[]; fonts: string[]; faces: string[]; }
 
 type Pick = Partial<Spec['pick']>;
 /** One pick per value of pick.layout and pick.motif the style lists. */
@@ -86,19 +86,21 @@ export function* specs(o: Opts = {}): Generator<Spec> {
 
 /** 9.2 rules 1 to 5 on the final Scene of every spec. */
 export function runInvariants(m: Measure, o: Opts = {}, resolve?: Resolve): Report {
-  const r: Report = { count: 0, fallbacks: 0, fallbackSpecs: [], failures: [], pairings: [], fonts: [] };
-  const pairings = new Set<string>(), fonts = new Set<string>();
+  const r: Report = { count: 0, fallbacks: 0, fallbackSpecs: [], failures: [], pairings: [], fonts: [], faces: [] };
+  const pairings = new Set<string>(), fonts = new Set<string>(), faces = new Set<string>();
   for (const spec of specs(o)) {
     r.count++;
     const { scene } = solve(spec, m, resolve?.(spec));
     pairings.add(scene.pairing);
     scene.fonts.forEach((f) => fonts.add(f));
+    scene.faces.forEach((f) => faces.add(f));
     if (scene.layout === 'fallback' && r.fallbacks++ < 20) r.fallbackSpecs.push(spec);
     const f = check(scene);
     if (f.length && r.failures.length < 50) r.failures.push({ spec, failures: f });
   }
   r.pairings = [...pairings].sort();
   r.fonts = [...fonts].sort();
+  r.faces = [...faces].sort();
   return r;
 }
 

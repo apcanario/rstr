@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { CORE_FAMILIES, defaultPairing, facesOf, isCoreFace, PAIRINGS, SOURCES } from '../src/data/pairings';
-import { cssUrl, parseCss, rulesFor } from '../src/fontcss';
+import { cssUrl, parseCss, rulesFor, covers } from '../src/fontcss';
 import { STYLE_IDS } from '../src/engine/spec';
 
 describe('pairings data (spec 6, docs/design/pairings.md)', () => {
@@ -92,5 +92,23 @@ describe('Google Fonts css2 requests', () => {
   });
   test('a face missing from the response gives no rule, so the loader fails it', () => {
     expect(rulesFor(parseCss(css), [{ family: 'Inter', weight: 400, italic: true }])).toEqual([]);
+  });
+  // a CJK family served as numbered slices, without a latin block (review R3 M3)
+  const slice = (n: number, range: string) => `/* [${n}] */
+@font-face { font-family: 'Dela Gothic One'; font-style: normal; font-weight: 400; src: url(https://fonts.gstatic.com/s/dela/v1/${n}.woff2) format('woff2'); unicode-range: ${range}; }`;
+  test('without latin or latin-ext, only the slices that cover A-Z load, never every slice', () => {
+    const cjk = [slice(1, 'U+4E00-4FFF'), slice(2, 'U+0020-007E, U+00A0-00FF'), slice(3, 'U+30??'), slice(4, 'U+5000-5FFF')].join('\n');
+    const got = rulesFor(parseCss(cjk), [{ family: 'Dela Gothic One', weight: 400 }]);
+    expect(got.map((g) => g.rule.url.split('/').pop())).toEqual(['2.woff2']);
+    const none = [slice(1, 'U+4E00-4FFF'), slice(3, 'U+0041-004F')].join('\n');
+    expect(rulesFor(parseCss(none), [{ family: 'Dela Gothic One', weight: 400 }])).toEqual([]);
+  });
+  test('covers reads ranges, single points and wildcards', () => {
+    expect(covers(undefined)).toBe(true);
+    expect(covers('U+0000-00FF')).toBe(true);
+    expect(covers('U+00??')).toBe(true);
+    expect(covers('U+0041-004D, U+004E-005A')).toBe(true);
+    expect(covers('U+0041-0059')).toBe(false);
+    expect(covers('U+4E00-9FFF')).toBe(false);
   });
 });

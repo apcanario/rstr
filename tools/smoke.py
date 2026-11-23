@@ -91,6 +91,9 @@ with served() as url, browser() as b:
         print(f'9.3 {style:6} streams, light and dark: {r["count"]} designs, {len(r["failures"])} failing; the type seed changed the pairing and moved text in {r["typeMoved"]}')
         for f in r['failures'][:5]:
             fail(f'9.3 {style}: {f["facet"]}', f['spec'])
+    # only pairings whose fonts are loaded take part here; the real-font type check runs in the online font
+    # checks below (it fails if the type seed moves nothing), else only the stub-measure unit test covers it
+    print('9.3 type seed: only loaded pairings take part here; the real-font type check runs with the online font checks, or, offline, the stub-measure unit test only')
     # 9.3: the same spec drawn twice gives identical pixels
     for style in STYLES:
         for fmt in FORMATS:
@@ -115,7 +118,7 @@ with served() as url, browser() as b:
     print(f'engine checks took {time.time() - t0:.0f} s')
     # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face
     t0 = time.time()
-    fontcheck.run(b, url, pg, max(4, N // 25), fail)
+    skipped = fontcheck.run(b, url, pg, max(4, N // 25), fail)
     print(f'font checks took {time.time() - t0:.0f} s')
     if errors:
         fail('page errors: ' + '; '.join(errors[:3]))
@@ -185,5 +188,9 @@ with served() as url, browser() as b:
         print(f'app {w}x{h}: controls, scroll, shuffle and export checked')
         pg.close()
 
-print('smoke:', 'FAILED, ' + str(len(fails)) + ' problems' if fails else 'passed')
+# the summary carries the skipped online checks, so a reader of the last line alone sees the gap (review R3 S1)
+if fails:
+    print(f'smoke: FAILED, {len(fails)} problems' + (f'; {skipped} online checks SKIPPED (not verified)' if skipped else ''))
+else:
+    print('smoke: passed' + (f', {skipped} online checks SKIPPED (not verified)' if skipped else ''))
 sys.exit(1 if fails else 0)

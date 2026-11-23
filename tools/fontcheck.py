@@ -89,7 +89,7 @@ def online(pg):
 
 
 def never_fallback(pg, fail):
-    """Layout never runs with a fallback face: every Scene's measured and drawn families are loaded."""
+    """Layout never runs with a fallback face: every face a Scene measured or drew is loaded (by face, not family)."""
     r = pg.evaluate('''() => {
         const api = window.__rstr, out = {count: 0, bad: [], drawnAsked: 0, drawnDefault: 0};
         for (const style of ['swiss', 'pomo', 'brutal', 'vapor']) {
@@ -112,7 +112,7 @@ def never_fallback(pg, fail):
     for spec, u in r['bad'][:5]:
         fail('fonts: a Scene used faces that are not loaded: ' + ', '.join(u))
         print('  spec:', spec)
-    print(f'fonts: {r["count"]} Scenes, every measured and drawn family loaded; {r["drawnAsked"]} drawn with the pairing asked for, {r["drawnDefault"]} with the default (fonts not loaded)')
+    print(f'fonts: {r["count"]} Scenes, every measured and drawn face loaded; {r["drawnAsked"]} drawn with the pairing asked for, {r["drawnDefault"]} with the default (fonts not loaded)')
 
 
 def offline_after_use(b, url, fail, stub=True):
@@ -207,6 +207,33 @@ def core_font_fails(b, url, fail):
     ctx.close()
 
 
+def offline_preference(b, url, fail):
+    """Offline (navigator.onLine false, font hosts aborted): a style tap and Shuffle land on a pairing whose
+    fonts are here, so no note shows (review R3 M2)."""
+    ctx = b.new_context(viewport={'width': 412, 'height': 915})
+    hits = []
+    network_off(ctx, hits)
+    pg, errors = open_app(b, url, ctx=ctx)
+    ctx.set_offline(True)
+    bad, taps = [], 0
+    for rnd in range(3):
+        for style in ['swiss', 'pomo', 'brutal', 'vapor']:
+            for act, sel in [('style', f'button[data-style="{style}"]'), ('shuffle', '[data-testid="shuffle"]')]:
+                pg.click(sel)
+                d = drawn(pg)
+                taps += 1
+                if d['pairing'] != d['wanted'] or note(pg):
+                    bad.append(f'{act} {style}: wanted {d["wanted"]}, drew {d["pairing"]}, note {note(pg)!r}')
+    for x in bad[:5]:
+        fail('fonts offline preference: ' + x)
+    if not bad:
+        print(f'fonts: offline, {taps} style taps and shuffles all landed on a loaded pairing, no note')
+    if errors:
+        fail(f'fonts offline preference: page errors {errors[:3]}')
+    ctx.set_offline(False)
+    ctx.close()
+
+
 def online_pairings(pg, n, fail):
     """Online: every pairing's fonts load from Google Fonts, and every pairing passes 9.2 with them."""
     bad = []
@@ -226,19 +253,36 @@ def online_pairings(pg, n, fail):
             want = len(pg.evaluate('(s) => window.__rstr.fonts.pairings(s)', style))
             if len(r['pairings']) != want:
                 fail(f'9.2 pairing {style} {fmt}: only {r["pairings"]} drew with their own fonts')
+    # 9.3 with the real fonts loaded: the type seed must change the pairing (and move text) somewhere,
+    # else the independence run proved nothing about type (review R3 M5)
+    for style in ['swiss', 'pomo', 'brutal', 'vapor']:
+        r = pg.evaluate('(o) => window.__rstr.proof.independence(o)', {'styles': [style], 'n': max(20, n * 2), 'variants': 'cycle'})
+        print(f'9.3 {style:6} real fonts: {r["count"]} designs, {len(r["failures"])} failing; the type seed moved text in {r["typeMoved"]}')
+        for f in r['failures'][:5]:
+            fail(f'9.3 real fonts {style}: {f["facet"]}', f['spec'])
+        if r['typeMoved'] == 0:
+            fail(f'9.3 real fonts {style}: the type seed never changed the pairing, so the type check proved nothing')
+
+
+ONLINE_CHECKS = 3
 
 
 def run(b, url, pg, n, fail):
+    """Runs every font check. Returns the number of online checks skipped (0 when Google Fonts was reachable)."""
     never_fallback(pg, fail)
     ok, why = online(pg)
+    skipped = 0
     if ok:
         online_pairings(pg, n, fail)
         offline_after_use(b, url, fail, stub=False)
     else:
+        skipped = ONLINE_CHECKS
         print(f'SKIP online: Google Fonts not reachable from headless Chrome ({why}). Not verified:')
-        print('SKIP   "every pairing of every style passes 9.2 with its real fonts loaded (tested, online)"')
+        print('SKIP   "every pairing of every style passes 9.2 with its real fonts loaded (tested, online)", and 9.3 with them')
         print('SKIP   "every family resolves from Google Fonts" (also tools/fetch_fonts.py --check)')
         print('SKIP   "with the network off after one use, a used pairing still draws with its own fonts" against Google itself; the stub-host run below covers the mechanism')
     offline_after_use(b, url, fail, stub=True)
     wait_four_seconds(b, url, fail)
     core_font_fails(b, url, fail)
+    offline_preference(b, url, fail)
+    return skipped

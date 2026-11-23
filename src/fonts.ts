@@ -46,15 +46,14 @@ export function loadCoreFonts(): Promise<void> {
 /** Core or UI faces that failed to load, for the note. */
 export const coreFailures = () => [...failedCore];
 
-export const isLoaded = (f: FontRef) => faces.get(faceKey(f)) === 'loaded';
+export const isKeyLoaded = (key: string) => faces.get(key) === 'loaded';
+export const isLoaded = (f: FontRef) => isKeyLoaded(faceKey(f));
 /** True when every face the pairing names is loaded. */
 export const available = (p: Pairing) => facesOf(p).every(isLoaded);
 /** Families with at least one loaded face. */
 export function loadedFamilies(): string[] {
   return [...new Set([...faces.entries()].filter(([, s]) => s === 'loaded').map(([k]) => k.split('|')[0]))];
 }
-/** Faces of a list that are not loaded. */
-export const unloaded = (fs: FontRef[]) => fs.filter((f) => !isLoaded(f)).map(label);
 
 /** The APK's bundled faces (tools/fetch_fonts.py), by face; null in the web app, which has none. */
 function loadManifest(): Promise<Local | null> {
@@ -70,13 +69,17 @@ function loadManifest(): Promise<Local | null> {
   return manifest;
 }
 
-/** Before the first online fetch, give the service worker a moment to take control, so the file is cached. */
+/**
+ * Before the first online fetch, give the service worker a moment to take control, so the file is cached.
+ * The grace counts against the 4 s wait, so it is short (review R3 M8); a file fetched before the worker
+ * controls the page is simply fetched again, and cached, on its next use.
+ */
 let sw: Promise<unknown> | null = null;
 function swReady(): Promise<unknown> {
   if (!('serviceWorker' in navigator) || navigator.serviceWorker.controller) return Promise.resolve();
   sw ??= Promise.race([
     new Promise((r) => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })),
-    new Promise((r) => setTimeout(r, 1500)),
+    new Promise((r) => setTimeout(r, 500)),
   ]);
   return sw;
 }

@@ -1,11 +1,11 @@
 /** layout(spec, measure) -> Scene. A solver: candidates from the layout stream, the first that passes 9.2 wins. */
-import { defaultPairing, PAIRINGS, type Pairing } from '../data/pairings';
+import { defaultPairing, faceKey, PAIRINGS, type Pairing } from '../data/pairings';
 import { formOf, PALETTES, type Form, type Mode } from '../data/palettes';
 import { FORMATS } from './formats';
 import { check, type Failure } from './invariants';
 import type { Measure } from './measure';
 import { mix, pick, rng } from './rng';
-import type { Item, Scene, TextItem } from './scene';
+import type { FontRef, Item, Scene, TextItem } from './scene';
 import type { Spec } from './spec';
 import { STYLES } from './styles';
 import { textArea, type BuildCtx } from './styles/types';
@@ -56,10 +56,21 @@ function build(spec: Spec, m: Measure, P: Form, T: Pairing, k: number): Item[] |
   return style.build(b);
 }
 
-function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: string, measured: Set<string>): Scene {
+function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: string, measured: Map<string, FontRef>): Scene {
   const [W, H] = FORMATS[spec.format];
-  const fonts = [...new Set([...measured, ...items.filter((i): i is TextItem => i.kind === 'text').map((i) => i.font.family)])].sort();
-  return { w: W, h: H, style: spec.style, format: spec.format, palette: P.id, pairing: T.id, layout: layoutName, ground: P.ground, items, fonts };
+  const all = new Map(measured);
+  for (const i of items) if (i.kind === 'text') all.set(faceKey((i as TextItem).font), (i as TextItem).font);
+  const fonts = [...new Set([...all.values()].map((f) => f.family))].sort();
+  const faces = [...all.keys()].sort();
+  return { w: W, h: H, style: spec.style, format: spec.format, palette: P.id, pairing: T.id, layout: layoutName, ground: P.ground, items, fonts, faces };
+}
+
+/**
+ * Faces a Scene measured with or drew that are not loaded (spec 6): must always be empty. Tested by face, not
+ * family, because canvas silently substitutes a near weight or a synthetic italic for a face it lacks.
+ */
+export function unloadedFaces(sc: Scene, isLoaded: (key: string) => boolean): string[] {
+  return sc.faces.filter((k) => !isLoaded(k));
 }
 
 export interface Solved { scene: Scene; tried: number; failures: Failure[]; }
@@ -75,7 +86,7 @@ function formsFor(spec: Spec, P: Form): Form[] {
 }
 
 /** True if these items pass 9.2 for the form in use and rule 4 for every other form of the style. */
-function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name: string, measured: Set<string>): { first: Scene | null; failures: Failure[] } {
+function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name: string, measured: Map<string, FontRef>): { first: Scene | null; failures: Failure[] } {
   let first: Scene | null = null;
   for (const Q of formsFor(spec, P)) {
     const items = build(spec, m, Q, T, k);
@@ -96,9 +107,9 @@ function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name:
 export function solve(spec: Spec, m0: Measure, use: Use = {}): Solved {
   const P = choosePalette(spec);
   const T = (use.pairing && PAIRINGS[spec.style].find((p) => p.id === use.pairing)) || choosePairing(spec);
-  // every family layout measures with is recorded on the Scene, so a test can prove none was a fallback
-  const measured = new Set<string>();
-  const m: Measure = (s, f, px, tr) => { measured.add(f.family); return m0(s, f, px, tr); };
+  // every face layout measures with is recorded on the Scene, so a test can prove none was a fallback
+  const measured = new Map<string, FontRef>();
+  const m: Measure = (s, f, px, tr) => { measured.set(faceKey(f), f); return m0(s, f, px, tr); };
   let last: Failure[] = [];
   for (let k = 0; k < CANDIDATES; k++) {
     const r = passesAll(spec, m, P, T, k, 'c' + k, measured);

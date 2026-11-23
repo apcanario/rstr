@@ -50,13 +50,29 @@ export function parseCss(css: string): FaceRule[] {
   return out;
 }
 
-/** The rules to load for the wanted faces: latin and latin-ext (or every rule when a font has neither). */
+/** True if a unicode-range (absent: everything) covers every code point from `lo` to `hi`. */
+export function covers(range: string | undefined, lo = 0x41, hi = 0x5a): boolean {
+  if (!range) return true;
+  const spans = range.split(',').map((t) => t.trim().replace(/^U\+/i, '')).filter(Boolean).map((t) => {
+    if (t.includes('?')) return [parseInt(t.replace(/\?/g, '0'), 16), parseInt(t.replace(/\?/g, 'F'), 16)];
+    const [a, b] = t.split('-');
+    return [parseInt(a, 16), parseInt(b ?? a, 16)];
+  });
+  for (let c = lo; c <= hi; c++) if (!spans.some(([a, b]) => a <= c && c <= b)) return false;
+  return true;
+}
+
+/**
+ * The rules to load for the wanted faces: latin and latin-ext. A font with neither (a CJK family served as
+ * numbered slices) keeps only the slices that cover A-Z, never every slice; with none, the face has no rule
+ * and fails (review R3 M3).
+ */
 export function rulesFor(rules: FaceRule[], faces: FontRef[]): { face: FontRef; rule: FaceRule }[] {
   const out: { face: FontRef; rule: FaceRule }[] = [];
   for (const face of faces) {
     const mine = rules.filter((r) => r.weight === face.weight && (r.style === 'italic') === !!face.italic);
     const kept = mine.filter((r) => KEEP.has(r.subset));
-    for (const rule of kept.length ? kept : mine) out.push({ face, rule });
+    for (const rule of kept.length ? kept : mine.filter((r) => covers(r.unicodeRange))) out.push({ face, rule });
   }
   return out;
 }
