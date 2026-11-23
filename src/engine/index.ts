@@ -33,6 +33,25 @@ export function render(canvas: HTMLCanvasElement | OffscreenCanvas, spec: Spec, 
   return sc;
 }
 
+let full: HTMLCanvasElement | OffscreenCanvas | null = null;
+/**
+ * A small copy of a design (style tiles, Kept): drawn at full size offscreen, then scaled down onto the canvas,
+ * `w` device pixels wide. The poster itself is never drawn from this (spec 4: export draws at full size).
+ */
+export function thumb(canvas: HTMLCanvasElement, spec: Spec, w: number, use: Use = {}): void {
+  full ??= typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(8, 8) : document.createElement('canvas');
+  render(full, spec, null, use);
+  const [W, H] = FORMATS[spec.format];
+  const tw = Math.max(1, Math.round(w)), th = Math.max(1, Math.round((w * H) / W));
+  if (canvas.width !== tw) canvas.width = tw;
+  if (canvas.height !== th) canvas.height = th;
+  const ctx = canvas.getContext('2d') as Ctx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(full as CanvasImageSource, 0, 0, tw, th);
+}
+
 export { paint } from './paint';
 export { layout, solve, choosePairing, resolvePairing, type Use } from './layout';
 export { check } from './invariants';

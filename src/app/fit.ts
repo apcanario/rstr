@@ -1,0 +1,39 @@
+/**
+ * Spec 10.1: text on a tile or button never wraps and never overflows: it shrinks to fit, then shortens.
+ * A label is an element with `data-fit` holding its text and no children of its own; fitAll sets its text.
+ */
+const MIN_SCALE = 0.72;
+
+export function fit(el: HTMLElement): void {
+  const full = el.dataset.fit ?? '';
+  el.style.fontSize = '';
+  if (el.textContent !== full) el.textContent = full;
+  el.title = '';
+  // the text's own width against the label's, unrounded (scrollWidth and clientWidth are whole pixels)
+  const range = document.createRange();
+  const over = () => {
+    range.selectNodeContents(el);
+    return el.scrollWidth > el.clientWidth || range.getBoundingClientRect().width > el.getBoundingClientRect().width + 0.01;
+  };
+  if (!el.clientWidth || !over()) return;
+  const base = parseFloat(getComputedStyle(el).fontSize);
+  let size = base;
+  while (over() && size > base * MIN_SCALE) {
+    size = Math.max(base * MIN_SCALE, size - 0.5);
+    el.style.fontSize = `${size}px`;
+  }
+  if (!over()) return;
+  // shorten: the longest start of the text that fits with an ellipsis
+  let lo = 0, hi = full.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    el.textContent = full.slice(0, mid).trimEnd() + '…';
+    if (over()) hi = mid - 1; else lo = mid;
+  }
+  el.textContent = full.slice(0, lo).trimEnd() + '…';
+  el.title = full;
+}
+
+export function fitAll(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLElement>('[data-fit]').forEach(fit);
+}

@@ -17,7 +17,15 @@ import { migrate, type Spec, type StyleId } from './engine/spec';
 const useOf = (spec: Spec) => resolvePairing(spec, available);
 const resolve = (spec: Spec) => useOf(spec);
 
-export function installApi(ready: Promise<void>, current: () => Spec, view: { idle: () => Promise<void>; drawn: () => Drawn | null; current: () => boolean }) {
+/** What the app gives the tools beyond the engine: set the design as a tap would, read its saved state, hash the stage. */
+export interface AppHooks {
+  load: (raw: unknown) => void;
+  state: () => { spec: Spec; back: Spec[]; kept: Spec[]; locks: Record<string, boolean> };
+  stage: () => string;
+  fileName: (raw: unknown, f: '1:1' | '3:4' | '9:16', k: 'jpeg' | 'png') => string;
+}
+
+export function installApi(ready: Promise<void>, current: () => Spec, view: { idle: () => Promise<void>; drawn: () => Drawn | null; current: () => boolean; app: AppHooks }) {
   const api = {
     ready,
     spec: () => structuredClone(current()),
@@ -31,6 +39,7 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       }
     },
     drawn: () => view.drawn(),
+    app: view.app,
     migrate: (raw: unknown) => migrate(raw),
     scene: (raw: unknown) => { const s = migrate(raw); return scene(s, browserMeasure(), useOf(s)); },
     solve: (raw: unknown) => { const s = migrate(raw); const r = solve(s, browserMeasure(), useOf(s)); return { layout: r.scene.layout, pairing: r.scene.pairing, tried: r.tried, failures: r.failures }; },
@@ -53,6 +62,8 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     knock: (raw: unknown) => { const s = migrate(raw); return { layer: knockLeak(s, false, useOf(s)), noLayer: knockLeak(s, true, useOf(s)) }; },
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),
+    /** Ids and names of a style's palettes and pairings, for the longest-name checks on the controls. */
+    names: (style: StyleId) => ({ palettes: PALETTES[style].map((p) => ({ id: p.id, name: p.name })), pairings: PAIRINGS[style].map((p) => ({ id: p.id, name: p.name })) }),
     proof: {
       invariants: (o: Opts) => runInvariants(browserMeasure(), o, resolve),
       picks: (style: StyleId) => picksOf(style),

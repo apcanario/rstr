@@ -3,7 +3,7 @@ taps the controls at both phone sizes, and checks exports. Any failure prints th
 import base64, io, json, sys, time
 from PIL import Image
 from common import browser, idle, open_app, served
-import fontcheck
+import appcheck, fontcheck
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 200
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
@@ -124,69 +124,8 @@ with served() as url, browser() as b:
         fail('page errors: ' + '; '.join(errors[:3]))
     pg.close()
 
-    # the app at both phone sizes: nothing scrolls, controls at least 48 px, Shuffle and format work, export downloads
-    for (w, h) in [(360, 640), (412, 915)]:
-        pg, errors = open_app(b, url, w, h)
-        for style in STYLES:
-            pg.click(f'button[data-style="{style}"]')
-            for fmt in FORMATS:
-                pg.click(f'button[data-format="{fmt}"]')
-                before = pg.evaluate('() => JSON.stringify(window.__rstr.spec().seeds)')
-                pg.click('[data-testid="shuffle"]')
-                if not idle(pg):
-                    fail(f'app {w}x{h}: the stage did not draw the shuffled design')
-                after = pg.evaluate('() => window.__rstr.spec()')
-                if json.dumps(after['seeds'], separators=(',', ':')) == before:
-                    fail(f'app {w}x{h}: Shuffle did not change the seeds')
-                if after['style'] != style or after['format'] != fmt:
-                    fail(f'app {w}x{h}: style or format not applied')
-                f = pg.evaluate('(s) => window.__rstr.check(s)', after)
-                if f:
-                    fail(f'app {w}x{h} {style} {fmt}: {f[:3]}', after)
-                cw, ch = pg.evaluate('() => { const c = document.querySelector("canvas"); return [c.width, c.height]; }')
-                if (cw, ch) != SIZES[fmt]:
-                    fail(f'app {w}x{h}: stage canvas is {cw}x{ch} for {fmt}')
-        # Light / Dark: the switch changes the mode and nothing else, and the design stays legal
-        for _ in range(2):
-            before = pg.evaluate('() => window.__rstr.spec()')
-            pg.click('[data-testid="mode"]')
-            idle(pg)
-            after = pg.evaluate('() => window.__rstr.spec()')
-            if after['mode'] == before['mode'] or after['seeds'] != before['seeds'] or after['style'] != before['style']:
-                fail(f'app {w}x{h}: the mode switch did not change only the mode')
-            if pg.inner_text('[data-testid="mode"]').strip().lower() != after['mode']:
-                fail(f'app {w}x{h}: the mode switch shows the wrong label')
-            f = pg.evaluate('(s) => window.__rstr.check(s)', after)
-            if f:
-                fail(f'app {w}x{h} mode {after["mode"]}: {f[:3]}', after)
-        sc = pg.evaluate('() => [document.documentElement.scrollHeight, document.documentElement.clientHeight, document.documentElement.scrollWidth, document.documentElement.clientWidth]')
-        if sc[0] > sc[1] or sc[2] > sc[3]:
-            fail(f'app {w}x{h}: the page scrolls {sc}')
-        small = pg.evaluate('() => [...document.querySelectorAll("button")].map(b => b.getBoundingClientRect()).filter(r => r.height < 47.5 || r.width < 47.5).length')
-        if small:
-            fail(f'app {w}x{h}: {small} controls under 48 px')
-        over = pg.evaluate('''() => [...document.querySelectorAll("button")].filter(b => {
-            const r = document.createRange(); r.selectNodeContents(b);
-            const t = r.getBoundingClientRect(), s = getComputedStyle(b), bb = b.getBoundingClientRect();
-            const inner = bb.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
-            const lines = r.getClientRects().length;
-            return t.width > inner + 0.5 || b.scrollWidth > b.clientWidth + 1 || (b.textContent.trim() && t.height > parseFloat(s.lineHeight || '0') * 1.5 && lines > 1);
-        }).map(b => b.textContent)''')
-        if over:
-            fail(f'app {w}x{h}: text overflows on {over}')
-        with pg.expect_download() as dl:
-            pg.click('[data-testid="export"]')
-        path = dl.value.path()
-        im = Image.open(path)
-        fmt = pg.evaluate('() => window.__rstr.spec().format')
-        if im.size != SIZES[fmt] or im.format != 'JPEG':
-            fail(f'app {w}x{h}: exported {im.format} {im.size} for {fmt}')
-        if not dl.value.suggested_filename.startswith('rstr-'):
-            fail(f'app {w}x{h}: export name {dl.value.suggested_filename}')
-        if errors:
-            fail(f'app {w}x{h}: page errors {errors[:3]}')
-        print(f'app {w}x{h}: controls, scroll, shuffle and export checked')
-        pg.close()
+    # the frame and Simple mode at both phone sizes (spec 10, row R4)
+    appcheck.run(b, url, fail)
 
 # the summary carries the skipped online checks, so a reader of the last line alone sees the gap (review R3 S1)
 if fails:
