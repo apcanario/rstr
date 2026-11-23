@@ -4,7 +4,7 @@ A poster generator for a phone. Pick a style, shuffle until something lands, typ
 
 ## What it does today
 
-Nothing yet: this repo holds the plan and the spike. `docs/archive/spike/app.html` is the proof of concept (open it from a local web server); `docs/design/refs/` shows what it draws.
+A one-screen app: pick a style (Swiss, Postmodern, Brutalist, Vaporwave) and a format (1:1, 3:4, 9:16), Shuffle, export JPEG. The engine lays out, builds a Scene and paints it, with checks for overflow, overlap and contrast. Light/dark, pairings, finishes, marks, locks, Kept and Advanced mode are not built yet. `docs/design/refs/` shows the looks it targets.
 
 ## Where it is going
 
@@ -22,7 +22,7 @@ Nothing yet: this repo holds the plan and the spike. `docs/archive/spike/app.htm
 
 | Bundle | What | State |
 |---|---|---|
-| 1 | Engine, colour, type, frame and Simple mode | Next |
+| 1 | Engine, colour, type, frame and Simple mode | In progress: R1 done |
 | 2 | Swiss and Postmodern finished, finishes, marks | Queued |
 | 3 | Brutalist, Vaporwave, Advanced mode | Queued |
 | 4 | My palettes, own fonts, retouch | Queued |

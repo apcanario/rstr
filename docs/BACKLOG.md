@@ -29,19 +29,6 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 
 Read spec 3, 4, 5, 6, 9 and 10 in full before any row of this bundle.
 
-### R1. The engine
-
-- Scaffold: TypeScript, Vite, Preact, Vitest, the Pages workflow (copy the shape of `apcanario/groovebox`), `npm run check`, `smoke`, `sheet`, `dev`; `tools/smoke.py` and `tools/sheet.py` in Python with Playwright.
-- Port `docs/archive/spike/engine.js` into `src/engine/` as layout -> Scene -> paint (spec 4), all four styles as they stand in the spike, graphics as separate modules taking `t`.
-- Spec schema v1 with validation and migration; four seeds (the spike has three: add type, and rename motif to graphic).
-- The layout solver with candidates and a fallback layout per style.
-- Ink-bounds spacing.
-- The invariants of spec 9.2 and 9.3 in the smoke run, printing the failing spec.
-- A plain one-screen app (the spike's `app.html` is enough of a guide) so Pages shows something: stage, format, Shuffle.
-- The eight core font families bundled as woff2 with `public/LICENSES.txt` (spec 6).
-
-**Done when:** the reference specs in `docs/archive/spike/shots.py` draw designs a reviewer judges the same as `docs/design/refs/` for all four styles; 9.2 and 9.3 pass for all four styles (tested); no `Math.random()` outside seed creation (tested); `check` and `smoke` pass.
-
 ### R2. Colour, light and dark
 
 - Palettes as role data per style (spec 5), the spike's palettes moved over, each with a hand-written light and dark form, 8 per style.
@@ -132,4 +119,4 @@ Needs Pedro's notes to run. Works every note and everything in Carried.
 
 ## Done
 
-Nothing yet.
+- **R1. The engine.** 23 Nov 2026. Review R1 applied; see `docs/CHANGELOG.md` and `docs/reviews/R1.md`.
