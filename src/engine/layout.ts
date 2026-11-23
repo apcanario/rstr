@@ -42,14 +42,14 @@ export function resolvePairing(spec: Spec, isAvailable: (p: Pairing) => boolean)
 }
 
 interface Built { items: Item[]; frame: string; transform: string; }
-function build(spec: Spec, m: Measure, P: Form, T: Pairing, k: number): Built | null {
-  const style = STYLES[spec.style];
+/** What every part of the spec's style is called with for candidate k (-1: the fallback). */
+export function partCtx(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, margin = STYLES[spec.style].margin): PartCtx {
   const [W, H] = FORMATS[spec.format];
   const story = spec.format === '9:16';
-  const { top, bot } = textArea(story, H, style.margin);
+  const { top, bot } = textArea(story, H, margin);
   const rf = rng(spec.seeds.layout);
   const rc = k > 0 ? rng(mix(spec.seeds.layout, k)) : null;
-  const b: PartCtx = {
+  return {
     spec, W, H, story, top, bot, m, P, T, rf, k, fallback: k < 0, cap: capFor(k), rg: counted(rng(spec.seeds.graphic)),
     cand<V>(list: readonly V[], safe?: V): V {
       const v = list[Math.floor(rf() * list.length)];
@@ -58,7 +58,10 @@ function build(spec: Spec, m: Measure, P: Form, T: Pairing, k: number): Built | 
       return list[Math.floor(rc() * list.length)];
     },
   };
-  const r = compose5(style.parts, b);
+}
+
+function build(spec: Spec, m: Measure, P: Form, T: Pairing, k: number): Built | null {
+  const r = compose5(STYLES[spec.style].parts, partCtx(spec, m, P, T, k));
   return r ? { items: r.items, frame: r.plan.frame, transform: r.plan.transform } : null;
 }
 

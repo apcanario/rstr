@@ -10,7 +10,7 @@ const BLUNT = ['barcode', 'slab', 'asterisks'];
 export const brutalGraphics: GraphicsPart = {
   id: 'brutal', uses: BLUNT, vocab: BLUNT, motifs: BLUNT,
   place(c, plan) {
-    const { spec, P, W } = c, band = plan.boxes.band;
+    const { spec, P, W } = c, band = plan.boxes.graphic;
     if (!band) return [];
     const mi = BLUNT.indexOf(spec.pick.motif ?? '');
     const kind = mi >= 0 ? mi : Math.floor(rng(spec.seeds.graphic)() * 3);

@@ -48,8 +48,10 @@ def ref_specs():
         else:
             # the spike had one pairing per style; with R3's lists the type seed would choose another (R3)
             pick['pairing'] = DEFAULT_PAIRING[r['style']]
-        # R13: the first approved Swiss look had no transform, normal title and no cut-in; pin those
+        # R13: the first approved Swiss look had no transform, normal title and no cut-in; pin those, and the
+        # graphic's parameters that reproduce the approved look (refs.json; review R13 S3)
         params = {"layout.transform": "none", "layout.size": "normal", "graphics.cut": 0} if r['style'] == 'swiss' else {}
+        params.update(r.get('params', {}))
         spec = {"v": 1, "style": r['style'], "format": r['format'], "mode": r.get("mode", "light"), "finish": "clean", "marks": "off",
                 "seeds": seeds, "pick": pick, "params": params, "text": text(r['text'])}
         out.append((r['name'], spec))

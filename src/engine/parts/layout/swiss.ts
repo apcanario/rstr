@@ -52,8 +52,10 @@ export const swissLayout: LayoutPart = {
       if (panel) panel = bleed(panel, pg, fr.canvas);
     }
     const plan: Plan = {
-      frame: LAYOUTS[arche], transform, xf: fr.xf, page: pg,
-      boxes: { graphic: MR, text: TR }, vals: { axis, mod, M, G, size, any, deg: transform === 'tilt' ? deg : 0 },
+      frame: LAYOUTS[arche], transform, xf: fr.xf, page: pg, boxes: { graphic: MR, text: TR, title: TR },
+      margin: M, module: mod, gutter: G, axis, size,
+      titleSide: arche === 0 ? 'bottom' : arche === 1 ? 'top' : flag ? 'top' : 'bottom', side: 'left',
+      horizon: pg.y + pg.h, slant: 0, emphasis: 0,
     };
     if (panel) plan.boxes.panel = panel;
     return plan;

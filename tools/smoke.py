@@ -65,23 +65,32 @@ with served() as url, browser() as b:
             print(f'9.2 swiss  {fmt:4}  {tr} forced: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
             for f in r['failures'][:5]:
                 fail(f'9.2 swiss {fmt} {tr}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
-    # 9.2 with every graphic parameter at both ends of its range (row R13), and each end painted once
-    nends = 0
+    # 9.2 with every graphic parameter at both ends of its range (row R13), every text variant, no fallback; and
+    # at the pixel level (review R13 S2): inside every text item's mask, a graphic shows only where the Scene
+    # puts one behind it, and only in colours it declared. Each end is also painted once at 9:16 for time.
+    nends = npix = 0
     for style in STYLES:
         for g in pg.evaluate('(s) => window.__rstr.proof.graphics(s)', style):
             for k, R in g['params'].items():
                 for v in [R['min'], R['max']]:
                     nends += 1
-                    o = {'styles': [style], 'n': 2, 'start': 60, 'variants': 'cycle', 'params': {f'g.{g["name"]}.{k}': v, 'graphics.cut': 2}, 'pick': {'motif': g['name'] if g['motif'] else None}}
+                    o = {'styles': [style], 'n': 2, 'start': 60, 'params': {f'g.{g["name"]}.{k}': v, 'graphics.cut': 2}, 'pick': {'motif': g['name'] if g['motif'] else None}}
                     r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', o)
+                    if r['fallbacks']:
+                        fail(f'9.2 {style} {g["name"]}.{k}={v}: {r["fallbacks"]} of {r["count"]} fell back', r['fallbackSpecs'][0])
                     for f in r['failures'][:3]:
                         fail(f'9.2 {style} {g["name"]}.{k}={v}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
-                    spec = pg.evaluate('([s, o]) => { const x = window.__rstr.spec(); x.style = s; x.format = "9:16"; x.params = o.params; x.pick.motif = o.pick.motif; x.seeds = {layout: 61, colour: 62, graphic: 63, type: 64}; return x; }', [style, o])
-                    t1 = time.time()
-                    pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
-                    if time.time() - t1 > 3:
-                        fail(f'paint {style} {g["name"]}.{k}={v}: {time.time() - t1:.1f} s for one 9:16 render', spec)
-    print(f'graphic parameter ends: {nends} ends, each checked for 9.2 over 2 seed sets x 3 formats x 2 modes and painted once')
+                    for fmt in FORMATS:
+                        for i in range(2):
+                            spec = pg.evaluate('([s, f, i, o]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i ? "dark" : "light"; x.params = o.params; x.pick.motif = o.pick.motif; x.seeds = {layout: 61 + i, colour: 62 + i, graphic: 63 + i, type: 64 + i}; return x; }', [style, fmt, i, o])
+                            t1 = time.time()
+                            px = pg.evaluate('(s) => window.__rstr.graphicLeak(s)', spec)
+                            npix += 1
+                            if px['leaks'] or px['stray']:
+                                fail(f'pixels {style} {fmt} {g["name"]}.{k}={v}: {px["leaks"]} graphic pixels inside text where the Scene has none, {px["stray"]} of an undeclared colour', spec)
+                            if fmt == '9:16' and i == 0 and time.time() - t1 > 6:
+                                fail(f'paint {style} {g["name"]}.{k}={v}: {time.time() - t1:.1f} s for two 9:16 renders', spec)
+    print(f'graphic parameter ends: {nends} ends, each checked for 9.2 over 2 seed sets x 3 formats x 2 modes x every text variant, no fallback; {npix} pixel checks (graphics inside text masks), all passed' if not fails else f'graphic parameter ends: {nends} ends, {npix} pixel checks')
     # knock-outs: stars and grid in a marker colour never show inside any text item's mask, with and without the layer
     nk = 0
     for fmt in FORMATS:

@@ -3,7 +3,7 @@ import { firstInk, needRatio } from '../../colour';
 import { mkRect, mkText } from '../../items';
 import type { Item, TextItem } from '../../scene';
 import { fitLine } from '../../text';
-import { brutalBlock, brutalLines } from '../shared/brutal';
+import { brutalBlock, brutalLines, brutalMetrics } from '../shared/brutal';
 import { upper } from '../shared/text';
 import type { TypePart } from '../types';
 
@@ -13,7 +13,11 @@ export const brutalType: TypePart = {
   id: 'brutal', min: MIN,
   set(c, plan) {
     const { W, spec, m, P, T } = c, tx = spec.text, force = c.fallback, B = plan.boxes;
-    const M = Number(plan.vals.M), R = Number(plan.vals.R), ms = Number(plan.vals.ms), gap = Number(plan.vals.gap), iw = W - 2 * M;
+    const M = plan.margin, { R, ms } = brutalMetrics(W), gap = plan.gutter, iw = W - 2 * M;
+    // a slot with text the layout gave no row cannot be held by this candidate
+    const pairs = tx.info.v.slice(0, 3).filter((p) => p.k.trim() || p.v.trim());
+    const wants = { caption: tx.caption.on && !!tx.caption.v.trim(), info: tx.info.on && pairs.length > 0, subtitle: tx.subtitle.on && !!tx.subtitle.v.trim(), title: tx.title.on && !!tx.title.v.trim() };
+    if (!force && (Object.keys(wants) as (keyof typeof wants)[]).some((s) => wants[s] && !B[s])) return null;
     const fam = T.display, mono = T.mono;
     const rects: Item[] = [], texts: TextItem[] = [];
     if (B.caption) {
@@ -28,8 +32,7 @@ export const brutalType: TypePart = {
       rects.push(mkRect({ x: M, y: y + R + ms * 2.1, w: iw, h: R / 2 }, P.ink));
     }
     if (B.info) {
-      const pairs = tx.info.v.slice(0, 3).filter((p) => p.k.trim() || p.v.trim());
-      const rh = Number(plan.vals.rh), yb = B.info.y;
+      const rh = B.info.h / pairs.length, yb = B.info.y;
       for (const [i, it] of pairs.entries()) {
         const ry = yb + i * rh;
         rects.push(mkRect({ x: M, y: ry, w: iw, h: i ? R / 2 : R }, P.ink));
@@ -60,7 +63,7 @@ export const brutalType: TypePart = {
       }
     }
     if (B.title) {
-      const areaTop = B.title.y, areaBot = B.title.y + B.title.h, flip = plan.vals.flip === true, hot = Number(plan.vals.hot);
+      const areaTop = B.title.y, areaBot = B.title.y + B.title.h, flip = plan.titleSide === 'bottom', hot = plan.emphasis;
       if (areaBot - areaTop < MIN.title * 1.2) { if (!force) return null; return [...rects, ...texts]; }
       let lines = brutalLines(tx.title.v);
       let fitted = brutalBlock(m, lines, fam, areaBot - areaTop, iw, gap);

@@ -7,6 +7,7 @@ import { firstInk } from '../../colour';
 import { mkRect, mkText } from '../../items';
 import type { Item } from '../../scene';
 import { fit, fitLine } from '../../text';
+import { SLOTS } from '../../spec';
 import { upper } from '../shared/text';
 import type { SizeClass, TypePart } from '../types';
 
@@ -18,10 +19,10 @@ export const swissType: TypePart = {
   id: 'swiss', min: MIN,
   set(c, plan) {
     const { W, spec, m, P, T } = c, tx = spec.text;
-    if (!plan.vals.any) return [];
+    if (!SLOTS.some((s) => tx[s].on)) return [];
     const TR = plan.boxes.text, panel = plan.boxes.panel ?? null;
-    const axis = Number(plan.vals.axis), mod = Number(plan.vals.mod), G = Number(plan.vals.G);
-    const cls = SIZE[(plan.vals.size as SizeClass) ?? 'normal'] ?? SIZE.normal;
+    const axis = plan.axis, mod = plan.module, G = plan.gutter;
+    const cls = SIZE[plan.size] ?? SIZE.normal;
     const items: Item[] = [];
     if (panel) items.push(mkRect(panel, P.ground, { plate: true }));
     const force = c.fallback;

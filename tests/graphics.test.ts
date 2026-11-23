@@ -4,7 +4,7 @@ import { chooseParams, lerpRange, paramKey } from '../src/engine/graphics/params
 import { check } from '../src/engine/invariants';
 import { solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
-import { runVariety, specs, varietyOf, type VarietyRow } from '../src/engine/proof';
+import { runVariety, specs, textVariants, varietyOf, type VarietyRow } from '../src/engine/proof';
 import { rng } from '../src/engine/rng';
 import type { GraphicItem } from '../src/engine/scene';
 import { STYLES } from '../src/engine/styles';
@@ -45,28 +45,42 @@ describe('the shared graphics library (spec 8.0)', () => {
 });
 
 describe('9.2 with every graphic parameter at both ends of its range, per style', () => {
+  // On the Scene this can only fail through placement: boxes and fills are set before parameters matter and
+  // every draw is clipped to its box. What an extreme can break in pixels is checked in smoke (graphicLeak).
+  // Here: every text variant at each end, no fallback, and the value reaches every Scene that has the graphic.
   for (const style of STYLE_IDS) {
     test(style, () => {
       let ends = 0;
+      const missing: string[] = [];
       for (const name of usesOf(style)) for (const [k, R] of Object.entries(GRAPHICS[name].params)) for (const v of [R.min, R.max]) {
         ends++;
         const motif = STYLES[style].motifs.includes(name) ? name : null;
-        let reached = 0, n = 0;
+        let reached = 0, absent = 0, n = 0, fallbacks = 0;
         const fails: unknown[] = [];
-        for (const s of specs({ styles: [style], n: 3, start: 40, variants: 'cycle', params: { [paramKey(name, k)]: v, 'graphics.cut': 2 }, pick: { motif } })) {
+        for (const s of specs({ styles: [style], n: 2, start: 40, params: { [paramKey(name, k)]: v, 'graphics.cut': 2 }, pick: { motif } })) {
           n++;
           const sc = solve(s, stubMeasure).scene;
+          if (sc.layout === 'fallback') fallbacks++;
           const f = check(sc);
           if (f.length) fails.push({ spec: s, f });
-          if (sc.items.some((i) => i.kind === 'graphic' && i.name === name && (i as GraphicItem).params[k] === v)) reached++;
+          const gs = sc.items.filter((i): i is GraphicItem => i.kind === 'graphic' && i.name === name);
+          if (!gs.length) absent++;
+          else if (gs.every((g) => g.params[k] === v)) reached++;
         }
-        expect(fails, `${style} ${name}.${k} = ${v}\n` + show(fails)).toEqual([]);
-        // the test means something only if the value reached the Scene
-        expect(reached, `${style} ${name}.${k} = ${v} never reached a Scene`).toBeGreaterThan(0);
-        expect(n).toBe(3 * 3 * 2);
+        const label = `${style} ${name}.${k} = ${v}`;
+        expect(fails, label + '\n' + show(fails)).toEqual([]);
+        expect(fallbacks, label + ': fallbacks').toBe(0);
+        // the value reaches every Scene the graphic is in; a Scene without it is one the style could not place it in
+        expect(reached, label + ': Scenes with the graphic but not the value').toBe(n - absent);
+        expect(absent, label + ': never placed').toBeLessThan(n);
+        if (absent) missing.push(`${name}.${k}=${v}: ${absent}/${n}`);
+        expect(n).toBe(2 * 3 * 2 * textVariants().length);
       }
+      // only Brutalist may fail to place its graphic: its band needs room the title can take (for R8)
+      if (style !== 'brutal') expect(missing, style).toEqual([]);
+      else console.log(`range ends, ${style}: Scenes where the band graphic could not be placed: ${missing.length ? missing.slice(0, 4).join('; ') + (missing.length > 4 ? ' ...' : '') : 'none'}`);
       expect(ends).toBeGreaterThanOrEqual(usesOf(style).length * 6);
-    });
+    }, 120000);
   }
 });
 
@@ -90,6 +104,7 @@ describe('the variety tests of spec 8.0', () => {
     for (const style of STYLE_IDS) {
       const v = runVariety(stubMeasure, style, '3:4', 300);
       expect(v.count).toBe(300);
+      // reported only until each style's own row enforces it (review R13 M4: R5 asserts v.pass for Swiss here)
       console.log(`variety ${style} 3:4 (stub): repeats in 60 ${v.repeats60}; missing ${JSON.stringify(v.missing)}; top layout ${v.top.layout} ${(v.top.share * 100).toFixed(0)}%`);
     }
   }, 60000);

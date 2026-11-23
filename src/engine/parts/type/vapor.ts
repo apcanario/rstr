@@ -14,8 +14,10 @@ export const vaporType: TypePart = {
   id: 'vapor', min: MIN,
   set(c, plan, below) {
     const { W, spec, m, P, T, top, bot } = c;
-    const M = Math.round(W * 0.0667), tx = spec.text, force = c.fallback;
-    const hz = Number(plan.vals.hz), isUpper = plan.vals.isUpper === true, right = plan.vals.right === true;
+    const M = plan.margin, tx = spec.text, force = c.fallback;
+    const hz = plan.horizon, right = plan.side === 'right';
+    // the title goes in the sky when the layout says so, or when the text area has no floor (a layout without a horizon)
+    const isUpper = plan.titleSide === 'top' || bot - hz < W * 0.2;
     const sky = P.gradient ?? [P.ground, P.ground];
     const chrome = P.chrome ?? P.window ?? P.ground, win = P.window ?? P.ground, winInk = P.windowInk ?? P.ink;
     const A2 = P.accent2 ?? P.accent, A3 = P.accent3 ?? P.accent;

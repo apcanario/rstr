@@ -3,6 +3,9 @@ import type { Measure } from '../../measure';
 import type { FontRef } from '../../scene';
 import { upper } from './text';
 
+/** The Brutalist rule weight and mono size, at canvas width W: layout sizes rows with them, type draws with them. */
+export const brutalMetrics = (W: number) => ({ R: Math.max(6, Math.round(W * 0.012)), ms: Math.round(W * 0.023) });
+
 const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 
 /** Title lines: a typed line break is kept; otherwise one word per line up to four, else three balanced lines. */

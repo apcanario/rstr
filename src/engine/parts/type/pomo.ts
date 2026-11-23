@@ -12,11 +12,11 @@ export const pomoType: TypePart = {
   id: 'pomo', min: MIN,
   set(c, plan) {
     const { W, spec, m, P, T, top, bot } = c;
-    const M = Math.round(W * 0.0667);
+    const M = plan.margin;
     const d = W * 0.013, tx = spec.text, force = c.fallback;
     const A = { ink: P.ink, ground: P.ground, accent: P.accent, accent2: P.accent2 ?? P.accent, accent3: P.accent3 ?? P.ground };
     const items: Item[] = [];
-    const titleTop = plan.vals.titleTop === true, ang = Number(plan.vals.ang);
+    const titleTop = plan.titleSide === 'top', ang = plan.slant;
     const tt = tx.title.on && tx.title.v.trim()
       ? fit(m, { text: upper(tx.title.v), font: T.display, maxW: W - 2 * M - W * 0.1, maxH: W * 0.5, start: Math.round(W * 0.15 * c.cap), min: MIN.title, lh: 1.18, maxLines: 3, force })
       : null;
