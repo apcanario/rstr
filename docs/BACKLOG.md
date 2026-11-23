@@ -4,8 +4,8 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 
 | Bundle | Rows | What you get |
 |---|---|---|
-| 1 | R1, R2, R3, R4 | The real engine, palettes with light and dark, font pairings, the app frame and Simple mode, live on Pages |
-| 2 | R5, R6, R7 | Swiss and Postmodern finished, the three finishes |
+| 1 | R1, R2, R3, R4 | The real engine, palettes with light and dark, 42 font pairings fetched online, the app frame and Simple mode, live on Pages |
+| 2 | R5, R6, R7 | Swiss and Postmodern finished, the five finishes, the marks layer |
 | 3 | R8, R9, R10 | Brutalist, Vaporwave, Advanced mode |
 | 4 | R11, R12 | My palettes, own fonts, spec in and out; retouch from notes |
 | later | M, K | Motion, then photos, assets and kits. Each needs a Fable chat first (spec 11) |
@@ -32,7 +32,7 @@ Read spec 3, 4, 5, 6, 9 and 10 in full before any row of this bundle.
 - Ink-bounds spacing.
 - The invariants of spec 9.2 and 9.3 in the smoke run, printing the failing spec.
 - A plain one-screen app (the spike's `app.html` is enough of a guide) so Pages shows something: stage, format, Shuffle.
-- Fonts bundled as woff2 with `public/LICENSES.txt`.
+- The eight core font families bundled as woff2 with `public/LICENSES.txt` (spec 6).
 
 **Done when:** the reference specs in `docs/archive/spike/shots.py` draw designs a reviewer judges the same as `docs/design/refs/` for all four styles; 9.2 and 9.3 pass for all four styles (tested); no `Math.random()` outside seed creation (tested); `check` and `smoke` pass.
 
@@ -47,10 +47,12 @@ Read spec 3, 4, 5, 6, 9 and 10 in full before any row of this bundle.
 
 ### R3. Type
 
-- Pairings as data (spec 6), the type seed and `pick.pairing`, per-style allowed lists, at least 4 pairings per style, 16 to 20 families bundled in total, every licence recorded.
-- Each family's weights limited to what the styles use, to keep the download small; say the total font weight in the changelog.
+- Pairings as data from `docs/design/pairings.md` (spec 6): check every family resolves from Google Fonts, swap or drop any that does not and say which in the changelog.
+- The type seed and `pick.pairing`, per-style allowed lists.
+- Online loading on demand, only the weights a pairing names; a service worker that caches fetched font files; the eight core families bundled; the 4 s fallback to the style's default pairing with a note.
+- `tools/fetch_fonts.py` for the APK build: downloads every pairing's fonts and writes the licence texts.
 
-**Done when:** every pairing of every style passes 9.2 (tested); changing only the type seed moves no graphic (tested); a sheet per style shows every pairing with the same other seeds.
+**Done when:** every pairing of every style passes 9.2 with its real fonts loaded (tested, online); with the network off after one use, a used pairing still draws with its own fonts (tested); with the network off and an unused pairing picked, the design draws with the default pairing and the note shows (tested); layout never runs with a fallback system font (tested: the Scene records the families it measured with); changing only the type seed moves no graphic (tested); a sheet per style shows every pairing with the same other seeds.
 
 ### R4. The frame and Simple mode
 
@@ -64,7 +66,7 @@ Read spec 3, 4, 5, 6, 9 and 10 in full before any row of this bundle.
 
 ## Bundle 2: Swiss, Postmodern, finishes
 
-Read spec 7 and 8.1, 8.2, 8.5.
+Read spec 7 and 8.1, 8.2, 8.5, and `docs/design/elements.md`.
 
 ### R5. Swiss, finished
 
@@ -80,12 +82,12 @@ Read spec 7 and 8.1, 8.2, 8.5.
 
 **Done when:** as R5, against `docs/design/refs/pomo-*.jpg`; no shape is ever drawn over text (tested).
 
-### R7. Finishes
+### R7. Finishes and marks
 
-- Clean, Grain, Grunge as spec 7, deterministic, with the title stamped again; the Look tab's Finish control.
-- Export time measured in headless Chrome for the largest format with Grunge, recorded in the changelog.
+- The five finishes of spec 7.1 with the two-pass rule; the marks layer of spec 7.2 from `docs/design/elements.md`, at off, light and full; the Look tab's Finish and Marks controls.
+- Export time measured in headless Chrome for the largest format with Grunge and with Glitch, recorded in the changelog.
 
-**Done when:** the same spec gives identical pixels with each finish (tested); Grunge never takes a text item under 3:1 (tested); a sheet shows every style under every finish.
+**Done when:** the same spec gives identical pixels with each finish (tested); no finish takes a text item under 3:1 (tested); with VHS or Glitch the pixels inside every text item's ink are the same as with Clean (tested); no mark overlaps a text item at light or full, over 200 seeds per style (tested); no micro label contains anything the spec does not hold (tested against a list of allowed sources); sheets show every style under every finish and at each marks level.
 
 ## Bundle 3: Brutalist, Vaporwave, Advanced
 

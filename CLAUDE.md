@@ -28,5 +28,6 @@ TypeScript, Vite, Preact, Canvas 2D. Vitest for unit tests, Python + Playwright 
 - Every random choice comes from the seeded generators, never `Math.random()` (the one exception: making a new seed).
 - Styles, palettes, pairings and motifs are data plus small pure functions. Pickers list whatever exists.
 - Phone first: portrait, one thumb, controls at least 48 px, no hover states, nothing scrolls.
-- Fonts ship with the app, open licence only, each licence recorded in `public/LICENSES.txt`.
+- Free fonts only (Google Fonts). The web app fetches them on demand and caches them, with a small core set bundled; the APK bundles all of them. Licences of bundled fonts go in `public/LICENSES.txt`.
+- No Shōmen branding anywhere. Its visual elements (`docs/design/elements.md`) are reused; its name, logo, colours and content are not.
 - Tone: direct. No flattery, no filler.

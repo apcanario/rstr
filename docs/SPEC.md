@@ -27,7 +27,8 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
   "style": "swiss",              // swiss | pomo | brutal | vapor
   "format": "3:4",               // 1:1 | 3:4 | 9:16
   "mode": "light",               // light | dark
-  "finish": "clean",             // clean | grain | grunge
+  "finish": "clean",             // clean | grain | grunge | vhs | glitch
+  "marks": "off",                // off | light | full
   "seeds": { "layout": 1, "colour": 2, "graphic": 3, "type": 4 },
   "pick": { "palette": null, "pairing": null, "motif": null, "layout": null },   // null = the seed decides
   "params": { },                 // Advanced values, per style; absent = the seed decides
@@ -39,7 +40,7 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
 
 - **Four seeds, four independent streams.** Layout, colour, graphic, type. Changing one never changes what the other three produce (tested, 9.3). This is what Lock and the per-facet rerolls rest on.
 - **A pick overrides its seed.** `pick.palette` set means the colour seed is ignored for palette choice, and so on.
-- **Format, mode and finish are not seeded.** Shuffle never changes them.
+- **Format, mode, finish and marks are not seeded.** Shuffle never changes them.
 - **The same spec draws the same design** on the same device and build (tested).
 - A spec with an unknown field or an older `v` is migrated or the unknown part ignored; it never crashes the app.
 
@@ -49,7 +50,7 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
 |---|---|---|
 | 1:1 | 1080 x 1080 | |
 | 3:4 | 1080 x 1440 | Default |
-| 9:16 | 1080 x 1920 | Text stays out of the top 250 px and bottom 340 px (story interface). Graphics and ground may fill them. |
+| 9:16 | 1080 x 1920 | Text stays between y 260 and y 1600: the top 250 px and bottom 320 px belong to the story interface. Ground, graphics and marks may fill them. Same zones Pedro has used on his story posts. |
 
 One spec, all three formats: the same palette, pairing, motif and words, laid out again for the ratio. It should read as one design in three sizes, not three designs.
 
@@ -87,29 +88,48 @@ A **palette** is roles, not colours in fixed places:
 
 ## 6. Type
 
-A **pairing** is `{ id, name, display, text, mono, notes }` naming bundled font families and the weights used.
+A **pairing** is `{ id, name, display, text, mono, notes }` naming font families and the weights used. The starting list is `docs/design/pairings.md`: 42 pairings across the four styles, with Swiss leaning on single grotesque families.
 
-- Fonts are bundled as woff2, self-hosted, open licence only, licence text in `public/LICENSES.txt`. Nothing loads from a font service at run time.
-- Starting set, all OFL in their npm packages on 23 Nov 2026: Inter Tight, Bricolage Grotesque, Instrument Serif, DM Mono, Anton, Archivo Black, Unbounded, Silkscreen. Rows add more; target 16 to 20 families, chosen so each style has at least 4 pairings.
-- Each style lists the pairings it allows. Swiss allows only grotesque display faces. Brutalist allows only heavy ones.
+- **Free fonts only**, which here means families on Google Fonts. Nothing licensed is ever shipped or fetched.
+- **Web app: fonts are fetched online, on demand.** Picking or shuffling to a pairing loads its families and weights from Google Fonts, and only those. A service worker caches every font file fetched, so a pairing used once works offline afterwards.
+- **A core set is bundled** with the web app so it always draws, online or not: the eight families of the spike (Inter Tight, Bricolage Grotesque, Instrument Serif, DM Mono, Anton, Archivo Black, Unbounded, Silkscreen). Each style's default pairing uses only core fonts.
+- **APK: every font of every pairing is bundled.** `tools/fetch_fonts.py` downloads them at build time; licence texts go to `public/LICENSES.txt`.
+- **Never lay out with the wrong font.** Layout waits for the pairing's fonts. If they have not arrived in 4 s (offline, never cached), the design is drawn with the style's default pairing, a small note says so, and the spec keeps the pairing that was asked for. Shuffle prefers pairings whose fonts are already available when offline.
+- Export waits for fonts the same way.
+- Each style lists the pairings it allows. Swiss: grotesques, alone or with a serif for the subtitle. Brutalist: heavy display faces with a mono.
 - The type seed picks the pairing; `pick.pairing` overrides it.
-- Typewolf and similar sites are reading for whoever curates the pairings file. Nothing is fetched from them.
+- Pairing lists found on the web (Typewolf and the like) are reading for whoever curates the file. The app fetches font files, never pairing data.
 - **Own fonts (row R11):** load a TTF, OTF or WOFF2 from the phone, kept in IndexedDB, usable as display or text in a custom pairing.
 
-## 7. Finish
+## 7. Finish and marks
 
-A texture pass over the composed image. A finish is not a style: any style takes any finish.
+### 7.1 Finish
+
+A pass over the composed image. A finish is not a style: any style takes any finish.
 
 | Finish | What it does |
 |---|---|
 | Clean | Nothing |
 | Grain | Fine film grain, a little vignette |
 | Grunge | Grain, photocopy dust, faint horizontal streaks, nibbled edges with bigger bites at the corners, slight ink spread on type |
+| VHS | Chroma bleed, scanlines, streak grain, a tracking band, head-switching noise at the bottom |
+| Glitch | Slice displacement with RGB split, scanlines, corruption bars, one pixel-sort smear |
 
-- Deterministic from the graphic seed.
-- **Type stays readable.** After the pass, the title is stamped again at part strength so its edges hold. The contrast rule of section 5 is checked before the finish, and a finish never lowers a text item's contrast below 3:1 (tested on the grunge pass).
+- Recipes: `docs/design/elements.md`. Deterministic from the graphic seed.
+- **Two passes for VHS and Glitch:** ground and graphics, then the effect, then every text item on top. These effects never touch text.
+- **Grain and Grunge cover everything**, then the title is stamped again at part strength so its edges hold. No colour ghost on type.
+- The contrast rule of section 5 is checked before the finish, and a finish never takes a text item under 3:1 (tested).
+- When a finish other than Clean is on, text set in a light weight steps up one weight.
 - Advanced has a strength dial per finish.
-- The order and the idea come from the Shōmen Swiss spec (`apcanario/shomen-engine`, `specs/swiss-spec.md` section 7); no chromatic ghost on type.
+
+### 7.2 Marks
+
+A layer of small technical graphics over any style: brackets, tick rulers, a crosshair, slashes, a barcode strip, status cells, micro labels, and containers for text (chamfered card, highlight bar, underline bar). The library is `docs/design/elements.md`.
+
+- `marks`: off, light (three or four marks in free corners and edges), full (also the containers: info goes in a chamfered card, the title gets an underline bar and a micro label).
+- Placed by the layout stream after text and graphics, in free space only. A mark never sits on a text item.
+- Micro labels carry only what the spec knows (seed, format, style, palette, date, counter). Nothing invented that reads as a fact.
+- Colours come from the palette roles. Each style may restrict which marks suit it; Swiss takes rulers, crosshair, grid and brackets, Brutalist takes barcode, status cells and slashes, Vaporwave and Postmodern take all.
 
 ## 8. Styles
 
@@ -224,7 +244,7 @@ For zero-thinking use. Three tabs.
 |---|---|
 | Style | The four styles as tiles, each tile a small live render |
 | Text | Four rows: slot name, field, on/off |
-| Look | Light/Dark, Finish (Clean, Grain, Grunge), and four reroll buttons: New layout, New colours, New graphic, New type |
+| Look | Light/Dark, Finish (Clean, Grain, Grunge, VHS, Glitch), Marks (Off, Light, Full), and four reroll buttons: New layout, New colours, New graphic, New type; page chips if it does not fit one page |
 
 ### 10.3 Advanced
 
@@ -232,7 +252,7 @@ Everything Simple has, plus the parameters. Six tabs: Style, Layout, Graphic, Ty
 
 | Tab | Controls |
 |---|---|
-| Style | Style tiles, Finish with a strength dial, Light/Dark |
+| Style | Style tiles, Finish with a strength dial, Marks with a picker of which marks are allowed, Light/Dark |
 | Layout | Layout picker (the style's layouts by name), margin, graphic share, axis column or tilt or horizon (whatever the style has) |
 | Graphic | Motif picker, density, scale, line weight, angle, New graphic |
 | Type | Pairing picker, title case (as typed, upper, lower), title weight where the family has it, tracking, size cap |
@@ -247,6 +267,6 @@ Everything Simple has, plus the parameters. Six tabs: Style, Layout, Graphic, Ty
 
 Each needs a Fable chat to specify before it is built.
 
-- **Phase 2, motion:** a device test of MP4 export first (WebCodecs with an MP4 muxer; MediaRecorder as the fallback), then entrances and loops per style, 6 s default, 30 fps, silent.
-- **Phase 3:** photo as ground (crop, grade, duotone), uploaded PNG and SVG assets as graphics, brand kits (Shōmen first: Tomorrow, its reds, its logo, the recap content model), batch from a list, sound from the groovebox engine, the APK.
+- **Phase 2, motion:** a device test of MP4 export first (WebCodecs with an MP4 muxer; MediaRecorder as the fallback), then entrances and loops per style, 6 s default, 30 fps, silent. The motion vocabulary to start from is at the end of `docs/design/elements.md`.
+- **Phase 3:** photo as ground (crop, grade, duotone), uploaded PNG and SVG assets as graphics, brand kits (a saved palette, pairing, logo and fixed text layout; no particular brand planned), batch from a list, sound from the groovebox engine, the APK.
 - **More styles:** Bauhaus, Constructivist, Y2K. Not before the first four hold up.

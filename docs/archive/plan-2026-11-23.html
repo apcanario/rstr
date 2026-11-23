@@ -86,27 +86,27 @@ small{color:#ecebe699}
 <tr><td>MP4 export on the phone</td><td><span class="tag m">TEST</span></td><td>Chromium's MediaRecorder gained MP4 with H.264 (<a href="https://groups.google.com/a/chromium.org/g/blink-dev/c/p1OMVj1FrMI">Chromium intent-to-ship</a>), but it records in real time. Frame-exact export means WebCodecs plus an MP4 muxer. First row of the motion phase is a device test. Fallback: WebM, or frames rendered in a chat.</td></tr>
 <tr><td>Upload a photo as background</td><td><span class="tag y">YES</span></td><td>File picker, cover-crop, grade or duotone, text on a solid panel. Stays on the device. Not built yet.</td></tr>
 <tr><td>More movements (Bauhaus, Brutalist, …)</td><td><span class="tag y">YES</span></td><td>One rule set is roughly one build chat. Quality depends on how tight the rules are, not on the tech.</td></tr>
-<tr><td>Sound on videos</td><td><span class="tag l">LATER</span></td><td>The groovebox synth engine could score a clip. Your Shōmen videos are silent by spec, so no pressure.</td></tr>
-<tr><td>Helvetica / Akzidenz</td><td><span class="tag n">NO</span></td><td>Licensed. The spike uses Inter Tight, Bricolage Grotesque, Instrument Serif, DM Mono — all open licence.</td></tr>
-<tr><td>Run the Shōmen Python engine in the app</td><td><span class="tag n">NO</span></td><td>It is PIL + numpy run from a chat. Its rules port; its code does not. See 06.</td></tr></table></section>
+<tr><td>Sound on videos</td><td><span class="tag l">LATER</span></td><td>The groovebox synth engine could score a clip.</td></tr>
+<tr><td>Fonts</td><td><span class="tag y">YES</span></td><td>Free Google Fonts only: 42 pairings to start, fetched online on demand and cached, all bundled in the APK. Helvetica and Akzidenz stay out (licensed).</td></tr>
+</table></section>
 
-<section><h2><span>06</span>What the Shōmen zip gives it</h2>
-<ul><li><strong>Ported already:</strong> the three formats, the single-rhythm-unit idea from the Swiss spec, label/value footer columns, skins as palettes.</li>
-<li><strong>Worth porting:</strong> ink-bounds spacing (measure real glyph tops, not font boxes), the two-pass rule (effects never touch text or logo), the dark grunge finish as an optional layer.</li>
-<li><strong>Brand kit, later:</strong> Tomorrow font, the reds, the logo SVG and the recap content model load as a "Shōmen" preset, so a season recap becomes a form instead of a chat.</li>
-<li><strong>Stays in chat:</strong> the HUD athlete posts. Photo cut-outs and those layouts are a different job from a random generator.</li></ul></section>
+<section><h2><span>06</span>Reused from the earlier engine</h2>
+<p>No Shōmen branding. Only its visual elements carry over:</p>
+<ul><li><strong>Marks:</strong> an optional layer of brackets, tick rulers, crosshair, slashes, barcode strip, status cells, micro labels and a chamfered card for the info slot. Off, light or full, over any style.</li>
+<li><strong>Finishes:</strong> Grunge from the Swiss recap look, plus VHS and Glitch. The effect passes never touch text.</li>
+<li><strong>Rules:</strong> spacing measured from real glyph edges, and the story zones you already use (text between y 260 and 1600).</li></ul></section>
 
 <section><h2><span>07</span>Plan</h2>
-<p>Decided 23 Nov: name RSTR; styles Swiss, Postmodern, Brutalist, Vaporwave; Grunge is a finish over any style; stills first, then motion. Same run model as groovebox: repo <strong>apcanario/rstr</strong>, Pages, Sonnet chats driving Opus agents, one bundle per chat. Full spec and rows are in the repo's docs folder.</p>
-<div class="ph"><div class="k">Bundle 1</div><h3>Engine, colour, type, frame</h3><ul><li>Spike rebuilt as layout → scene → paint, with a solver that rejects any layout where text overflows, overlaps or fails contrast.</li><li>Palettes as roles, each with a hand-made light and dark form.</li><li>Font pairings from 16–20 bundled open-licence families; a fourth seed for type.</li><li>The app frame and Simple mode: Shuffle, Back, Keep, locks, export and share.</li></ul></div>
-<div class="ph"><div class="k">Bundle 2</div><h3>Swiss, Postmodern, finishes</h3><ul><li>Both styles extended (more layouts, graphics, slot positions) and tuned over 200 rolls each.</li><li>Clean, Grain, Grunge.</li></ul></div>
+<p>Decided 23 Nov: name RSTR; styles Swiss, Postmodern, Brutalist, Vaporwave; Grunge is a finish over any style; fonts are free Google Fonts fetched online; stills first, then motion. Same run model as groovebox: repo <strong>apcanario/rstr</strong>, Pages, Sonnet chats driving Opus agents, one bundle per chat. Full spec and rows are in the repo's docs folder.</p>
+<div class="ph"><div class="k">Bundle 1</div><h3>Engine, colour, type, frame</h3><ul><li>Spike rebuilt as layout → scene → paint, with a solver that rejects any layout where text overflows, overlaps or fails contrast.</li><li>Palettes as roles, each with a hand-made light and dark form.</li><li>42 font pairings from free Google Fonts, fetched online and cached; a fourth seed for type.</li><li>The app frame and Simple mode: Shuffle, Back, Keep, locks, export and share.</li></ul></div>
+<div class="ph"><div class="k">Bundle 2</div><h3>Swiss, Postmodern, finishes</h3><ul><li>Both styles extended (more layouts, graphics, slot positions) and tuned over 200 rolls each.</li><li>Five finishes (Clean, Grain, Grunge, VHS, Glitch) and the marks layer.</li></ul></div>
 <div class="ph"><div class="k">Bundle 3</div><h3>Brutalist, Vaporwave, Advanced</h3><ul><li>Both styles finished from the first pass shown in 03.</li><li>Advanced mode: Layout, Graphic, Type, Colour, Text tabs with every parameter.</li></ul></div>
 <div class="ph"><div class="k">Bundle 4</div><h3>Yours, then retouch</h3><ul><li>Saved palettes, your own font files, copy and paste a design as data.</li><li>Retouch from your notes.</li></ul></div>
-<div class="ph"><div class="k">Later</div><h3>Motion, then photos and kits</h3><p>MP4 device test first. Then photo grounds, uploaded assets, brand kits (Shōmen first), batch, sound, APK.</p></div></section>
+<div class="ph"><div class="k">Later</div><h3>Motion, then photos and kits</h3><p>MP4 device test first. Then photo grounds, uploaded assets, brand kits, batch, sound, APK.</p></div></section>
 
 <section><h2><span>08</span>Where it can go wrong</h2>
 <ul><li><strong>Random ≠ good.</strong> Some rolls are dull or clumsy. The fix is tighter rules and a "keep" pile, not more parameters. Expect a tuning pass per style.</li>
-<li><strong>Looks generic.</strong> Five motifs get recognisable fast. Brand kits and photo backgrounds are what make outputs yours.</li>
+<li><strong>Looks generic.</strong> A small graphics library gets recognisable fast. More motifs, marks, your own palettes and photo grounds are what make outputs yours.</li>
 <li><strong>MP4 on device.</strong> The only real technical unknown. Tested first in phase 2 so it cannot sink phase 1.</li>
 <li><strong>Scope creep.</strong> Every movement is tempting. Swiss alone has to be good before a third style exists.</li></ul></section>
 </main>

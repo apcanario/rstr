@@ -9,9 +9,10 @@ Nothing yet: this repo holds the plan and the spike. `docs/archive/spike/app.htm
 ## Where it is going
 
 - **Four styles:** Swiss, Postmodern, Brutalist, Vaporwave.
-- **Three finishes** over any style: Clean, Grain, Grunge.
+- **Five finishes** over any style: Clean, Grain, Grunge, VHS, Glitch.
+- **Marks:** an optional layer of small technical graphics (brackets, rulers, crosshair, barcode, micro labels).
 - **Light and dark** for every palette; palettes you can edit and save.
-- **Font pairings** from bundled open-licence fonts; your own font files later.
+- **Font pairings** from free Google Fonts, fetched online and cached, bundled in the APK; your own font files later.
 - **Four text slots:** title, subtitle, info, caption, each on or off.
 - **Three sizes** from one design: 1080 x 1080, 1080 x 1440, 1080 x 1920.
 - **Simple and Advanced** modes on one switch.
@@ -22,7 +23,7 @@ Nothing yet: this repo holds the plan and the spike. `docs/archive/spike/app.htm
 | Bundle | What | State |
 |---|---|---|
 | 1 | Engine, colour, type, frame and Simple mode | Next |
-| 2 | Swiss and Postmodern finished, finishes | Queued |
+| 2 | Swiss and Postmodern finished, finishes, marks | Queued |
 | 3 | Brutalist, Vaporwave, Advanced mode | Queued |
 | 4 | My palettes, own fonts, retouch | Queued |
 
