@@ -4,7 +4,7 @@ A poster generator for a phone. Pick a style, shuffle until something lands, typ
 
 ## What it does today
 
-A one-screen app: pick a style (Swiss, Postmodern, Brutalist, Vaporwave) and a format (1:1, 3:4, 9:16), Shuffle, export JPEG. The engine lays out, builds a Scene and paints it, with checks for overflow, overlap and contrast. Eight palettes per style, each in light and dark (a Light/Dark button in the header). 42 font pairings from Google Fonts, fetched on demand and cached (online lines not yet verified). Finishes, marks, locks, Kept and Advanced mode are not built yet. `docs/design/refs/` shows the looks it targets.
+A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwave) and a format (1:1, 3:4, 9:16), Shuffle, lock palette, type, graphic or layout, edit title, subtitle, info and caption, Back, Keep into a Kept sheet, export JPEG or PNG at three sizes. Design, Back steps, Kept and locks are saved and survive reload. The engine lays out, builds a Scene and paints it, with checks for overflow, overlap and contrast. Eight palettes per style, each in light and dark (Light/Dark on the Look tab). 42 font pairings from Google Fonts, fetched on demand and cached (online lines not yet verified). Finish and Marks are in the spec but offer only Clean and Off until bundle 2; the Advanced switch shows Simple's tabs until bundle 3. `docs/design/refs/` shows the looks it targets.
 
 ## Where it is going
 
@@ -22,7 +22,7 @@ A one-screen app: pick a style (Swiss, Postmodern, Brutalist, Vaporwave) and a f
 
 | Bundle | What | State |
 |---|---|---|
-| 1 | Engine, colour, type, frame and Simple mode | In progress: R1, R2, R3 done |
+| 1 | Engine, colour, type, frame and Simple mode | In progress: R1 to R4 done, viewer check next |
 | 2 | Swiss and Postmodern finished, finishes, marks | Queued |
 | 3 | Brutalist, Vaporwave, Advanced mode | Queued |
 | 4 | My palettes, own fonts, retouch | Queued |

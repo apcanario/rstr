@@ -28,16 +28,6 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 
 Read spec 3, 4, 5, 6, 9 and 10 in full before any row of this bundle.
 
-### R4. The frame and Simple mode
-
-- The frame of spec 10.1 and Simple mode of 10.2: header, stage, format, locks, panel, action row with Back, Shuffle, Keep and Export, tab bar; Kept sheet; export sheet with Save and Share.
-- Style tiles as small live renders.
-- The app-wide Simple/Advanced switch is present and remembered; Advanced shows Simple's tabs until R10.
-- Autosave of the current design, Back steps and Kept.
-- Screen shots of every tab and sheet at 360 x 640 and 412 x 915 in `npm run sheet`.
-
-**Done when:** nothing scrolls at 360 x 640 or 412 x 915 (tested); every control is at least 48 px (tested); no text on a control wraps or overflows with the longest palette, pairing and style names (tested); a locked facet survives 50 shuffles (tested); Back restores the previous design exactly (tested); export gives files of the right pixels for all three sizes (tested); reload brings back the design, Back steps and Kept (tested).
-
 ## Bundle 2: Swiss, Postmodern, finishes
 
 Read spec 7 and 8.1, 8.2, 8.5, and `docs/design/elements.md`.
@@ -100,6 +90,7 @@ Needs Pedro's notes to run. Works every note and everything in Carried.
 
 ## Done
 
+- **R4. The frame and Simple mode.** 23 Nov 2026. Review R4 applied; see `docs/CHANGELOG.md` and `docs/reviews/R4.md`.
 - **R3. Type.** 23 Nov 2026, built and reviewed; three online Done-when lines UNVERIFIED (Google Fonts blocked in the workspace), see Carried R3 and H3. `docs/reviews/R3.md`.
 - **R2. Colour, light and dark.** 23 Nov 2026. Review R2 applied; see `docs/CHANGELOG.md` and `docs/reviews/R2.md`.
 - **R1. The engine.** 23 Nov 2026. Review R1 applied; see `docs/CHANGELOG.md` and `docs/reviews/R1.md`.
