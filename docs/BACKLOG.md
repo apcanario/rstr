@@ -5,12 +5,15 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 | Bundle | Rows | What you get |
 |---|---|---|
 | 1 | R1, R2, R3, R4 | The real engine, palettes with light and dark, 42 font pairings fetched online, the app frame and Simple mode, live on Pages |
-| 2 | R13, R5, R6, R7 | Styles rebuilt as parts with the variety rules; Swiss and both Postmodern dialects finished; five finishes; marks |
-| 3 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit |
-| 4 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print |
-| 5 | R17, R12 | Text layers with hierarchy; retouch from notes |
-| 6 | R18 | Mix: crosses of two styles (experimental, Advanced) |
+| 2 | R13, R5 | Styles rebuilt as parts with the variety rules; Swiss finished. Pedro looks at Swiss before bundle 3 |
+| 3 | R6, R7 | Both Postmodern dialects finished; five finishes; marks |
+| 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit |
+| 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print |
+| 6 | R17, R12 | Text layers with hierarchy; retouch from notes |
+| 7 | R18 | Mix: crosses of two styles (experimental, Advanced) |
 | later | M | Motion, then the APK. Needs a Fable chat first (spec 11) |
+
+Bundle numbers changed on 23 Nov 2026 when the old bundle 2 was split in two so Pedro can look at Swiss before Postmodern is built: old 2 is now 2 and 3, old 3 to 6 are now 4 to 7. Row ids did not change.
 
 Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they had when bundle 1's reviews and Carried items named them; R11 (my palettes, own fonts, spec in and out) was dropped on 23 Nov 2026; R13 to R18 are new.
 
@@ -27,12 +30,12 @@ Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they 
 ## By hand (Pedro)
 
 - **H3. Run the online type checks.** Where Google Fonts is reachable (your computer): `npm ci`, `npm run smoke`, `python3 tools/fetch_fonts.py --check`, `npm run sheet`; report the output or send it as `Notes:`. Detail in Carried R3. Open until done.
-- **H4. Try the A3 export on the phone** once bundle 4 lands: export a design with a photo and Grunge at Print size, and say whether it saves and how long it takes.
+- **H4. Try the A3 export on the phone** once bundle 5 lands: export a design with a photo and Grunge at Print size, and say whether it saves and how long it takes.
 - **H2. Look and use.** After each bundle, shuffle each style on the phone for a few minutes and send what is off in the next starter's `Notes:` line. Open until Pedro says done.
 
-## Bundle 2: parts, variety, Swiss, Postmodern, finishes
+## Bundle 2: parts, variety, Swiss
 
-Read spec 7, 8.0, 8.1, 8.2, 8.5, 8.7 and 9.4, `docs/design/elements.md`, and look at every `docs/design/refs/v2-*.jpg`. The spike in `docs/archive/spike/engine.js` holds a working version of the variety pass and the photocopy dialect: port the ideas, not the code.
+Read spec 8.0, 8.1, 8.5, 8.7 and 9.4, and look at every `docs/design/refs/v2-swiss-*.jpg`. This chat ends after R5 so Pedro can shuffle Swiss on the phone; its Look-at list is about Swiss variety: combinations, tilts and turns, size range, how often a roll feels like one he has seen. The spike in `docs/archive/spike/engine.js` holds a working version of the variety pass and the photocopy dialect: port the ideas, not the code.
 
 ### R13. Parts and the variety engine
 
@@ -52,6 +55,10 @@ Read spec 7, 8.0, 8.1, 8.2, 8.5, 8.7 and 9.4, `docs/design/elements.md`, and loo
 
 **Done when:** the three variety tests pass for Swiss (tested); every layout and graphic passes 9.2 (tested); a reviewer judges the sheets to be in the family of `refs/v2-swiss-*.jpg`, and the first approved look (`refs/swiss-*.jpg`) is still reachable. Whether it is good is Pedro's call.
 
+## Bundle 3: Postmodern, finishes, marks
+
+Read spec 7, 8.0, 8.2, 8.5 and 8.7, `docs/design/elements.md`, and look at `docs/design/refs/pomo-*.jpg` and every `docs/design/refs/v2-grunge-*.jpg`. The spike's `grunge` and `photocopy` functions in `docs/archive/spike/engine.js` are the reference for the photocopy dialect: port the ideas, not the code.
+
 ### R6. Postmodern, both dialects
 
 - Ice cream: thirteen shapes, five ground patterns, the tile title treatment, positions per slot.
@@ -67,7 +74,7 @@ Read spec 7, 8.0, 8.1, 8.2, 8.5, 8.7 and 9.4, `docs/design/elements.md`, and loo
 
 **Done when:** the same spec gives identical pixels with each finish (tested); no finish takes a text item under 3:1 (tested); with VHS or Glitch the pixels inside every text item's ink are the same as with Clean (tested); no mark overlaps a text item at light or full, over 200 seeds per style (tested); no micro label contains anything the spec does not hold (tested against a list of allowed sources); sheets show every style under every finish and at each marks level.
 
-## Bundle 3: Brutalist, Vaporwave, Advanced
+## Bundle 4: Brutalist, Vaporwave, Advanced
 
 Read spec 5, 8.0, 8.3, 8.4 and 10.3.
 
@@ -91,7 +98,7 @@ Read spec 5, 8.0, 8.3, 8.4 and 10.3.
 
 **Done when:** every parameter of every style can be set and changes the design (tested); setting any parameter to either end of its range still passes 9.2 or the control's range is narrowed until it does (tested); an edited colour set is in the spec, survives reload and Keep, is cleared by Shuffle when Colour is unlocked and kept when locked (tested); nothing is written to any palette list (tested); nothing scrolls and nothing wraps in Advanced at both screen sizes (tested).
 
-## Bundle 4: photo and export
+## Bundle 5: photo and export
 
 Read spec 3 (formats), 8.9, 9.4 and 10.1 (export sheet).
 
@@ -119,7 +126,7 @@ Read spec 3 (formats), 8.9, 9.4 and 10.1 (export sheet).
 
 **Done when:** every combination of format, size and file type gives a file of exactly the stated pixels (tested); a strip-rendered export is pixel-identical to a single-canvas one of the same spec (tested, at 3x); the A3 render finishes in headless Chrome with time and peak memory recorded; 9.2 passes for format A in every style (tested). Whether the phone manages A3 is for Pedro to try: say so under By hand.
 
-## Bundle 5: text layers, retouch
+## Bundle 6: text layers, retouch
 
 Read spec 8.6.
 
@@ -133,7 +140,7 @@ Read spec 8.6.
 
 Needs Pedro's notes to run. Works every note and everything in Carried.
 
-## Bundle 6: mix
+## Bundle 7: mix
 
 Read spec 8.7 and 8.8.
 
