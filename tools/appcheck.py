@@ -6,7 +6,7 @@ palette, pairing and style names), a locked facet survives 50 shuffles, Back res
 exactly, export gives files of the right pixels for all three sizes, reload brings back the design, Back
 steps and Kept.
 """
-import json, time
+import json, time, urllib.parse
 from PIL import Image
 from common import idle, open_app
 
@@ -16,8 +16,9 @@ TABS = ['style', 'text', 'look']
 FACETS = ['layout', 'colour', 'graphic', 'type']
 PICK_OF = {'layout': 'layout', 'colour': 'palette', 'graphic': 'motif', 'type': 'pairing'}
 
-# Every problem with the screen as it stands: scrolling, anything outside the viewport, controls under 48 px,
-# text on a control that wraps or overflows.
+# Every problem with the screen as it stands: scrolling, anything outside the viewport, anything outside the
+# frame part or sheet that holds it, frame parts that overlap, controls under 48 px, text on a control that
+# wraps or overflows or is shortened to almost nothing.
 LAYOUT_JS = r'''() => {
   const out = [];
   const name = (el) => (el.dataset && (el.dataset.testid || el.dataset.fit || el.dataset.style || el.dataset.tab || el.dataset.lock || el.dataset.format || el.dataset.chip)) || el.getAttribute('aria-label') || el.className || el.tagName;
@@ -32,6 +33,27 @@ LAYOUT_JS = r'''() => {
     if (!shown(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.bottom > innerHeight + 0.5 || r.right > innerWidth + 0.5 || r.top < -0.5 || r.left < -0.5) out.push(`outside the screen: ${name(el)} ${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}`);
+  }
+  // the panel, locks, action row, header and sheets hold their contents: a fixed-height box spilling into its
+  // neighbour is neither scrolling nor off screen (review R4 S7)
+  for (const box of document.querySelectorAll('.app > .panel, .app > .locks, .app > .actions, .app > header, .app > .sheet')) {
+    if (!shown(box)) continue;
+    const b = box.getBoundingClientRect();
+    for (const el of box.querySelectorAll('*')) {
+      if (!shown(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.left < b.left - 0.5 || r.right > b.right + 0.5 || r.top < b.top - 0.5 || r.bottom > b.bottom + 0.5) out.push(`spills out of ${box.className || box.tagName}: ${name(el)}`);
+    }
+  }
+  // the seven parts of the frame (spec 10.1) do not overlap one another
+  const parts = [['header', '.app > header'], ['stage', '.app > .stage'], ['format', '.app > .seg'], ['locks', '.app > .locks'], ['panel', '.app > .panel'], ['actions', '.app > .actions'], ['tabs', '.app > .tabs']]
+    .map(([n, q]) => [n, document.querySelector(q)]);
+  for (const [n, el] of parts) if (!el || !shown(el)) out.push('frame part missing: ' + n);
+  for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+    const [na, a] = parts[i], [nb, c] = parts[j];
+    if (!a || !c) continue;
+    const p = a.getBoundingClientRect(), q = c.getBoundingClientRect();
+    if (Math.min(p.right, q.right) - Math.max(p.left, q.left) > 0.5 && Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > 0.5) out.push(`frame parts overlap: ${na} and ${nb}`);
   }
   for (const el of document.querySelectorAll('.app button, .app input, .app textarea')) {
     if (!shown(el)) continue;
@@ -52,6 +74,7 @@ LAYOUT_JS = r'''() => {
     const host = el.closest('button, .sheet, .panel, header');
     if (host) { const h = host.getBoundingClientRect(); if (lr.width && (lr.left < h.left - 0.5 || lr.right > h.right + 0.5 || lr.top < h.top - 0.5 || lr.bottom > h.bottom + 0.5)) out.push(`text leaves its control: "${t}"`); }
     if (t !== el.dataset.fit && !t.endsWith('…')) out.push(`label text is not its own: "${t}" for "${el.dataset.fit}"`);
+    if (t !== el.dataset.fit && t.slice(0, -1).trimEnd().length < Math.min(4, el.dataset.fit.length)) out.push(`label shortened to almost nothing: "${t}" for "${el.dataset.fit}"`);
   }
   return out;
 }'''
@@ -104,10 +127,22 @@ def check_layout(pg, where, fail):
     return n
 
 
+# What the Type lock shows of a pairing: its display family (review R4 M6).
+def shown_pairing(name):
+    return name.split(' / ')[0]
+
+
+# Rendered width of a lock value in DM Sans 11 px (the lock's own font), not character count (review R4 M1).
+WIDTH_JS = '''(ts) => { const c = document.createElement('canvas').getContext('2d'); c.font = '11px "DM Sans"'; return ts.map((t) => c.measureText(t).width); }'''
+
+
 def longest(pg, style):
+    """The palette and pairing of a style whose names on the locks are the widest."""
     names = pg.evaluate('(s) => window.__rstr.names(s)', style)
-    pal = max(names['palettes'], key=lambda p: len(p['name']))
-    par = max(names['pairings'], key=lambda p: len(p['name']))
+    pw = pg.evaluate(WIDTH_JS, [p['name'] for p in names['palettes']])
+    rw = pg.evaluate(WIDTH_JS, [shown_pairing(p['name']) for p in names['pairings']])
+    pal = names['palettes'][pw.index(max(pw))]
+    par = names['pairings'][rw.index(max(rw))]
     return pal, par
 
 
@@ -131,10 +166,18 @@ def run(b, url, fail):
                 pg.evaluate('([st, pa, pr, md]) => { const x = window.__rstr.spec(); x.style = st; x.mode = md; x.pick.palette = pa; x.pick.pairing = pr; window.__rstr.app.load(x); }', [style, pal['id'], par['id'], mode])
                 idle(pg)
                 shown = pg.evaluate('() => [...document.querySelectorAll(".lock .val")].map((e) => e.dataset.fit)')
-                if pal['name'] not in shown or par['name'] not in shown:
-                    fail(f'{at}: the locks do not show {pal["name"]!r} and {par["name"]!r}: {shown}')
+                if pal['name'] not in shown or shown_pairing(par['name']) not in shown:
+                    fail(f'{at}: the locks do not show {pal["name"]!r} and {shown_pairing(par["name"])!r}: {shown}')
                 n += check_layout(pg, f'{at} {style} {mode} ({pal["name"]}, {par["name"]})', fail)
-        print(f'{at}: {n} screens checked: no scroll, controls at least 48 px, no text wraps or overflows (longest palette, pairing and style names)')
+        print(f'{at}: {n} screens checked: no scroll, nothing spills out of its part, no parts overlap, controls at least 48 px, no text wraps or overflows (widest palette, pairing and style names)')
+
+        # spec 10.1: page chips only when a tab does not fit; four rows fit on a tall screen (review R4 S5)
+        if h >= 760:
+            for t in ['text', 'look']:
+                pg.click(f'[data-tab="{t}"]')
+                if pg.query_selector_all('[data-chip]'):
+                    fail(f'{at}: the {t.title()} tab has page chips where its four rows fit')
+            pg.click('[data-tab="style"]')
 
         # Style tiles, format, Light/Dark on the Look tab, finish, marks, rerolls, text switches
         pg.click('[data-tab="style"]')
@@ -165,22 +208,48 @@ def run(b, url, fail):
                 fail(f'{at}: Light/Dark on the Look tab did not change only the mode')
         if pg.query_selector('header [data-mode], header [data-testid="mode"]'):
             fail(f'{at}: a Light/Dark control is still in the header')
-        tap(pg, 'button[data-finish="grain"]')
-        if spec(pg)['finish'] != 'grain':
-            fail(f'{at}: Finish not applied')
+        # Finish and Marks draw nothing until R7 (review R4 S1): only Clean and Off can be chosen; a finish or
+        # marks level that came with a design stays tappable so it can be left
+        def finish_marks():
+            """Each Finish and Marks button, over every page of the Look tab: whether it is disabled."""
+            out = {}
+            chips = len(pg.query_selector_all('[data-chip]'))
+            for i in range(max(1, chips)):
+                if chips:
+                    pg.click(f'[data-chip="{i}"]')
+                out.update(pg.evaluate('() => Object.fromEntries([...document.querySelectorAll("[data-finish], [data-marks]")].map((b) => [b.dataset.finish || b.dataset.marks, b.disabled]))'))
+            if chips:
+                pg.click('[data-chip="0"]')
+            return out
+        dis = sorted(k for k, v in finish_marks().items() if v)
+        if dis != sorted(['grain', 'grunge', 'vhs', 'glitch', 'light', 'full']):
+            fail(f'{at}: Finish and Marks should offer only Clean and Off until R7; disabled: {dis}')
+        s = spec(pg)
+        pg.evaluate('(x) => window.__rstr.app.load({ ...x, finish: "grain", marks: "light" })', s)
+        idle(pg)
+        fm = finish_marks()
+        if fm.get('grain') or fm.get('light') or fm.get('clean') or fm.get('off'):
+            fail(f'{at}: a design with Grain and Light marks cannot show or leave them: {fm}')
         tap(pg, 'button[data-finish="clean"]')
-        pg.click('[data-chip="1"]')
-        tap(pg, 'button[data-marks="light"]')
-        if spec(pg)['marks'] != 'light':
-            fail(f'{at}: Marks not applied')
+        if pg.query_selector('[data-chip="1"]'):
+            pg.click('[data-chip="1"]')
         tap(pg, 'button[data-marks="off"]')
+        if spec(pg)['finish'] != 'clean' or spec(pg)['marks'] != 'off':
+            fail(f'{at}: Clean and Off did not apply')
+        if pg.query_selector('[data-chip="0"]'):
+            pg.click('[data-chip="0"]')
+        if not finish_marks().get('grain'):
+            fail(f'{at}: Grain is choosable again after leaving it')
+        if pg.query_selector('[data-chip="1"]'):
+            pg.click('[data-chip="1"]')
         for f in FACETS:
             before = spec(pg)
             tap(pg, f'button[data-reroll="{f}"]')
             after = spec(pg)
             if after['seeds'][f] == before['seeds'][f] or any(after['seeds'][g] != before['seeds'][g] for g in FACETS if g != f):
                 fail(f'{at}: New {f} did not change only the {f} seed')
-        pg.click('[data-chip="0"]')
+        if pg.query_selector('[data-chip="0"]'):
+            pg.click('[data-chip="0"]')
         pg.click('[data-tab="text"]')
         before = spec(pg)
         tap(pg, 'button[data-slot="title"]')
@@ -232,7 +301,7 @@ def run(b, url, fail):
         # Back restores the previous design exactly: the spec and the stage's pixels, step by step
         steps = [
             ('[data-testid="shuffle"]', None), ('button[data-style="pomo"]', None), ('button[data-format="3:4"]', None),
-            ('[data-tab="look"]', 'mode'), (None, 'button[data-finish="grain"]'),
+            ('[data-tab="look"]', 'mode'), (None, 'mode'),
             ('[data-tab="text"]', 'type'), (None, 'button[data-slot="subtitle"]'), ('[data-tab="style"]', 'button[data-style="vapor"]'),
             (None, '[data-testid="shuffle"]'), (None, 'button[data-format="1:1"]'), ('[data-tab="look"]', 'button[data-reroll-page]'),
             ('[data-tab="style"]', '[data-testid="shuffle"]'),
@@ -251,9 +320,12 @@ def run(b, url, fail):
                 pg.keyboard.type(' xyz')
                 idle(pg)
             elif sel == 'button[data-reroll-page]':
-                pg.click('[data-chip="1"]')
+                paged = pg.query_selector('[data-chip="1"]') is not None
+                if paged:
+                    pg.click('[data-chip="1"]')
                 tap(pg, 'button[data-reroll="colour"]')
-                pg.click('[data-chip="0"]')
+                if paged:
+                    pg.click('[data-chip="0"]')
             else:
                 tap(pg, sel)
             if json.dumps(spec(pg), sort_keys=True) == hist[-1][0]:
@@ -342,6 +414,50 @@ def run(b, url, fail):
         pg.click('[data-testid="advanced"]')
         pg.click('button[data-lock="graphic"]')
         print(f'{at}: reload brought back the design, {len(st["back"])} Back steps, {len(st["kept"])} kept, the locks and Advanced')
+
+        # a ?s= link over a saved design: the link opens, the saved design is one Back step away; a broken link
+        # changes nothing (review R4 S2)
+        st = pg.evaluate('() => window.__rstr.app.state()')
+        link = {**st['spec'], 'style': 'brutal' if st['spec']['style'] != 'brutal' else 'swiss', 'seeds': {**st['spec']['seeds'], 'layout': 4242}}
+        pg.goto(url + '?s=' + urllib.parse.quote(json.dumps(link)))
+        pg.wait_for_function('window.__rstr !== undefined')
+        pg.evaluate('() => window.__rstr.ready')
+        idle(pg)
+        now = spec(pg)
+        if now['style'] != link['style'] or now['seeds']['layout'] != 4242:
+            fail(f'{at}: a ?s= link did not open its design')
+        pg.click('[data-testid="back"]')
+        idle(pg)
+        if json.dumps(spec(pg), sort_keys=True) != json.dumps(st['spec'], sort_keys=True):
+            fail(f'{at}: after opening a ?s= link, Back did not bring back the saved design')
+        before = pg.evaluate('() => window.__rstr.app.state()')
+        pg.goto(url + '?s=garbage')
+        pg.wait_for_function('window.__rstr !== undefined')
+        pg.evaluate('() => window.__rstr.ready')
+        idle(pg)
+        if json.dumps(pg.evaluate('() => window.__rstr.app.state()'), sort_keys=True) != json.dumps(before, sort_keys=True):
+            fail(f'{at}: a broken ?s= link changed the saved state')
+        print(f'{at}: a ?s= link opened over a saved design with that design one Back step away; a broken link changed nothing')
+
+        # storage full: a note says what was not saved; it goes when saving works again (review R4 S3)
+        pg.evaluate('''() => { const o = Storage.prototype.setItem; window.__setItem = o;
+          Storage.prototype.setItem = function (k, v) { if (JSON.parse(v).back.length) throw new DOMException('full', 'QuotaExceededError'); return o.call(this, k, v); }; }''')
+        tap(pg, '[data-testid="shuffle"]')
+        t1 = pg.inner_text('[data-testid="save-note"]') if pg.query_selector('[data-testid="save-note"]') else ''
+        pg.evaluate('''() => { Storage.prototype.setItem = function () { throw new DOMException('full', 'QuotaExceededError'); }; }''')
+        tap(pg, '[data-testid="shuffle"]')
+        t2 = pg.inner_text('[data-testid="save-note"]') if pg.query_selector('[data-testid="save-note"]') else ''
+        if 'Back steps not saved' not in t1:
+            fail(f'{at}: with Back too big to save, the note says {t1!r}')
+        if not t2.startswith('Not saved on this phone'):
+            fail(f'{at}: with storage full, the note says {t2!r}')
+        for p in pg.evaluate(LAYOUT_JS)[:6]:
+            fail(f'{at}, storage note shown: {p}')
+        pg.evaluate('() => { Storage.prototype.setItem = window.__setItem; }')
+        tap(pg, '[data-testid="shuffle"]')
+        if pg.query_selector('[data-testid="save-note"]'):
+            fail(f'{at}: the storage note stayed after saving worked again')
+        print(f'{at}: storage full showed a note (Back steps dropped first), and it went once saving worked')
 
         # Kept: tap opens a design, hold deletes it
         kept = pg.evaluate('() => window.__rstr.app.state().kept')

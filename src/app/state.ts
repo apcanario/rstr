@@ -6,6 +6,8 @@ import { FACETS, migrate, newSeed, type Facet, type Spec } from '../engine/spec'
 
 /** Back keeps this many steps (spec 10.1). */
 export const BACK_STEPS = 30;
+/** Kept holds at most this many designs, newest first. */
+export const KEPT_MAX = 500;
 /** The localStorage key of the saved app state. */
 export const STORE_KEY = 'rstr.app.v1';
 
@@ -69,14 +71,35 @@ export function restore(raw: string | null, fallback: () => Spec): Saved {
   let r: any = null;
   try { r = raw ? JSON.parse(raw) : null; } catch { r = null; }
   if (!r || typeof r !== 'object') return { spec: fallback(), back: [], kept: [], locks: { ...NO_LOCKS }, advanced: false };
-  const list = (x: unknown, max: number) => (Array.isArray(x) ? x.slice(-max).map((s) => migrate(s)) : []);
+  // Back is newest last (keep the end); Kept is newest first (keep the start)
+  const list = (x: unknown, from: (a: unknown[]) => unknown[]) => (Array.isArray(x) ? from(x).map((s) => migrate(s)) : []);
   const locks = { ...NO_LOCKS };
   for (const f of FACETS) locks[f] = r.locks?.[f] === true;
   return {
     spec: r.spec ? migrate(r.spec) : fallback(),
-    back: list(r.back, BACK_STEPS),
-    kept: list(r.kept, 500),
+    back: list(r.back, (a) => a.slice(-BACK_STEPS)),
+    kept: list(r.kept, (a) => a.slice(0, KEPT_MAX)),
     locks,
     advanced: r.advanced === true,
   };
+}
+
+/** Keep: the design goes first, unless it is already kept; the list stays within KEPT_MAX. */
+export function addKept(kept: Spec[], s: Spec): Spec[] {
+  const key = JSON.stringify(s);
+  return kept.some((x) => JSON.stringify(x) === key) ? kept : [s, ...kept].slice(0, KEPT_MAX);
+}
+
+/**
+ * A `?s=` link over the saved state: a design that parses as an object replaces the saved one, which goes onto
+ * Back; a link that does not parse changes nothing.
+ */
+export function openLink(saved: Saved, q: string | null): Saved {
+  if (!q) return saved;
+  let raw: unknown = null;
+  try { raw = JSON.parse(q); } catch { return saved; }
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return saved;
+  const spec = migrate(raw);
+  if (JSON.stringify(spec) === JSON.stringify(saved.spec)) return saved;
+  return { ...saved, spec, back: pushBack(saved.back, saved.spec) };
 }

@@ -16,6 +16,8 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 - **R8.** Brutalist 1:1 Anton (Klein, Alarm): title lines leave about a third of the width empty when height binds (`styles/brutal.ts`, `kx < 1`); spec 8.3 says every line fills the width. Review R1 M4.
 - **R9.** A sky-title treatment that passes for every palette (dark plate band or wider outline) so the spike's sky layout comes back over the sun; revisit the outline next to the echoes (outline-as-ink choice). Vaporwave 1:1 caption crowds the subtitle (`vapor.ts`, caption anchored at `bot`); 3:4 Mint c0 sun cut by the edge with an empty floor. Review R1 S2, S4, M6.
 - **R5.** Swiss 9:16 Cobalt and Pine: small text with dead ground between the rule and the story zone. Review R1.
+- **R7.** Finish and Marks: only Clean and Off can be chosen until R7 draws the others (`DRAWN_FINISH`, `DRAWN_MARKS` in `src/app/App.tsx`); add each to its list as it draws, and drop the `appcheck.py` check that the rest are disabled. Measure the Style tab's four tile renders per change on a phone alongside the export timing; if Shuffle lags, start tile renders after a 150 ms delay (the `stop` flag already cancels stale ones). Review R4 S1, M7.
+- **R10.** The Advanced switch now reads "Advanced" with its on state as the pressed edge, and still shows Simple's tabs; R10 gives it its six tabs. The Type lock shows only the display family; the full pairing name goes on the Type tab. Review R4 M4, M6.
 
 ## By hand (Pedro)
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { BACK_STEPS, infoText, NO_LOCKS, parseInfo, pushBack, reroll, restore, serialize, shuffle, withStyle, type Locks } from '../src/app/state';
+import { addKept, BACK_STEPS, infoText, KEPT_MAX, NO_LOCKS, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffle, withStyle, type Locks } from '../src/app/state';
+import { STYLES } from '../src/engine/styles';
 import { choosePalette, choosePairing, layout } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { defaultSpec, FACETS, migrate, type Spec } from '../src/engine/spec';
@@ -9,6 +10,8 @@ function counter(start = 1000) {
   let n = start;
   return () => (n = (Math.imul(n, 1664525) + 1013904223) >>> 0);
 }
+
+const PICK = { layout: 'layout', colour: 'palette', graphic: 'motif', type: 'pairing' } as const;
 
 describe('Shuffle and locks (spec 10.1)', () => {
   test('a locked facet survives 50 shuffles: seed, pick and what it draws; unlocked facets change', () => {
@@ -20,13 +23,15 @@ describe('Shuffle and locks (spec 10.1)', () => {
         // a hand-set pick on the locked facet must survive too
         if (f === 'colour') s.pick.palette = choosePalette({ ...s, seeds: { ...s.seeds, colour: 99 } }).id;
         if (f === 'type') s.pick.pairing = choosePairing({ ...s, seeds: { ...s.seeds, type: 99 } }).id;
+        if (f === 'layout') s.pick.layout = STYLES[style].layouts[STYLES[style].layouts.length - 1];
+        if (f === 'graphic') s.pick.motif = STYLES[style].motifs[STYLES[style].motifs.length - 1];
         const first = s, palette = choosePalette(s).id, pairing = choosePairing(s).id;
         const changed = new Set<string>();
         for (let i = 0; i < 50; i++) {
           const prev = s;
           s = shuffle(s, locks, seed);
           expect(s.seeds[f]).toBe(first.seeds[f]);
-          expect(s.pick).toEqual({ ...{ palette: null, pairing: null, motif: null, layout: null }, ...(f === 'colour' ? { palette: first.pick.palette } : f === 'type' ? { pairing: first.pick.pairing } : {}) });
+          expect(s.pick).toEqual({ ...{ palette: null, pairing: null, motif: null, layout: null }, [PICK[f]]: first.pick[PICK[f]] });
           if (f === 'colour') expect(choosePalette(s).id).toBe(palette);
           if (f === 'type') expect(choosePairing(s).id).toBe(pairing);
           for (const g of FACETS) if (s.seeds[g] !== prev.seeds[g]) changed.add(g);
@@ -132,6 +137,25 @@ describe('saved on the phone (spec 10.1)', () => {
     expect(r.spec).toEqual(migrate({ style: 'pomo', palette: 'x' }));
     expect(r.back).toHaveLength(BACK_STEPS);
     expect(r.back[BACK_STEPS - 1].seeds.layout).toBe(39);
+  });
+  test(`Kept keeps the newest ${KEPT_MAX}, which come first, on restore and on Keep`, () => {
+    const kept = Array.from({ length: KEPT_MAX + 10 }, (_, i) => defaultSpec({ layout: i }));
+    const r = restore(JSON.stringify({ spec: defaultSpec(), kept }), () => defaultSpec());
+    expect(r.kept).toHaveLength(KEPT_MAX);
+    expect(r.kept[0].seeds.layout).toBe(0);
+    let k = r.kept;
+    k = addKept(k, defaultSpec({ layout: 9999 }));
+    expect(k).toHaveLength(KEPT_MAX);
+    expect(k[0].seeds.layout).toBe(9999);
+    expect(addKept(k, k[3])).toBe(k);
+  });
+  test('a ?s= link replaces the saved design and puts it on Back; a broken link changes nothing', () => {
+    const saved = { spec: defaultSpec({ layout: 7 }), back: [defaultSpec({ layout: 6 })], kept: [], locks: { ...NO_LOCKS }, advanced: false };
+    const link = { ...defaultSpec({ layout: 8 }), style: 'pomo' as const };
+    const o = openLink(saved, JSON.stringify(link));
+    expect(o.spec).toEqual(migrate(link));
+    expect(o.back).toEqual([...saved.back, saved.spec]);
+    for (const q of [null, '', 'garbage', '{', '[1]', '42', 'null']) expect(openLink(saved, q)).toBe(saved);
   });
 });
 

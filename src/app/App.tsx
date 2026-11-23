@@ -17,7 +17,7 @@ import type { Scene } from '../engine/scene';
 import { defaultSpec, FACETS, migrate, newSeed, newSeeds, seedCode, STYLE_IDS, type Facet, type Finish, type Marks, type Slot, type Spec, type StyleId } from '../engine/spec';
 import { fitAll } from './fit';
 import { Icon } from './icons';
-import { infoText, parseInfo, pushBack, reroll, restore, serialize, shuffle as shuffleSpec, STORE_KEY, withStyle, type Locks, type Saved } from './state';
+import { addKept, infoText, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffle as shuffleSpec, STORE_KEY, withStyle, type Locks, type Saved } from './state';
 
 /** What the stage drew: the pairing asked for, the one used, and the note (spec 6). */
 export interface Drawn { wanted: string; pairing: string; note: string; }
@@ -32,6 +32,11 @@ const FINISHES: [Finish, string][] = [['clean', 'Clean'], ['grain', 'Grain'], ['
 const MARKS: [Marks, string][] = [['off', 'Off'], ['light', 'Light'], ['full', 'Full']];
 const SLOT_LABEL: Record<Slot, string> = { title: 'Title', subtitle: 'Subtitle', info: 'Info', caption: 'Caption' };
 const KEPT_PAGE = 6;
+/** Finishes and marks that draw something arrive in R7; until then only Clean and Off can be chosen. */
+const DRAWN_FINISH: Finish[] = ['clean'];
+const DRAWN_MARKS: Marks[] = ['off'];
+/** Screens this tall hold four 48 px rows in the panel; the same query sets the panel's height in app.css. */
+const TALL = '(min-height: 760px)';
 
 const human = (id: string) => (id ? id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' ') : '');
 const same = (a: Spec, b: Spec) => JSON.stringify(a) === JSON.stringify(b);
@@ -70,14 +75,10 @@ function preferAvailable(s: Spec, typeLocked = false): Spec {
 function load(): Saved {
   let raw: string | null = null;
   try { raw = localStorage.getItem(STORE_KEY); } catch { raw = null; }
-  const saved = restore(raw, () => defaultSpec(newSeeds()));
   const q = new URLSearchParams(location.search).get('s');
-  if (q) {
-    saved.spec = migrate(q);
-    // the design now lives in the saved state; a reload must not reopen the link's design over it
-    history.replaceState(null, '', location.pathname + location.hash);
-  }
-  return saved;
+  // the design now lives in the saved state; a reload must not reopen the link's design over it
+  if (q !== null) history.replaceState(null, '', location.pathname + location.hash);
+  return openLink(restore(raw, () => defaultSpec(newSeeds())), q);
 }
 
 /** Text on the field while it is typed; follows the spec when the spec changes from elsewhere (Back, Kept). */
@@ -91,6 +92,17 @@ function Field({ slot, spec, onText }: { slot: Slot; spec: Spec; onText: (slot: 
 }
 
 /** A panel with fixed height and page chips when a tab does not fit one page (spec 10.1). */
+/** Whether a media query matches, kept current. */
+function useMedia(q: string): boolean {
+  const [on, setOn] = useState(() => matchMedia(q).matches);
+  useEffect(() => {
+    const m = matchMedia(q), f = () => setOn(m.matches);
+    m.addEventListener('change', f);
+    return () => m.removeEventListener('change', f);
+  }, [q]);
+  return on;
+}
+
 function Panel({ pages, page, setPage }: { pages: ComponentChildren[]; page: number; setPage: (n: number) => void }) {
   const p = Math.min(page, pages.length - 1);
   return (
@@ -118,7 +130,9 @@ export function App({ ready }: { ready: Promise<void> }) {
   const [sizes, setSizes] = useState<Format[]>([init.current.spec.format]);
   const [kind, setKind] = useState<Kind>('jpeg');
   const [keptPage, setKeptPage] = useState(0);
-  const [flash, setFlash] = useState<'' | 'copied' | 'kept'>('');
+  const [flash, setFlash] = useState<'' | 'copied' | 'copyfail' | 'kept'>('');
+  const [saveNote, setSaveNote] = useState('');
+  const tall = useMedia(TALL);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [note, setNote] = useState('');
@@ -179,7 +193,7 @@ export function App({ ready }: { ready: Promise<void> }) {
   const toggleSlot = (slot: Slot) => commit((s) => ({ ...s, text: { ...s.text, [slot]: { ...s.text[slot], on: !s.text[slot].on } } }));
   const keep = () => {
     const s = docRef.current.spec;
-    setKept((k) => (k.some((x) => same(x, s)) ? k : [s, ...k]));
+    setKept((k) => addKept(k, s));
     setFlash('kept');
     setTimeout(() => setFlash(''), 1200);
   };
@@ -191,9 +205,10 @@ export function App({ ready }: { ready: Promise<void> }) {
   };
   const deleteKept = (i: number) => setKept((k) => k.filter((_, j) => j !== i));
   const copySeed = () => {
-    navigator.clipboard?.writeText(seedCode(spec.seeds)).catch(() => undefined);
-    setFlash('copied');
-    setTimeout(() => setFlash(''), 1200);
+    const show = (f: 'copied' | 'copyfail') => { setFlash(f); setTimeout(() => setFlash(''), 1200); };
+    const w = navigator.clipboard?.writeText(seedCode(spec.seeds));
+    if (!w) show('copyfail');
+    else w.then(() => show('copied'), () => show('copyfail'));
   };
 
   /** Export: each chosen size drawn at full size after its fonts (spec 4, 6), as files named rstr-<seed>-<format>. */
@@ -254,7 +269,17 @@ export function App({ ready }: { ready: Promise<void> }) {
 
   // autosave: the design, Back steps, Kept, locks and the Simple/Advanced switch (spec 10.1)
   useEffect(() => {
-    try { localStorage.setItem(STORE_KEY, serialize({ spec: doc.spec, back: doc.back, kept, locks, advanced })); } catch { /* full or blocked */ }
+    const all = { spec: doc.spec, back: doc.back, kept, locks, advanced };
+    try {
+      localStorage.setItem(STORE_KEY, serialize(all));
+      setSaveNote('');
+    } catch {
+      // full or blocked: try once without the Back steps, and say what was not saved
+      try {
+        localStorage.setItem(STORE_KEY, serialize({ ...all, back: [] }));
+        setSaveNote('Back steps not saved on this phone: storage full');
+      } catch { setSaveNote('Not saved on this phone: storage full'); }
+    }
   }, [doc, kept, locks, advanced]);
 
   // labels fit after every render and on resize
@@ -276,7 +301,7 @@ export function App({ ready }: { ready: Promise<void> }) {
       if (stop || !id) return;
       const c = tiles.current[id];
       if (c?.parentElement) {
-        const s = withStyle(spec, id);
+        const s = id === spec.style ? spec : withStyle(spec, id);
         const box = c.parentElement.getBoundingClientRect(), [W, H] = FORMATS[s.format];
         const w = Math.min(box.width, (box.height * W) / H) * devicePixelRatio;
         if (w > 1) thumb(c, s, w, resolvePairing(s, available));
@@ -306,15 +331,16 @@ export function App({ ready }: { ready: Promise<void> }) {
     if (!scene) return '';
     if (f === 'layout') return spec.pick.layout ? human(spec.pick.layout) : '#' + (spec.seeds.layout >>> 0).toString(16).toUpperCase().padStart(8, '0').slice(0, 4);
     if (f === 'colour') return PALETTES[spec.style].find((p) => p.id === scene.palette)?.name ?? '';
-    if (f === 'type') return choosePairing(spec).name;
+    // the display family only; the full pairing name belongs to the Type tab (R10)
+    if (f === 'type') return choosePairing(spec).name.split(' / ')[0];
     const g = scene.items.filter((i) => i.kind === 'graphic').map((i) => (i as { name: string }).name);
     return human(g.find((n) => STYLES[spec.style].motifs.includes(n)) ?? g[0] ?? 'none');
   };
 
   const setPage = (n: number) => setPages((p) => ({ ...p, [tab]: n }));
-  const seg = <T extends string>(list: [T, string][], cur: T, on: (v: T) => void, attr: string) => (
+  const seg = <T extends string>(list: [T, string][], cur: T, on: (v: T) => void, attr: string, can: (v: T) => boolean = () => true) => (
     <div class="seg" role="group">
-      {list.map(([v, label]) => <button class={cur === v ? 'on' : ''} aria-pressed={cur === v} {...{ [attr]: v }} onClick={() => on(v)}><L t={label} /></button>)}
+      {list.map(([v, label]) => <button class={cur === v ? 'on' : ''} aria-pressed={cur === v} disabled={!can(v)} {...{ [attr]: v }} onClick={() => on(v)}><L t={label} /></button>)}
     </div>
   );
 
@@ -335,34 +361,41 @@ export function App({ ready }: { ready: Promise<void> }) {
       <button class={spec.text[slot].on ? 'switch on' : 'switch'} role="switch" aria-checked={spec.text[slot].on} aria-label={`${SLOT_LABEL[slot]} on`} data-slot={slot} onClick={() => toggleSlot(slot)}><i /></button>
     </div>
   );
-  const textPages = [<div class="rows">{textRow('title')}{textRow('subtitle')}</div>, <div class="rows">{textRow('info')}{textRow('caption')}</div>];
-  const lookPages = [
-    <div class="rows">
-      {seg([['light', 'Light'], ['dark', 'Dark']], spec.mode, (m) => set({ mode: m }), 'data-mode')}
-      {seg(FINISHES, spec.finish, (f) => set({ finish: f }), 'data-finish')}
-    </div>,
-    <div class="rows">
-      <div class="captioned"><L t="Marks" c="cap" />{seg(MARKS, spec.marks, (m) => set({ marks: m }), 'data-marks')}</div>
+  /** Rows two to a page, or all on one page where four 48 px rows fit (spec 10.1: page chips only when they do not fit). */
+  const paged = (rows: ComponentChildren[]) => (tall ? [rows] : [rows.slice(0, 2), rows.slice(2)]).map((r) => <div class="rows">{r}</div>);
+  const textPages = paged((['title', 'subtitle', 'info', 'caption'] as Slot[]).map(textRow));
+  const lookPages = paged([
+    seg([['light', 'Light'], ['dark', 'Dark']], spec.mode, (m) => set({ mode: m }), 'data-mode'),
+    // a non-Clean finish or a non-Off marks level kept from elsewhere stays tappable, so it can be left
+    seg(FINISHES, spec.finish, (f) => set({ finish: f }), 'data-finish', (f) => DRAWN_FINISH.includes(f) || f === spec.finish),
+    <div class="captioned"><L t="Marks" c="cap" />{seg(MARKS, spec.marks, (m) => set({ marks: m }), 'data-marks', (m) => DRAWN_MARKS.includes(m) || m === spec.marks)}</div>,
+    <div class="captioned"><L t="New" c="cap" />
       <div class="seg rerolls" role="group">
         {FACETS.map((f) => (
           <button aria-label={REROLL_LABEL[f]} data-reroll={f} onClick={() => commit((s) => reroll(s, f))}><Icon n="reroll" /><L t={FACET_LABEL[f]} /></button>
         ))}
       </div>
     </div>,
-  ];
+  ]);
   const panel = { style: stylePages, text: textPages, look: lookPages }[tab];
 
   return (
     <div class={sheet ? 'app sheeted' : 'app'}>
       <header>
         <div class="wm" aria-label="RSTR">RS<b>T</b>R</div>
-        <button class="seedchip" data-testid="seed" aria-label="Copy seed" onClick={copySeed}><L t={flash === 'copied' ? 'Copied' : `#${seedCode(spec.seeds)}`} /></button>
+        <button class="seedchip" data-testid="seed" aria-label="Copy seed" onClick={copySeed}><L t={flash === 'copied' ? 'Copied' : flash === 'copyfail' ? 'Copy failed' : `#${seedCode(spec.seeds)}`} /></button>
         <button class="kept" data-testid="kept" aria-label="Kept" onClick={() => setSheet('kept')}><Icon n="kept" /><L t={String(kept.length)} /></button>
-        <button class="adv" data-testid="advanced" aria-pressed={advanced} onClick={() => setAdvanced((a) => !a)}><L t={advanced ? 'Advanced' : 'Simple'} /></button>
+        <button class="adv" data-testid="advanced" aria-pressed={advanced} onClick={() => setAdvanced((a) => !a)}><L t="Advanced" /></button>
       </header>
-      <div class={note ? 'stage noted' : 'stage'}>
+      <div class={note || saveNote ? 'stage noted' : 'stage'}>
         <canvas ref={cv} data-testid="stage" />
-        {note && <div class="note" data-testid="font-note" role="status">{note}</div>}
+        {(note || saveNote) && (
+          <div class="note" role="status">
+            {saveNote && <span data-testid="save-note">{saveNote}</span>}
+            {saveNote && note && ' · '}
+            {note && <span data-testid="font-note">{note}</span>}
+          </div>
+        )}
       </div>
       {seg(FORMAT_LIST.map((f) => [f, f] as [Format, string]), spec.format, (f) => set({ format: f }), 'data-format')}
       <div class="locks" role="group" aria-label="Locks">
