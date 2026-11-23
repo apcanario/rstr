@@ -23,6 +23,10 @@ Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they 
 - **R8.** Brutalist 1:1 Anton (Klein, Alarm): title lines leave about a third of the width empty when height binds (`styles/brutal.ts`, `kx < 1`); spec 8.3 says every line fills the width. Review R1 M4.
 - **R9.** A sky-title treatment that passes for every palette (dark plate band or wider outline) so the spike's sky layout comes back over the sun; revisit the outline next to the echoes (outline-as-ink choice). Vaporwave 1:1 caption crowds the subtitle (`vapor.ts`, caption anchored at `bot`); 3:4 Mint c0 sun cut by the edge with an empty floor. Review R1 S2, S4, M6. The treatment must bring back the refs `vapor-3x4` and `vapor-9x16` (title in the sky over the sun; in 9:16 the info window on the floor); R1's refs line stays open for them until then. Review bundle 1 S1. The 1:1 info window covers the top left of the sun (vapor, 1:1, lagoon, light and dark, c0, seeds `{layout: 48514, colour: 630374, graphic: 7801254, type: 4186}`); an 8-word title at 1:1 gets a pale plate on the floor and an orphan last word (`shots/text-vapor.jpg`, fourth cell): fold into the title-legibility work. Review bundle 1 M2, M3.
 - **R5.** Swiss 9:16 Cobalt and Pine: small text with dead ground between the rule and the story zone. Review R1. The Swiss disc is clipped flat by its own box into a barrel or bowl and its satellite is cut away (`src/engine/graphics/swiss.ts:106-112`, radius up to 0.72 x the box's short side; every cell of `shots/palettes-swiss.jpg`; swiss, 9:16, light, no picks, seeds `{layout: 88109, colour: 1154019, graphic: 14299799, type: 4341}`): keep the disc inside its box (radius at most half the short side, centre clamped) or let it bleed only at a canvas edge. Review bundle 1 S2.
+- **R5 (from R13).** (1) `swiss-blocks-9x16` ref: block colours and positions come from the item seed, which no `g.*` parameter sets, so `tools/refs.py` cannot pin them; the disc is back, the first approved look is not fully reachable until R5 pins them. Review R13 S3. (2) Tilt with the small title class leaves a tiny title and half the poster empty (swiss, 3:4, light, seeds `{layout: 72452, colour: 847032, graphic: 10406972, type: 9648}` and `{layout: 159561, colour: 1999051, graphic: 24703771, type: 9989}`): no `small` with `tilt`, or raise small's share when the page is scaled (`parts/frame.ts:170`, `parts/type/swiss.ts:15`). (3) A disc cut-in half hidden under the full-bleed text panel (swiss, 3:4, light, `{layout: 24938, colour: 218658, graphic: 2608718, type: 9462}`): keep cut-ins out of `plan.boxes.panel` or let them cross it by half (`parts/graphics/swiss.ts:51-53`). (4) The vitest variety run only logs (`tests/graphics.test.ts`): assert `pass` for Swiss there once R5 enforces it. Review R13 M4 and clumsy list. (5) Swiss variety at R13: graphic-above 37% against the 25% limit; R5's eight layouts clear it.
+- **R6 (from R13).** Postmodern variety at R13 (smoke, 300 shuffles): repeats in the first 60 are 1 (1:1), 2 (3:4), 0 (9:16); nothing missing; title-top 55% fails the share limit. A row that changes Postmodern on purpose updates its hash in `tests/snapshot.test.ts` and says so in the changelog.
+- **R8 (from R13).** Brutalist never draws its band graphic with the default text (the title fills the area), so barcode, slab and asterisks are missing in 300 shuffles; 44 repeats in the first 60; title-top 60% fails. Update the Brutalist hash in `tests/snapshot.test.ts` when it changes. Review R13.
+- **R9 (from R13).** Vaporwave variety at R13: 52, 44, 47 repeats in the first 60 (1:1, 3:4, 9:16); title-sky missing at 1:1; title-floor 100%, 65%, 87%. Update the Vaporwave hash in `tests/snapshot.test.ts` when it changes. Review R13.
 - **R6.** Postmodern 3:4: shapes and type packed into the upper 60%, the lower 40% empty ground with confetti (all 16 cells of `shots/palettes-pomo.jpg`). Review bundle 1 M1.
 - **R7.** Finish and Marks: only Clean and Off can be chosen until R7 draws the others (`DRAWN_FINISH`, `DRAWN_MARKS` in `src/app/App.tsx`); add each to its list as it draws, and drop the `appcheck.py` check that the rest are disabled. Measure the Style tab's four tile renders per change on a phone alongside the export timing; if Shuffle lags, start tile renders after a 150 ms delay (the `stop` flag already cancels stale ones). Review R4 S1, M7.
 - **R10.** The Advanced switch now reads "Advanced" with its on state as the pressed edge, and still shows Simple's tabs; R10 gives it its six tabs. The Type lock shows only the display family; the full pairing name goes on the Type tab. Review R4 M4, M6.
@@ -36,16 +40,6 @@ Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they 
 ## Bundle 2: parts, variety, Swiss
 
 Read spec 8.0, 8.1, 8.5, 8.7 and 9.4, and look at every `docs/design/refs/v2-swiss-*.jpg`. This chat ends after R5 so Pedro can shuffle Swiss on the phone; its Look-at list is about Swiss variety: combinations, tilts and turns, size range, how often a roll feels like one he has seen. The spike in `docs/archive/spike/engine.js` holds a working version of the variety pass and the photocopy dialect: port the ideas, not the code.
-
-### R13. Parts and the variety engine
-
-- Split all four styles into the five parts of spec 8.7 behind one interface. A style becomes a named set of parts. No behaviour change yet for Brutalist and Vaporwave.
-- One shared graphics library: every graphic a module with at least three ranged parameters and `t`; add lines; ranges pushed to the extremes of spec 8.0.
-- The combination rule (second and third graphic cut in as disc, column, band or inside a block).
-- Transforms (tilt, quarter turn), depth layers with overlap and bleed, title size classes.
-- The three variety tests of spec 8.0 in the smoke run, reporting per style.
-
-**Done when:** no style file reaches into another part's internals (tested by an import rule); every graphic's parameters at both ends of their ranges pass 9.2 (tested); the variety tests run and report (they may still fail for a style until its own row; record the numbers); `check` and `smoke` pass.
 
 ### R5. Swiss, finished
 
@@ -155,6 +149,7 @@ Read spec 8.7 and 8.8.
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **R13. Parts and the variety engine.** 23 Nov 2026, 1 chat (bundle 2). Review R13 applied (fix: 0 errors, 5 should-fix, 4 minor); see `docs/CHANGELOG.md` and `docs/reviews/R13.md`. Variety tests report, and fail for every style until its own row.
 - **Bundle 1 viewer check.** 23 Nov 2026. Fix: 0 errors, 2 should-fix, 7 minor; S2, M1 to M3 carried to R5, R6 and R9, the rest applied. `docs/reviews/bundle-1.md`.
 - **H1. Turn Pages on.** Done by Pedro; the Pages workflow deployed on every close (R1 to R4). Live URL not opened by an agent.
 - **R4. The frame and Simple mode.** 23 Nov 2026. Review R4 applied; see `docs/CHANGELOG.md` and `docs/reviews/R4.md`.
