@@ -31,11 +31,14 @@ export const POMO_POS: Record<Slot, string[]> = { title: ['left', 'right'], subt
 const POS_ODDS: Record<Slot, string[]> = { title: ['left', 'left', 'right'], subtitle: ['under', 'under', 'under', 'over'], info: ['right', 'right', 'left'], caption: ['left', 'left', 'right'] };
 const DEG = Math.PI / 180;
 
-/** The dialect a spec asks for: pick.dialect, else that of a picked layout, else that of a picked motif; null: the stream decides. */
+/**
+ * The dialect a spec asks for: that of a picked layout (a layout names its dialect, so it wins: review R6 M4), else
+ * pick.dialect, else that of a picked motif; null: the stream decides.
+ */
 export function askedDialect(pick: { dialect: Dialect | null; layout: string | null; motif: string | null }): Dialect | null {
-  if (pick.dialect && DIALECTS.includes(pick.dialect)) return pick.dialect;
   if (pick.layout && ICE_LAYOUTS.includes(pick.layout)) return 'icecream';
   if (pick.layout && COPY_LAYOUTS.includes(pick.layout)) return 'photocopy';
+  if (pick.dialect && DIALECTS.includes(pick.dialect)) return pick.dialect;
   if (pick.motif && FOUND.includes(pick.motif)) return 'photocopy';
   if (pick.motif && SHAPE_NAMES.includes(pick.motif)) return 'icecream';
   return null;

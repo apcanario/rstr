@@ -10,7 +10,10 @@ import { check, haloOf } from '../src/engine/invariants';
 import { choosePalette, solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { COPY_LAYOUTS, ICE_LAYOUTS, POMO_POS } from '../src/engine/parts/layout/pomo';
-import { unitsOf } from '../src/engine/parts/type/pomo-copy';
+import { copier } from '../src/engine/graphics/copier';
+import { coverOf, GHOST, unitsOf, type Ink } from '../src/engine/parts/type/pomo-copy';
+import { blendDist } from '../src/engine/pixels';
+import { rng } from '../src/engine/rng';
 import { seedSet, shuffleSeeds, specs } from '../src/engine/proof';
 import type { GraphicItem, Scene, TextItem } from '../src/engine/scene';
 import { defaultSpec, migrate, type Dialect, type Spec } from '../src/engine/spec';
@@ -42,6 +45,11 @@ describe('the two dialects (spec 8.2)', () => {
       expect(sc.graphics[0]).toBe('scribble');
       s.pick.motif = null; s.pick.layout = 'stairs';
       expect(solve(s, stubMeasure).scene.frame).toBe('stairs');
+      // a picked layout wins over a picked dialect of the other kind (review R6 M4)
+      s.pick.dialect = 'photocopy';
+      expect(solve(s, stubMeasure).scene.frame).toBe('stairs');
+      s.pick.dialect = 'icecream'; s.pick.layout = 'copy-low';
+      expect(solve(s, stubMeasure).scene.frame).toBe('copy-low');
     }
   });
   test('the spec carries the dialect, and migration keeps only a known one', () => {
@@ -75,7 +83,7 @@ describe('ice cream (spec 8.2)', () => {
     // the second title treatment (letters on tiles) is drawn
     expect(tiles).toBeGreaterThan(20);
   });
-  test('no shape or found graphic is drawn over text: every graphic comes before every text item, every text item sits on a plate, rule 3 passes', () => {
+  test('no shape or found graphic is drawn over text: every graphic comes before every text item, rule 3 passes', () => {
     const bad: unknown[] = [];
     for (const s of specs({ styles: ['pomo'], n: 100, variants: 'cycle', pick: { dialect: 'icecream' } })) {
       const sc = solve(s, stubMeasure).scene;
@@ -117,16 +125,104 @@ describe('photocopy (spec 8.2)', () => {
     }
     expect([...seen].sort()).toEqual([...FOUND].sort());
   });
-  test('every title word its own face, size and case: at least two faces and two sizes where there are two words or more', () => {
+  test('every title word its own face: at least two faces where there are two words or more (size and case: the next test)', () => {
     for (let i = 0; i < 200; i++) {
       const sc = solve(pomo(i, 'photocopy', (['1:1', '3:4', '9:16'] as const)[i % 3]), stubMeasure).scene;
       if (sc.layout === 'fallback') continue;
       const words = texts(sc).filter((t) => t.slot === 'title');
       expect(new Set(words.map((w) => w.font.family + w.font.weight + (w.font.italic ? 'i' : ''))).size, JSON.stringify(sc.layout)).toBeGreaterThanOrEqual(2);
-      expect(new Set(words.map((w) => w.size)).size).toBeGreaterThanOrEqual(1);
     }
     expect(unitsOf('Signal and noise')).toEqual(['Signal', 'and', 'noise']);
     expect(unitsOf('Eight plain words make a long poster title')).toEqual(['Eight plain', 'words make', 'a long', 'poster title']);
+  });
+  test('own size and case (review R6 S6): two sizes in at least 90% of designs of two words or more, never one case for every word', () => {
+    let many = 0, oneSize = 0;
+    const same: unknown[] = [], oneCase: unknown[] = [];
+    const caseOf = (t: string) => (t === t.toUpperCase() ? (t === t.toLowerCase() ? '' : 'U') : t === t.toLowerCase() ? 'L' : 'M');
+    for (let i = 0; i < 200; i++) {
+      const sc = solve(pomo(i, 'photocopy', (['1:1', '3:4', '9:16'] as const)[i % 3]), stubMeasure).scene;
+      if (sc.layout === 'fallback') continue;
+      const words = texts(sc).filter((t) => t.slot === 'title' && !t.part.endsWith('b'));
+      if (words.length < 2) continue;
+      many++;
+      if (new Set(words.map((w) => w.size)).size < 2) { oneSize++; same.push({ i, sizes: words.map((w) => w.size) }); }
+      const cs = new Set(words.map((w) => caseOf(w.runs[0].s)).filter(Boolean));
+      if (cs.size === 1 && !cs.has('M')) oneCase.push({ i, words: words.map((w) => w.runs[0].s) });
+    }
+    if (same.length) console.log('photocopy designs with one title size:', JSON.stringify(same));
+    expect(many).toBeGreaterThan(150);
+    expect(oneSize / many).toBeLessThanOrEqual(0.1);
+    expect(oneCase, show(oneCase)).toEqual([]);
+  });
+  test('one word sliced, one boxed, one ghosted in every design of two words or more; the slice never on the boxed word, nor on the ghost from three words (review R6 S4)', () => {
+    const bad: unknown[] = [];
+    let n = 0;
+    for (const s of specs({ styles: ['pomo'], n: 200, variants: 'cycle', pick: { dialect: 'photocopy' } })) {
+      const sc = solve(s, stubMeasure).scene;
+      if (sc.layout === 'fallback') continue;
+      const P = choosePalette(s), ws = texts(sc).filter((t) => t.slot === 'title');
+      const words = ws.filter((t) => !t.part.endsWith('b'));
+      if (words.length < 2) continue;
+      n++;
+      const cut = ws.filter((t) => t.part.endsWith('b')), boxed = words.filter((t) => t.fill === P.paper && !haloOf(t)), hot = words.filter((t) => t.echoes?.length);
+      if (cut.length !== 1 || boxed.length !== 1 || hot.length !== 1 || boxed[0].part + 'b' === cut[0].part || (words.length >= 3 && hot[0].part + 'b' === cut[0].part)) bad.push({ spec: s, cut: cut.length, boxed: boxed.length, hot: hot.length });
+    }
+    expect(n).toBeGreaterThan(100);
+    expect(bad, show(bad)).toEqual([]);
+  });
+  test('the ghost sits clear of the paper halo: offset 0.10 to 0.16 em on each axis, with its own paper halo while the edge is on (review R6 E1)', () => {
+    let n = 0;
+    for (let i = 0; i < 100; i++) {
+      const sc = solve(pomo(i, 'photocopy'), stubMeasure).scene;
+      for (const t of texts(sc)) for (const e of t.echoes ?? []) {
+        n++;
+        for (const d of [e.dx, e.dy]) { expect(d / t.size).toBeGreaterThanOrEqual(GHOST[0] - 1e-9); expect(d / t.size).toBeLessThanOrEqual(GHOST[1] + 1e-9); }
+        expect(Math.hypot(e.dx, e.dy) / t.size).toBeGreaterThan(2 * 0.06);
+        expect(e.halo).toBe(choosePalette(pomo(i, 'photocopy')).paper);
+      }
+    }
+    expect(n).toBeGreaterThan(50);
+  });
+  test('no title word has more than 40% of its ink box under later title words, over 200 designs (review R6 S1)', () => {
+    const bad: unknown[] = [];
+    for (const s of specs({ styles: ['pomo'], n: 200, variants: 'cycle', pick: { dialect: 'photocopy' } })) {
+      const sc = solve(s, stubMeasure).scene;
+      if (sc.layout === 'fallback') continue;
+      const ws = texts(sc).filter((t) => t.slot === 'title');
+      const inks: Ink[] = ws.filter((t) => !t.part.endsWith('b')).map((t) => {
+        const mt = stubMeasure(t.runs[0].s, t.font, t.size), b = ws.find((x) => x.part === t.part + 'b');
+        return { x: t.xf!.x, y: t.xf!.y, rot: t.xf!.rot, l: mt.left, r: mt.right + (b ? b.runs[0].x : 0), a: mt.ascent, d: mt.descent };
+      });
+      inks.forEach((k, j) => {
+        const c = coverOf(k, inks.slice(j + 1));
+        if (c > 0.4) bad.push({ spec: s, word: j, cover: c.toFixed(2) });
+      });
+    }
+    expect(bad, show(bad)).toEqual([]);
+  });
+  test('the copier pass: its dark edges keep off every text item (review R6 S3)', () => {
+    for (let i = 0; i < 60; i++) {
+      const s = pomo(i, 'photocopy', (['1:1', '3:4', '9:16'] as const)[i % 3]);
+      const sc = solve(s, stubMeasure).scene;
+      const g = sc.items[sc.items.length - 1] as GraphicItem;
+      const ts = texts(sc).map((t) => bounds(t.quad));
+      expect(g.keep!.l * sc.w).toBeLessThanOrEqual(Math.max(0, Math.min(...ts.map((b) => b.x))) + 1e-6);
+      expect(g.keep!.r * sc.w).toBeLessThanOrEqual(Math.max(0, Math.min(...ts.map((b) => sc.w - b.x - b.w))) + 1e-6);
+      expect(g.keep!.t * sc.h).toBeLessThanOrEqual(Math.max(0, Math.min(...ts.map((b) => b.y))) + 1e-6);
+    }
+    // on a white canvas with every edge on: keep 0 leaves the edge columns as light as the middle, keep 1 darkens them
+    const run = (keep: number) => {
+      const W = 200, H = 100, d = new Uint8ClampedArray(W * H * 4).fill(255);
+      const ctx = { canvas: { width: W, height: H }, getImageData: () => ({ data: d }), putImageData: () => {} } as any;
+      const g = { params: { edges: 1, grain: 0.2, streaks: 0, contrast: 1 }, keep: { l: keep, r: keep, t: keep } } as any;
+      copier.draw(ctx, g, rng(7), null as any);
+      const mean = (x0: number, x1: number, y0 = 50, y1 = 100) => { let t = 0, c = 0; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { t += d[(y * W + x) * 4]; c++; } return t / c; };
+      return { left: mean(0, 3), right: mean(W - 3, W), mid: mean(90, 110), top: mean(90, 110, 0, 1) };
+    };
+    const off = run(0), on = run(1);
+    for (const k of ['left', 'right', 'top'] as const) expect(Math.abs(off[k] - off.mid)).toBeLessThan(25);
+    expect(on.left).toBeLessThan(on.mid - 60);
+    expect(on.right).toBeLessThan(on.mid - 60);
   });
   test('paper edge on: every title word passes contrast (its fill on its paper halo, or paper on its toner box), over 200 seed sets', () => {
     const bad: unknown[] = [];
@@ -219,5 +315,17 @@ describe('positions per slot (spec 8.5): text.<slot>.pos overrides the stream', 
       }
     }
     expect(bad, show(bad)).toEqual([]);
+  });
+});
+
+describe('the pixel check (review R6 S2)', () => {
+  test('a blend of three declared colours passes only on a photocopy Scene; elsewhere a colour inside their triangle is stray', () => {
+    const red = [255, 0, 0], green = [0, 255, 0], blue = [0, 0, 255], allowed = [red, green, blue];
+    const inside = [85, 85, 85];   // the triangle's centre: on no pair's segment
+    expect(blendDist(inside, allowed, false)).toBeGreaterThan(6);
+    expect(blendDist(inside, allowed, true)).toBeLessThanOrEqual(6);
+    // a colour off the triangle is stray either way; a blend of two passes either way
+    expect(blendDist([200, 200, 200], allowed, true)).toBeGreaterThan(6);
+    expect(blendDist([128, 127, 0], allowed, false)).toBeLessThanOrEqual(6);
   });
 });

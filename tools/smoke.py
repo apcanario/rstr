@@ -108,6 +108,27 @@ with served() as url, browser() as b:
                     elif k['leaks']:
                         fail(f'knock vapor {fmt} {path}: {k["leaks"]} marker pixels inside text', spec)
     print(f'knock-outs: {nk} Vaporwave renders, marker never inside text checked')
+    # spec 8.2 (review R6 E1): the photocopy ghost shows, paper edge on: at least 2% of the hot word's ink box in
+    # the spot colour outside the word's fill and halo
+    ng, low = 0, []
+    for fmt in FORMATS:
+        for i in range(8):
+            spec = pg.evaluate('([f, i]) => { const x = window.__rstr.spec(); x.style = "pomo"; x.format = f; x.mode = i % 2 ? "dark" : "light"; x.pick.dialect = "photocopy"; x.seeds = {layout: 900 + i, colour: 910 + i, graphic: 920 + i, type: 930 + i}; return x; }', [fmt, i])
+            r = pg.evaluate('(s) => window.__rstr.ghostShows(s)', spec)
+            if r is None:
+                continue
+            ng += 1
+            if r['share'] < 0.02:
+                low.append(r['share'])
+                fail(f'ghost pomo {fmt}: shows on {r["share"] * 100:.1f}% of the word\'s ink box, under 2%', spec)
+    print(f'photocopy ghost: {ng} designs, the ghost shows on at least 2% of its word in {ng - len(low)}')
+    # 9.2 for photocopy with the paper edge off (review R6 M6): rule 4 waived for the title words only, the rest held
+    for fmt in FORMATS:
+        r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': ['pomo'], 'formats': [fmt], 'n': max(20, N // 4), 'variants': 'cycle', 'pick': {'dialect': 'photocopy'}, 'params': {'pomo.paperEdge': False}})
+        print(f'9.2 pomo   {fmt:4}  photocopy, paper edge off: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+        fallback_check(f'9.2 pomo {fmt} paper edge off', r, 0)
+        for f in r['failures'][:5]:
+            fail(f'9.2 pomo {fmt} paper edge off: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
     # the fallback: text far too long for any candidate still draws a legal design
     long = ' '.join(['Antidisestablishmentarianism'] * 14)
     nfb = 0
@@ -130,11 +151,12 @@ with served() as url, browser() as b:
     # only pairings whose fonts are loaded take part here; the real-font type check runs in the online font
     # checks below (it fails if the type seed moves nothing), else only the stub-measure unit test covers it
     print('9.3 type seed: only loaded pairings take part here; the real-font type check runs with the online font checks, or, offline, the stub-measure unit test only')
-    # 9.3: the same spec drawn twice gives identical pixels
+    # 9.3: the same spec drawn twice gives identical pixels; Postmodern once per dialect, so the copier pass (which
+    # reads and writes canvas pixels) is always drawn (review R6 M7)
     for style in STYLES:
         for fmt in FORMATS:
-            for i in range(4):
-                spec = pg.evaluate('([s, f, i]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i % 2 ? "dark" : "light"; x.seeds = {layout: 11 + i, colour: 23 + i, graphic: 37 + i, type: 41 + i}; return x; }', [style, fmt, i])
+            for i, d in [(i, d) for i in range(4) for d in (['icecream', 'photocopy'] if style == 'pomo' else [None])]:
+                spec = pg.evaluate('([s, f, i, d]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i % 2 ? "dark" : "light"; x.seeds = {layout: 11 + i, colour: 23 + i, graphic: 37 + i, type: 41 + i}; if (d) x.pick.dialect = d; return x; }', [style, fmt, i, d])
                 a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
                 c = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
                 if a != c:

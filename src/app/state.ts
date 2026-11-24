@@ -17,20 +17,32 @@ export const NO_LOCKS: Locks = { layout: false, colour: false, graphic: false, t
 /** Which pick each facet's seed stands for (spec 3: a pick overrides its seed). */
 export const PICK_OF: Record<Facet, keyof Spec['pick']> = { layout: 'layout', colour: 'palette', graphic: 'motif', type: 'pairing' };
 
-/** Spec 10.1: new seeds for every unlocked facet, and that facet's pick cleared. A locked facet keeps both. */
+/** Values set by hand that belong to a facet (spec 10.3): Shuffle clears them unless that facet is locked. */
+export const PARAMS_OF: Record<Facet, string[]> = { layout: [], colour: [], graphic: [], type: ['pomo.paperEdge'] };
+
+function dropParams(params: Spec['params'], f: Facet): Spec['params'] {
+  if (!PARAMS_OF[f].some((k) => k in params)) return params;
+  const out = { ...params };
+  for (const k of PARAMS_OF[f]) delete out[k];
+  return out;
+}
+
+/** Spec 10.1: new seeds for every unlocked facet, that facet's pick and its hand-set values cleared. A locked facet keeps all. */
 export function shuffle(s: Spec, locks: Locks, seed: () => number = newSeed): Spec {
   const seeds = { ...s.seeds }, pick = { ...s.pick };
+  let params = s.params;
   for (const f of FACETS) {
     if (locks[f]) continue;
     seeds[f] = seed();
     pick[PICK_OF[f]] = null;
+    params = dropParams(params, f);
   }
-  return { ...s, seeds, pick };
+  return { ...s, seeds, pick, params };
 }
 
 /** Look tab: New layout, New colours, New graphic, New type. One facet only, whatever the locks. */
 export function reroll(s: Spec, f: Facet, seed: () => number = newSeed): Spec {
-  return { ...s, seeds: { ...s.seeds, [f]: seed() }, pick: { ...s.pick, [PICK_OF[f]]: null } };
+  return { ...s, seeds: { ...s.seeds, [f]: seed() }, pick: { ...s.pick, [PICK_OF[f]]: null }, params: dropParams(s.params, f) };
 }
 
 /** A style change: picks name things of one style, so they all go; seeds stay. */

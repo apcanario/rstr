@@ -128,7 +128,7 @@ export type PickFor = (graphic: string) => Partial<Spec['pick']>;
 export interface GroundPart {
   id: string; /** library graphics it draws */ uses: string[]; ground(c: PartCtx, plan: Plan): Item[];
   /** A surface pass drawn over everything, type included (spec 8.7: the copier pass belongs to the ground). */
-  pass?(c: PartCtx, plan: Plan): Item[];
+  pass?(c: PartCtx, plan: Plan, items: Item[]): Item[];
   pickFor?: PickFor;
 }
 export interface LayoutPart {

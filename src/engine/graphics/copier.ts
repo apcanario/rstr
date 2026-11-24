@@ -2,7 +2,8 @@
  * The copier pass (Postmodern photocopy, spec 8.2): a pass over everything drawn so far, type included, as a
  * photocopier leaves it: raised contrast, grain, dust, faint horizontal streaks and dark edges. It reads the
  * canvas's pixels and writes them back, so it ignores the item's box and draws once per render. Port of the
- * spike's `photocopy`: the ideas, not the code. Deterministic from the graphic stream.
+ * spike's `photocopy`: the ideas, not the code. Deterministic from the graphic stream. The dark edges never reach
+ * a text item (review R6 S3); grain, dust and contrast do, as texture.
  */
 import { val } from './params';
 import type { Graphic } from './types';
@@ -23,7 +24,11 @@ export const copier: Graphic = {
     const u = W / 1080;
     const streak = new Float32Array(H);
     for (let y = 0; y < H; y++) streak[y] = r() < stk ? -(8 + r() * 40) : 0;
-    const eL = r() < pe ? W * (0.02 + r() * 0.05) : 0, eR = r() < pe ? W * (0.02 + r() * 0.05) : 0, eT = r() < pe * 0.7 ? H * (0.01 + r() * 0.025) : 0;
+    let eL = r() < pe ? W * (0.02 + r() * 0.05) : 0, eR = r() < pe ? W * (0.02 + r() * 0.05) : 0, eT = r() < pe * 0.7 ? H * (0.01 + r() * 0.025) : 0;
+    // the dark edges stop short of the text (review R6 S3): g.keep holds the free distance from each side to the
+    // nearest text quad, as shares of the page, set by the ground part from the finished Scene
+    const kp = g.keep ?? { l: 1, r: 1, t: 1 };
+    eL = Math.min(eL, Math.max(0, kp.l) * W); eR = Math.min(eR, Math.max(0, kp.r) * W); eT = Math.min(eT, Math.max(0, kp.t) * H);
     let s = ((r() * 4294967296) >>> 0) || 1;
     const im = ctx.getImageData(0, 0, W, H), d = im.data;
     const dust = 0.0014 / Math.max(0.25, u * u);

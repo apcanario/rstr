@@ -45,7 +45,16 @@ export function paintText(ctx: Ctx, it: TextItem) {
     ctx.save();
     ctx.translate(r.x, r.y);
     ctx.scale(sx, sy);
-    for (const e of it.echoes ?? []) { ctx.fillStyle = style(ctx, e.paint, it.size); ctx.fillText(r.s, e.dx / sx, e.dy / sy); }
+    for (const e of it.echoes ?? []) {
+      if (e.halo && it.stroke) {
+        ctx.lineWidth = (2 * it.stroke.width) / Math.min(sx, sy);
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = style(ctx, e.halo, it.size);
+        ctx.strokeText(r.s, e.dx / sx, e.dy / sy);
+      }
+      ctx.fillStyle = style(ctx, e.paint, it.size);
+      ctx.fillText(r.s, e.dx / sx, e.dy / sy);
+    }
     if (it.stroke) {
       // an outline drawn under the fill at twice the width: only its outer half shows, so overlapping
       // contours inside a glyph never show as lines

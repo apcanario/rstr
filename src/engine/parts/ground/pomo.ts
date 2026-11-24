@@ -4,6 +4,7 @@
  * once the type is set (spec 8.7: a pass that belongs to the surface is the ground's).
  */
 import { mixHex } from '../../colour';
+import { bounds } from '../../geom';
 import { GRAPHICS } from '../../graphics';
 import { chooseParams } from '../../graphics/params';
 import { PATTERN_KINDS, patternDraws } from '../../graphics/pattern';
@@ -30,11 +31,20 @@ export const pomoGround: GroundPart = {
     for (let i = 0; i < patternDraws(kind, pr.count ?? G.params.count.def); i++) rg();
     return [g];
   },
-  pass(c, plan) {
+  pass(c, plan, items) {
     if (plan.dialect !== 'photocopy') return [];
     const { W, H, spec } = c, G = GRAPHICS.copier;
+    // the dark edges keep off every text item (review R6 S3): the free distance from each side to the text
+    let kL = W, kR = W, kT = H;
+    for (const it of items) {
+      if (it.kind !== 'text') continue;
+      const b = bounds(it.quad);
+      kL = Math.min(kL, b.x); kR = Math.min(kR, W - (b.x + b.w)); kT = Math.min(kT, b.y);
+    }
+    
     // its own stream off the graphic seed: the pass never shifts what the graphics draw
     const g = mkGraphic('copier', { x: 0, y: 0, w: W, h: H }, mix(spec.seeds.graphic, 0xc0b1e5), 0, {}, [], { ...chooseParams(G, spec.params) });
+    g.keep = { l: Math.max(0, kL) / W, r: Math.max(0, kR) / W, t: Math.max(0, kT) / H };
     g.layer = 'ground';
     g.pass = true;
     return [g];

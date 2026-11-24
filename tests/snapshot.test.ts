@@ -13,7 +13,7 @@ import type { StyleId } from '../src/engine/spec';
 
 const SNAPSHOT: Partial<Record<StyleId, string>> = {
   swiss: '3d2d70e8',
-  pomo: '310e2f55',
+  pomo: 'abd31e48',
   brutal: '8480f767',
   vapor: '839d6639',
 };

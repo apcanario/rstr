@@ -27,7 +27,9 @@ export interface TextItem {
    * (Postmodern photocopy, spec 8.2): the fill sits on it, so rule 4 checks the fill against the halo.
    */
   stroke?: { paint: Paint; width: number; halo?: boolean };
-  echoes?: { dx: number; dy: number; paint: Paint }[];   // offset copies drawn under the text
+  /** Offset copies drawn under the text; `halo`: the copy gets its own outline at the text's stroke width, so it
+   *  reads as its own copy over what is under it (the photocopy ghost, review R6 E1). */
+  echoes?: { dx: number; dy: number; paint: Paint; halo?: Paint }[];
   /** Text items of one group may overlap each other (the photocopy title's colliding words, spec 8.2); never another item. */
   group?: string;
   /** Rules of 9.2 waived for this item, by number: only rule 4, only for photocopy title words with the paper edge off (spec 8.2). */
@@ -78,6 +80,9 @@ export interface GraphicItem {
    * like a finish, so rule 3 does not count it as a graphic over text, and contrast is checked before it.
    */
   pass?: boolean;
+  /** A surface pass's free distances from the left, right and top sides to the nearest text, as shares of the page:
+   *  read from the finished text like `knock`, so the pass's dark edges keep off it (review R6 S3). */
+  keep?: { l: number; r: number; t: number };
   avoid?: Quad[];            // text quads the graphic keeps off: nothing of it lies directly behind their ink
   knock?: { glyphs: number[]; boxes: Quad[]; pad: number };  // what paint cuts out: big text by its glyphs (padded), small text by its box
 }

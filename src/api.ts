@@ -13,7 +13,7 @@ import { browserMeasure } from './engine';
 import { clumsyOf, pickForGraphic, picksOf, runIndependence, runInvariants, runTune, runVariety, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
-import { graphicLeak, knockLeak, pixelHash } from './engine/pixels';
+import { ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
 import { migrate, type Spec, type StyleId } from './engine/spec';
 
 /** Every tool call lays out the way the app does: with the wanted pairing only if its fonts are loaded (spec 6). */
@@ -65,6 +65,7 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     knock: (raw: unknown) => { const s = migrate(raw); return { layer: knockLeak(s, false, useOf(s)), noLayer: knockLeak(s, true, useOf(s)) }; },
     /** Graphic pixels inside text masks where the Scene says none, or of a colour it did not declare (9.2 at the pixel level). */
     graphicLeak: (raw: unknown) => { const s = migrate(raw); return graphicLeak(s, useOf(s)); },
+    ghostShows: (raw: unknown) => { const s = migrate(raw); return ghostShows(s, useOf(s)); },
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),
     /** Ids and names of a style's palettes and pairings, for the longest-name checks on the controls. */

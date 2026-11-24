@@ -110,9 +110,16 @@ function Panel({ pages, page, setPage }: { pages: ComponentChildren[]; page: num
   return (
     <div class="panel" data-testid="panel">
       <div class="page" data-page={p}>{pages[p]}</div>
-      {pages.length > 1 && (
-        <div class={pages.length > 2 ? 'chips many' : 'chips'} role="group" aria-label="Pages">
+      {pages.length === 2 && (
+        <div class="chips" role="group" aria-label="Pages">
           {pages.map((_, i) => <button class={i === p ? 'chip on' : 'chip'} aria-pressed={i === p} aria-label={`Page ${i + 1}`} data-chip={i} onClick={() => setPage(i)}><L t={String(i + 1)} /></button>)}
+        </div>
+      )}
+      {/* three pages or more (Postmodern's Look tab on a short screen): one 48 px stepper, so the rows keep their
+          width (review R6 E2); a tap goes to the next page, round to the first */}
+      {pages.length > 2 && (
+        <div class="chips" role="group" aria-label="Pages">
+          <button class="chip step on" aria-label={`Page ${p + 1} of ${pages.length}, next page`} data-step={p} data-pages={pages.length} onClick={() => setPage((p + 1) % pages.length)}><L t={`${p + 1}/${pages.length}`} /></button>
         </div>
       )}
     </div>
@@ -371,7 +378,12 @@ export function App({ ready }: { ready: Promise<void> }) {
     return out.map((r) => <div class="rows">{r}</div>);
   };
   const pomo = spec.style === 'pomo', edgeOn = spec.params['pomo.paperEdge'] !== false;
-  const setDialect = (d: string) => commit((s) => ({ ...s, pick: { ...s.pick, dialect: d === 'either' ? null : (d as Spec['pick']['dialect']) } }));
+  // a picked layout of the other dialect would win over the Dialect control (review R6 M4): it goes
+  const setDialect = (d: string) => commit((s) => {
+    const dialect = d === 'either' ? null : (d as Spec['pick']['dialect']);
+    const of = dialect && STYLES.pomo.parts.layout.layoutsOf?.[dialect];
+    return { ...s, pick: { ...s.pick, dialect, layout: of && s.pick.layout && !of.includes(s.pick.layout) ? null : s.pick.layout } };
+  });
   const toggleEdge = () => commit((s) => {
     const params = { ...s.params };
     if (params['pomo.paperEdge'] === false) delete params['pomo.paperEdge']; else params['pomo.paperEdge'] = false;
@@ -393,7 +405,7 @@ export function App({ ready }: { ready: Promise<void> }) {
     // Postmodern only: the Dialect control (spec 8.2); in Advanced, the Paper edge switch of the photocopy dialect
     ...(pomo ? [<div class="captioned"><L t="Dialect" c="cap" />{seg(DIALECT, spec.pick.dialect ?? 'either', setDialect, 'data-dialect')}</div>] : []),
     ...(pomo && advanced ? [
-      <div class="slot edge"><L t="Paper edge" c="cap" /><L t={edgeOn ? 'On: title words hold over ink' : 'Off: rougher, waives contrast'} c="hint" />
+      <div class="slot edge"><L t="Paper edge" c="cap" /><L t={edgeOn ? 'Holds over ink' : 'Rough, no check'} c="hint" />
         <button class={edgeOn ? 'switch on' : 'switch'} role="switch" aria-checked={edgeOn} aria-label="Paper edge" data-testid="paper-edge" onClick={toggleEdge}><i /></button></div>,
     ] : []),
   ]);

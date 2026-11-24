@@ -6,7 +6,7 @@ import type { Slot } from './spec';
 
 export interface TextIn {
   slot: Slot; part: string; font: FontRef; size: number; tracking?: number; runs: Run[]; xf?: Xf; clip?: Rect;
-  fill: Paint; stroke?: { paint: Paint; width: number; halo?: boolean }; echoes?: { dx: number; dy: number; paint: Paint }[];
+  fill: Paint; stroke?: { paint: Paint; width: number; halo?: boolean }; echoes?: { dx: number; dy: number; paint: Paint; halo?: Paint }[];
   ink: string[]; min: number; group?: string; waive?: number[];
 }
 

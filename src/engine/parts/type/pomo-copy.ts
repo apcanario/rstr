@@ -30,6 +30,29 @@ const RELS = [0.62, 0.85, 1, 1.25, 1.6];
 const HALO = 0.06;
 /** Negative leading: a word's padded top runs this share of itself into the word above. */
 const LEAD = 0.78;
+/** The ghost copy's offset, each axis, in em: clear of the 0.06 em halo so it shows as its own copy (review R6 E1). */
+export const GHOST = [0.1, 0.16];
+/** The most of a title word's ink box later title words may cover (review R6 S1; the refs collide by about a quarter). */
+export const COVER = 0.35;
+
+/** A word's ink box: x, y its baseline origin on the page, rot about it, l, r, a, d its ink extents. */
+export interface Ink { x: number; y: number; rot: number; l: number; r: number; a: number; d: number; }
+const inInk = (k: Ink, px: number, py: number) => {
+  const dx = px - k.x, dy = py - k.y, cs = Math.cos(k.rot), sn = Math.sin(k.rot);
+  const u = dx * cs + dy * sn, v = -dx * sn + dy * cs;
+  return u >= -k.l && u <= k.r && v >= -k.a && v <= k.d;
+};
+/** The share of ink box k under any of the boxes over it, sampled on a 24 x 12 grid. */
+export function coverOf(k: Ink, over: Ink[]): number {
+  const cs = Math.cos(k.rot), sn = Math.sin(k.rot);
+  let hit = 0;
+  for (let a = 0; a < 24; a++) for (let c = 0; c < 12; c++) {
+    const u = -k.l + ((a + 0.5) / 24) * (k.l + k.r), v = -k.a + ((c + 0.5) / 12) * (k.a + k.d);
+    const px = k.x + u * cs - v * sn, py = k.y + u * sn + v * cs;
+    if (over.some((o) => inInk(o, px, py))) hit++;
+  }
+  return hit / 288;
+}
 
 /** The mix of a toward b with the least share of b that reaches the ratio on a (so the copy fades as far as it may). */
 function fadeTo(a: string, b: string, ratio: number): string {
@@ -192,11 +215,26 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
     const cased = serif ? s : force || rw() < 0.72 ? upper(s) : s.toLocaleLowerCase('en');
     return { s: cased, face, rel: force ? 1 : RELS[Math.floor(rw() * RELS.length)], size: 0 };
   });
+  // every title word its own case (review R6 S6): if the draws left every word in one case, the last word that
+  // is not set in the serif takes the other one
+  const caseOf = (t: string) => (t === t.toLocaleUpperCase('en') ? (t === t.toLocaleLowerCase('en') ? '' : 'U') : t === t.toLocaleLowerCase('en') ? 'L' : 'M');
+  const cases = new Set(units.map((u) => caseOf(u.s)).filter(Boolean));
+  if (!force && units.length > 1 && cases.size === 1 && !cases.has('M')) {
+    const k = units.map((u, i) => (u.face === T.serif && u.face !== T.display ? -1 : i)).filter((i) => i >= 0).pop();
+    if (k !== undefined) units[k].s = cases.has('U') ? units[k].s.toLocaleLowerCase('en') : upper(units[k].s);
+  }
   const n = units.length;
-  const hot = Math.floor(rw() * n), boxed = n > 1 ? (hot + 1 + Math.floor(rw() * (n - 1))) % n : -1, cut = Math.floor(rw() * n);
+  // one word hot (the ghost), one boxed, one sliced (spec 8.2): three different words where there are three; the
+  // slice never falls on the boxed word (review R6 S4), and with two words it shares the ghost's
+  const hot = Math.floor(rw() * n), boxed = n > 1 ? (hot + 1 + Math.floor(rw() * (n - 1))) % n : -1;
+  const free = units.map((_, i) => i).filter((i) => i !== boxed && (n < 3 || i !== hot));
+  const cut = free[Math.floor(rw() * free.length)];
   const rots = units.map(() => (rw() - 0.5) * 0.1);
   const xs = units.map(() => rw());
   const slice = 0.05 + rw() * 0.07;
+  // the ghost sits clear of the paper halo (0.06 em past every glyph edge) and, paper edge on, carries its own
+  // paper halo, so it reads as its own copy over ink (review R6 E1)
+  const ghost = { dx: GHOST[0] + rw() * (GHOST[1] - GHOST[0]), dy: GHOST[0] + rw() * (GHOST[1] - GHOST[0]) };
   const full = zone.x <= plan.margin + 1 && zone.x + zone.w >= pg.w - plan.margin - 1;
   const wcap = full ? pg.w * 1.03 : zone.w * 1.06;
   const mult = { small: 0.55, normal: 0.8, oversize: 1 }[plan.size] * c.cap;
@@ -205,17 +243,35 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
     return Math.max(1, Math.min(S * u.rel, (wcap / w100) * 100));
   };
   const pad = (sz: number) => sz * Math.max(HALO, 0.09);
-  const height = (S: number) => {
-    let b = 0, h = 0, first = true, prevBot = 0;
+  /** Every word's baseline and x at the given sizes: negative leading, then pushed down until no earlier word is
+   *  more than COVER of its ink box under the later ones (review R6 S1). */
+  const stack = (sizeOf: (u: Unit) => number) => {
+    const out: { sz: number; mt: ReturnType<typeof m>; b: number; ox: number; e: Ext; ink: Ink }[] = [];
+    let b = 0, prevBot = 0, h = 0;
     units.forEach((u, i) => {
-      const sz = Math.round(sizeFor(u, S) * 2) / 2, mt = m(u.s, u.face, sz);
-      const e = ext(mt.left, mt.right, mt.ascent, mt.descent, pad(sz), rots[i], i === cut ? sz * 0.02 : 0);
-      if (first) { b = -e.top; first = false; } else b += prevBot * 0.2 + -e.top * LEAD;
+      const sz = sizeOf(u), mt = m(u.s, u.face, sz), w = inkW(mt), rot = rots[i];
+      const e = ext(mt.left, mt.right, mt.ascent, mt.descent, pad(sz), rot, i === cut ? sz * 0.02 : 0);
+      b = i === 0 ? -e.top : b + prevBot * 0.2 + -e.top * LEAD;
+      const slack = zone.w - w;
+      const inkX = slack >= 0 ? zone.x + slack * (pos.title === 'right' ? 0.35 + 0.65 * xs[i] : 0.65 * xs[i]) : zone.x + slack / 2;
+      const ox = inkX + Math.max(0, mt.left);
+      const ink = (y: number): Ink => ({ x: ox, y, rot, l: mt.left, r: mt.right + (i === cut ? sz * slice : 0), a: mt.ascent, d: mt.descent });
+      if (i > 0) {
+        const worst = (y: number) => Math.max(...out.map((_, j) => coverOf(out[j].ink, [...out.slice(j + 1).map((o) => o.ink), ink(y)])));
+        if (worst(b) > COVER) {
+          // the least push that brings every earlier word under COVER (none at all once the word clears them)
+          let lo = b, hi = b + Math.max(...out.map((o) => o.b + o.mt.descent)) - (b - mt.ascent) + sz;
+          for (let k = 0; k < 14; k++) { const mid = (lo + hi) / 2; if (worst(mid) > COVER) lo = mid; else hi = mid; }
+          b = hi;
+        }
+      }
       prevBot = e.bot;
       h = Math.max(h, b + e.bot);
+      out.push({ sz, mt, b, ox, e, ink: ink(b) });
     });
-    return h;
+    return { out, h, end: b + prevBot };
   };
+  const height = (S: number) => stack((u) => Math.round(sizeFor(u, S) * 2) / 2).h;
   // the largest base size whose stack fits the height
   let lo = MIN.title * 0.5, hi = W * (c.story ? 0.55 : 0.42) * mult;
   if (height(hi) <= availH) lo = hi;
@@ -229,20 +285,14 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
       const f = fitLine(m, u.s, u.face, MIN.title, MIN.title, wcap, 0, true);
       u.s = f?.lines[0] ?? '…';
     });
-    while (units.length > 1 && height(lo) > availH) units.pop();
+    while (units.length > 1 && stack((u) => u.size).h > availH) units.pop();
   }
-  if (height(lo) > availH + 0.5 && !force) return null;
+  const placed = stack((u) => u.size);
+  if (placed.h > availH + 0.5 && !force) return null;
 
   const rects: Item[] = [], texts: Item[] = [];
-  let b = 0, prevBot = 0;
   units.forEach((u, i) => {
-    const sz = u.size, mt = m(u.s, u.face, sz), w = inkW(mt), rot = rots[i];
-    const e = ext(mt.left, mt.right, mt.ascent, mt.descent, pad(sz), rot, i === cut ? sz * 0.02 : 0);
-    b = i === 0 ? -e.top : b + prevBot * 0.2 + -e.top * LEAD;
-    prevBot = e.bot;
-    const slack = zone.w - w;
-    const inkX = slack >= 0 ? zone.x + slack * (pos.title === 'right' ? 0.35 + 0.65 * xs[i] : 0.65 * xs[i]) : zone.x + slack / 2;
-    const ox = inkX + Math.max(0, mt.left);
+    const { sz, mt, b, ox } = placed.out[i], w = inkW(mt), rot = rots[i];
     const xf: Xf = { x: ox, y: b, rot };
     // cut by the page's side where the word runs past it
     const cs = Math.cos(rot), sn = Math.sin(rot), vs = [-mt.ascent - pad(sz), mt.descent + pad(sz)];
@@ -259,7 +309,7 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
     const look = {
       fill: ink.toner, ink: [ink.toner],
       ...(ink.edge ? { stroke: { paint: ink.paper, width: sz * HALO, halo: true } } : { waive: [4] }),
-      ...(i === hot && !force ? { echoes: [{ dx: sz * 0.05, dy: sz * 0.045, paint: ink.spot }] } : {}),
+      ...(i === hot && !force ? { echoes: [{ dx: sz * ghost.dx, dy: sz * ghost.dy, paint: ink.spot, ...(ink.edge ? { halo: ink.paper } : {}) }] } : {}),
     };
     if (i === cut && !force && n > 0) {
       // sliced: the top part as set, the bottom part shifted along
@@ -273,5 +323,5 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
   });
   const bb = boxOf([...rects, ...texts]);
   // the stack starts at y 0: its top is the first word's padded top
-  return { rects, texts, h: Math.max(bb.y + bb.h, b + prevBot) };
+  return { rects, texts, h: Math.max(bb.y + bb.h, placed.end) };
 }

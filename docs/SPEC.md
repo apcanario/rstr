@@ -44,7 +44,7 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
 
 - **Four seeds, four independent streams.** Layout, colour, graphic, type. Changing one never changes what the other three produce (tested, 9.3). This is what Lock and the per-facet rerolls rest on.
 - **A pick overrides its seed.** `pick.palette` set means the colour seed is ignored for palette choice, and so on.
-- **Format, mode, finish, marks and the photo itself are not seeded.** Shuffle never changes them. Where the photo sits and how it is cropped is seeded (layout stream); its treatment is seeded (graphic stream).
+- **Format, mode, finish, marks, Postmodern's dialect (`pick.dialect`) and the photo itself are not seeded choices of Shuffle.** Shuffle never changes them; the dialect is a setting of the Look tab like Light/Dark (review R6 M1). Where the photo sits and how it is cropped is seeded (layout stream); its treatment is seeded (graphic stream).
 - **The same spec draws the same design** on the same device and build (tested).
 - A spec with an unknown field or an older `v` is migrated or the unknown part ignored; it never crashes the app.
 
@@ -328,7 +328,7 @@ Same on every tab, both modes, nothing scrolls:
 6. **Action row:** Back, Shuffle (the big one), Keep, Export.
 7. **Tab bar.**
 
-- **Shuffle** makes new seeds for every unlocked facet and clears that facet's picks.
+- **Shuffle** makes new seeds for every unlocked facet and clears that facet's picks, except `pick.dialect`, which Shuffle keeps (spec 3).
 - **Back** returns to the design before the last change; 30 steps are kept.
 - **Keep** saves the spec to Kept. Kept is a sheet of thumbnails; tap opens one, hold deletes.
 - The current design, Back steps and Kept are saved on the phone and return on reload.

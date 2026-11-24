@@ -67,6 +67,14 @@ describe('Shuffle and locks (spec 10.1)', () => {
     expect({ ...n.seeds, colour: 0 }).toEqual({ ...s.seeds, colour: 0 });
     expect(n.pick).toEqual({ ...s.pick, palette: null });
   });
+  test('the Paper edge value set by hand: Shuffle clears it unless Type is locked; New type clears it, other rerolls keep it (spec 10.3, review R6 S5)', () => {
+    const s: Spec = { ...defaultSpec(), style: 'pomo', params: { 'pomo.paperEdge': false, 'g.copier.grain': 0.5 } };
+    expect(shuffle(s, NO_LOCKS, counter()).params).toEqual({ 'g.copier.grain': 0.5 });
+    expect(shuffle(s, { ...NO_LOCKS, type: true }, counter()).params).toEqual(s.params);
+    expect(shuffle(s, { ...NO_LOCKS, layout: true, colour: true, graphic: true }, counter()).params).toEqual({ 'g.copier.grain': 0.5 });
+    expect(reroll(s, 'type', counter()).params).toEqual({ 'g.copier.grain': 0.5 });
+    for (const f of ['layout', 'colour', 'graphic'] as const) expect(reroll(s, f, counter()).params).toEqual(s.params);
+  });
   test('a style change keeps seeds and clears picks', () => {
     const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', pairing: 'p', motif: 'topo', layout: 'l', dialect: 'icecream' } };
     const n = withStyle(s, 'brutal');

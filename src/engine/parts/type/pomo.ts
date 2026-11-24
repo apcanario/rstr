@@ -185,7 +185,7 @@ function tileTitle(c: PartCtx, text: string, maxW: number, maxH: number, start: 
   const words = text.split(/\s+/).filter(Boolean);
   const fills = [A.accent, P.ink, A.accent2, A.accent3];
   for (let px = start; px >= MIN.title; px -= 2) {
-    const pad = px * 0.14, gapT = px * 0.12, space = px * 0.32, th = px * 1.16;
+    const pad = px * 0.14, gapT = px * 0.12, space = px * 0.75, th = px * 1.16;  // a word gap that reads as one (review R6 S7)
     const cw = (ch: string) => Math.max(inkW(m(ch, T.display, px)) + pad * 2, px * 0.7);
     const ww = (w: string) => [...w].reduce((a, ch) => a + cw(ch) + gapT, -gapT);
     const lines: string[][] = [];

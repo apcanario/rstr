@@ -126,14 +126,27 @@ with served() as url, browser() as b:
         pg.click('[data-testid="keep"]')
         for t in appcheck.TABS:
             pg.click(f'[data-tab="{t}"]')
-            chips = len(pg.query_selector_all('[data-chip]'))
-            for i in range(max(1, chips)):
-                if chips:
-                    pg.click(f'[data-chip="{i}"]')
+            for i in range(appcheck.npages(pg)):
+                appcheck.goto(pg, i)
                 pg.wait_for_timeout(150)
                 pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-{t}-{i + 1}.png'))
-            if chips:
-                pg.click('[data-chip="0"]')
+            appcheck.goto(pg, 0)
+        # the Postmodern Look tab, Simple and Advanced: the style with the most Look rows (review R6 M5)
+        cur = pg.evaluate('() => JSON.stringify(window.__rstr.spec())')
+        pg.evaluate('(s) => { const x = JSON.parse(s); x.style = "pomo"; window.__rstr.app.load(x); }', cur)
+        idle(pg)
+        for mode in ['simple', 'advanced']:
+            if mode == 'advanced':
+                pg.click('[data-testid="advanced"]')
+            pg.click('[data-tab="look"]')
+            for i in range(appcheck.npages(pg)):
+                appcheck.goto(pg, i)
+                pg.wait_for_timeout(150)
+                pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-look-pomo-{mode}-{i + 1}.png'))
+            appcheck.goto(pg, 0)
+        pg.click('[data-testid="advanced"]')
+        pg.evaluate('(s) => window.__rstr.app.load(JSON.parse(s))', cur)
+        idle(pg)
         pg.click('[data-tab="style"]')
         for name in ['export', 'kept']:
             pg.click(f'[data-testid="{name}"]')

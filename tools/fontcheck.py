@@ -148,6 +148,11 @@ def offline_after_use(b, url, fail, stub=True):
     pg.goto(url + spec_query(pg, 'swiss', unused))
     pg.wait_for_function('window.__rstr !== undefined')
     d = drawn(pg)
+    # the note is set as the stage draws: wait for it before reading (review R6 M8: one unrecorded flake here)
+    try:
+        pg.wait_for_selector('[data-testid="font-note"]', timeout=5000)
+    except Exception:
+        pass
     n = note(pg)
     spec = pg.evaluate('() => window.__rstr.spec()')
     if d['pairing'] != 'sw-inter-tight' or d['wanted'] != unused or 'Hanken' not in n or spec['pick']['pairing'] != unused:

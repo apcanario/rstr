@@ -21,7 +21,7 @@ PICK_OF = {'layout': 'layout', 'colour': 'palette', 'graphic': 'motif', 'type': 
 # wraps or overflows or is shortened to almost nothing.
 LAYOUT_JS = r'''() => {
   const out = [];
-  const name = (el) => (el.dataset && (el.dataset.testid || el.dataset.fit || el.dataset.style || el.dataset.tab || el.dataset.lock || el.dataset.format || el.dataset.chip)) || el.getAttribute('aria-label') || el.className || el.tagName;
+  const name = (el) => (el.dataset && (el.dataset.testid || el.dataset.fit || el.dataset.style || el.dataset.tab || el.dataset.lock || el.dataset.format || el.dataset.chip || el.dataset.reroll || el.dataset.dialect)) || el.getAttribute('aria-label') || el.className || el.tagName;
   const de = document.documentElement;
   if (de.scrollHeight > de.clientHeight || de.scrollWidth > de.clientWidth) out.push(`page scrolls ${de.scrollWidth}x${de.scrollHeight} in ${de.clientWidth}x${de.clientHeight}`);
   if (document.body.scrollHeight > document.body.clientHeight + 1) out.push('body scrolls');
@@ -61,6 +61,20 @@ LAYOUT_JS = r'''() => {
     if (r.width < 47.5 || r.height < 47.5) out.push(`control under 48 px: ${name(el)} ${r.width.toFixed(1)}x${r.height.toFixed(1)}`);
     if (el.tagName === 'BUTTON' && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)) out.push('button content overflows: ' + name(el));
   }
+  // every shown button can be tapped at its centre and lies inside the row that holds it (review R6 E2): a control
+  // covered by a sibling or cut by its row is inside the panel's outer box, so the checks above miss it
+  for (const el of document.querySelectorAll('.app button')) {
+    const sh = document.querySelector('.app > .sheet');
+    if (!shown(el) || (sh && shown(sh) && !sh.contains(el))) continue;
+    const r = el.getBoundingClientRect(), cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
+    const hit = document.elementFromPoint(cx, cy);
+    if (!hit || !(hit === el || el.contains(hit))) out.push(`control covered at its centre: ${name(el)} under ${hit ? name(hit) : 'nothing'}`);
+    const row = el.parentElement && el.parentElement.closest('.seg, .rows > *, .slot, .captioned, .chips, .tiles, .locks, .actions, .tabs, header');
+    if (row && row !== el) {
+      const q = row.getBoundingClientRect();
+      if (r.left < q.left - 0.5 || r.right > q.right + 0.5 || r.top < q.top - 0.5 || r.bottom > q.bottom + 0.5) out.push(`control cut by its row: ${name(el)} in ${row.className || row.tagName}`);
+    }
+  }
   for (const el of document.querySelectorAll('.app [data-fit]')) {
     if (!shown(el)) continue;
     const t = el.textContent;
@@ -98,17 +112,35 @@ def tap(pg, sel, expect_change=True):
     return True
 
 
+def npages(pg):
+    """How many pages the panel's tab has: two chips, or a stepper that says how many (review R6 E2)."""
+    chips = len(pg.query_selector_all('[data-chip]'))
+    if chips:
+        return chips
+    st = pg.query_selector('[data-step]')
+    return int(st.get_attribute('data-pages')) if st else 1
+
+
+def goto(pg, i):
+    """Show page i of the panel: tap its chip, or the stepper until it is shown."""
+    if pg.query_selector(f'[data-chip="{i}"]'):
+        pg.click(f'[data-chip="{i}"]')
+        return
+    for _ in range(8):
+        st = pg.query_selector('[data-step]')
+        if not st or int(st.get_attribute('data-step')) == i:
+            return
+        pg.click('[data-step]')
+
+
 def views(pg):
     """Every tab and page, then every sheet: yields a label for each screen as it is shown."""
     for t in TABS:
         pg.click(f'[data-tab="{t}"]')
-        chips = pg.query_selector_all('[data-chip]')
-        for i in range(max(1, len(chips))):
-            if chips:
-                pg.click(f'[data-chip="{i}"]')
+        for i in range(npages(pg)):
+            goto(pg, i)
             yield f'{t} page {i + 1}'
-        if chips:
-            pg.click('[data-chip="0"]')
+        goto(pg, 0)
     pg.click('[data-tab="style"]')
     for name in ['export', 'kept']:
         pg.click(f'[data-testid="{name}"]')
@@ -176,7 +208,7 @@ def run(b, url, fail):
             # Postmodern adds a fifth Look row (Dialect, R6), so it may page there
             for t in (['text', 'look'] if spec(pg)['style'] != 'pomo' else ['text']):
                 pg.click(f'[data-tab="{t}"]')
-                if pg.query_selector_all('[data-chip]'):
+                if npages(pg) > 1:
                     fail(f'{at}: the {t.title()} tab has page chips where its four rows fit')
             pg.click('[data-tab="style"]')
 
@@ -214,13 +246,10 @@ def run(b, url, fail):
         def finish_marks():
             """Each Finish and Marks button, over every page of the Look tab: whether it is disabled."""
             out = {}
-            chips = len(pg.query_selector_all('[data-chip]'))
-            for i in range(max(1, chips)):
-                if chips:
-                    pg.click(f'[data-chip="{i}"]')
+            for i in range(npages(pg)):
+                goto(pg, i)
                 out.update(pg.evaluate('() => Object.fromEntries([...document.querySelectorAll("[data-finish], [data-marks]")].map((b) => [b.dataset.finish || b.dataset.marks, b.disabled]))'))
-            if chips:
-                pg.click('[data-chip="0"]')
+            goto(pg, 0)
             return out
         dis = sorted(k for k, v in finish_marks().items() if v)
         if dis != sorted(['grain', 'grunge', 'vhs', 'glitch', 'light', 'full']):
@@ -232,40 +261,33 @@ def run(b, url, fail):
         if fm.get('grain') or fm.get('light') or fm.get('clean') or fm.get('off'):
             fail(f'{at}: a design with Grain and Light marks cannot show or leave them: {fm}')
         tap(pg, 'button[data-finish="clean"]')
-        if pg.query_selector('[data-chip="1"]'):
-            pg.click('[data-chip="1"]')
+        goto(pg, 1)
         tap(pg, 'button[data-marks="off"]')
         if spec(pg)['finish'] != 'clean' or spec(pg)['marks'] != 'off':
             fail(f'{at}: Clean and Off did not apply')
-        if pg.query_selector('[data-chip="0"]'):
-            pg.click('[data-chip="0"]')
+        goto(pg, 0)
         if not finish_marks().get('grain'):
             fail(f'{at}: Grain is choosable again after leaving it')
-        if pg.query_selector('[data-chip="1"]'):
-            pg.click('[data-chip="1"]')
+        goto(pg, 1)
         for f in FACETS:
             before = spec(pg)
             tap(pg, f'button[data-reroll="{f}"]')
             after = spec(pg)
             if after['seeds'][f] == before['seeds'][f] or any(after['seeds'][g] != before['seeds'][g] for g in FACETS if g != f):
                 fail(f'{at}: New {f} did not change only the {f} seed')
-        if pg.query_selector('[data-chip="0"]'):
-            pg.click('[data-chip="0"]')
+        goto(pg, 0)
         # Postmodern's Dialect control (spec 8.2, 10.2; R6): on the Look tab for Postmodern only; Shuffle keeps it;
         # in Advanced the Paper edge switch writes pomo.paperEdge
         def find_on_look(sel):
             pg.click('[data-tab="look"]')
-            chips = len(pg.query_selector_all('[data-chip]'))
-            for i in range(max(1, chips)):
-                if chips:
-                    pg.click(f'[data-chip="{i}"]')
+            for i in range(npages(pg)):
+                goto(pg, i)
                 if pg.query_selector(sel):
                     return True
             return False
         if find_on_look('button[data-dialect]'):
             fail(f'{at}: a Dialect control shows for {spec(pg)["style"]}')
-        if pg.query_selector('[data-chip="0"]'):
-            pg.click('[data-chip="0"]')
+        goto(pg, 0)
         s0 = spec(pg)
         pg.evaluate('(x) => window.__rstr.app.load({ ...x, style: "pomo" })', s0)
         idle(pg)
@@ -302,8 +324,7 @@ def run(b, url, fail):
                     fail(f'{at}: Paper edge on did not clear the value')
             pg.click('[data-testid="advanced"]')
         pg.click('[data-tab="look"]')
-        if pg.query_selector('[data-chip="0"]'):
-            pg.click('[data-chip="0"]')
+        goto(pg, 0)
         pg.evaluate('(x) => window.__rstr.app.load(x)', s0)
         idle(pg)
         pg.click('[data-tab="text"]')
@@ -376,12 +397,12 @@ def run(b, url, fail):
                 pg.keyboard.type(' xyz')
                 idle(pg)
             elif sel == 'button[data-reroll-page]':
-                paged = pg.query_selector('[data-chip="1"]') is not None
-                if paged:
-                    pg.click('[data-chip="1"]')
+                for i in range(npages(pg)):
+                    goto(pg, i)
+                    if pg.query_selector('button[data-reroll="colour"]'):
+                        break
                 tap(pg, 'button[data-reroll="colour"]')
-                if paged:
-                    pg.click('[data-chip="0"]')
+                goto(pg, 0)
             else:
                 tap(pg, sel)
             if json.dumps(spec(pg), sort_keys=True) == hist[-1][0]:
