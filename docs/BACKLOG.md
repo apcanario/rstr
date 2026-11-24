@@ -6,7 +6,7 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 |---|---|---|
 | 1 | R1, R2, R3, R4 | The real engine, palettes with light and dark, 42 font pairings fetched online, the app frame and Simple mode, live on Pages |
 | 2 | R13, R5 | Styles rebuilt as parts with the variety rules; Swiss finished. Pedro looks at Swiss before bundle 3. Closed 24 Nov 2026 |
-| 3 | R6, R7 | Both Postmodern dialects finished (R6 closed 24 Nov 2026); five finishes; marks |
+| 3 | R6, R7 | Both Postmodern dialects finished (R6 and R7 closed 24 Nov 2026; bundle viewer check pending); five finishes; marks |
 | 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit |
 | 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print |
 | 6 | R17, R12 | Text layers with hierarchy; retouch from notes |
@@ -29,7 +29,6 @@ Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they 
 - **R10 (from R6).** 24 Nov 2026, found by R6. The Paper edge switch (spec 8.2, `params['pomo.paperEdge'] = false`) sits on the Look tab in Advanced, after Dialect, until R10 gives Advanced its own tabs; move it to the Type tab then (spec 10.3). Shuffle and New type already clear it unless Type is locked (review R6 S5, fixed in R6).
 - **R10 (from R7).** 24 Nov 2026, found by R7. Spec 7.1 and 10.3: the engine reads a strength per finish from `params['finish.<name>.strength']` (0 to 1.5, 1 unset; `strengthKey` in `src/engine/finish.ts`), but no control writes it; R10 adds the dial to Advanced's Style tab. The same tab's picker of which marks are allowed (spec 10.3) has no engine value yet: `MARKS_OF` in `src/engine/marks.ts` is the per-style list it would narrow.
 - **R16 (from R7).** 24 Nov 2026, found by R7. Marks and finishes are sized at 1080 wide: the finishes scale with the canvas (`u = W / 1080`), the marks are Scene items in 1080 units; when R16 draws 2x, 3x and print, check both draw at the export size (spec 10.1: finishes are generated at the export size so grain stays fine).
-- **R7 (from R7 review, for the row's close).** 24 Nov 2026, found by review R7 (M6, S3). The main chat records in `docs/CHANGELOG.md` at R7's close, from the R7 fix chat's smoke run: the 9:16 export timings by stage (Grunge, Glitch, every style, the copier pass alone); the 4x-throttle lines (four style tiles, which now draw Clean, and one render with Grunge and with Clean); Choices: no date in micro labels (spec 3), the counter fixed at `01 / 01`, the 150 ms tile delay, tiles drawn Clean whatever the finish, the guard's put-back under Grain and Grunge (an unfinished patch the shape of the item and its ring; the count is in the smoke's finishes line), VHS and Glitch hold pass one under every glyph and 6 px round it (a plate shows as a halo round its letters where the effect slid the rest), Glitch slices clamp at the edge instead of wrapping (Pedro may prefer the wrap), a Brutalist barcode with no room for its label underneath sets it beside a shorter strip.
 - **R8 (from R7).** 24 Nov 2026, found by review R7, Legal but clumsy. Brutalist 1:1 and 3:4 at full: the underline bar's micro label sits in the 20 px between the last title line and the subtitle bar, where it reads as a stray; spec 7.2 wants it beside the bar on the free side, so skip the bar where there is none. Also at light 28 of 600 Brutalist designs (stub measure) still get two marks, not three (the test allows 5%): the ruled page has no room for barcode or slashes there.
 - **R10.** The Advanced switch now reads "Advanced" with its on state as the pressed edge, and still shows Simple's tabs; R10 gives it its six tabs. The Type lock shows only the display family; the full pairing name goes on the Type tab. Review R4 M4, M6.
 
@@ -43,13 +42,6 @@ Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they 
 ## Bundle 3: Postmodern, finishes, marks
 
 Read spec 7, 8.0, 8.2, 8.5 and 8.7, `docs/design/elements.md`, and look at `docs/design/refs/pomo-*.jpg` and every `docs/design/refs/v2-grunge-*.jpg`. The spike's `grunge` and `photocopy` functions in `docs/archive/spike/engine.js` are the reference for the photocopy dialect: port the ideas, not the code.
-
-### R7. Finishes and marks
-
-- The five finishes of spec 7.1 with the two-pass rule; the marks layer of spec 7.2 from `docs/design/elements.md`, at off, light and full; the Look tab's Finish and Marks controls.
-- Export time measured in headless Chrome for the largest format with Grunge and with Glitch, recorded in the changelog.
-
-**Done when:** the same spec gives identical pixels with each finish (tested); no finish takes a text item under 3:1 (tested); with VHS or Glitch the pixels inside every text item's ink are the same as with Clean (tested); no mark overlaps a text item at light or full, over 200 seeds per style (tested); no micro label contains anything the spec does not hold (tested against a list of allowed sources); sheets show every style under every finish and at each marks level.
 
 ## Bundle 4: Brutalist, Vaporwave, Advanced
 
@@ -132,6 +124,7 @@ Read spec 8.7 and 8.8.
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **R7. Finishes and marks.** 24 Nov 2026, 1 chat (bundle 3). Review R7 applied (fix: 2 errors, 3 should-fix, 7 minor; 12 of 12 applied, M6 at this close, none rejected); Carried R7 and R7 (from R6) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R7.md`.
 - **R6. Postmodern, both dialects.** 24 Nov 2026, 1 chat (bundle 3). Review R6 applied (fix: 2 errors, 7 should-fix, 10 minor; 19 of 19 applied, none rejected); Carried R6 (from R13) and R6 (3:4 lower 40%) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R6.md`.
 - **Bundle 2 viewer check.** 24 Nov 2026. Fix: 0 errors, 2 should-fix, 6 minor; 7 applied, M6 by the main chat. `docs/reviews/bundle-2.md`.
 - **R5. Swiss, finished.** 24 Nov 2026, 1 chat (bundle 2). Review R5 applied (fix: 0 errors, 7 should-fix, 5 minor, 12 of 12 applied); Carried R5 items and R13 items 1 to 5 cleared; see `docs/CHANGELOG.md` and `docs/reviews/R5.md`.

@@ -27,7 +27,7 @@ A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwav
 |---|---|---|
 | 1 | Engine, colour, type, frame and Simple mode | Done: R1 to R4 and the viewer check; R3's online lines open (H3) |
 | 2 | Parts and variety, Swiss | Built: R13 (parts, variety engine) and R5 (Swiss finished); Pedro looks at Swiss before bundle 3 |
-| 3 | Postmodern (both dialects), finishes, marks | Built: R6 (Postmodern) closed; R7 (finishes, marks) built, in review |
+| 3 | Postmodern (both dialects), finishes, marks | Built: R6 (Postmodern) closed; R7 (finishes, marks) closed; bundle viewer check next |
 | 4 | Brutalist, Vaporwave, Advanced mode | Queued |
 | 5 | Photo and export, A3 print | Queued |
 | 6 | Text layers, retouch | Queued |
