@@ -6,7 +6,7 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 |---|---|---|
 | 1 | R1, R2, R3, R4 | The real engine, palettes with light and dark, 42 font pairings fetched online, the app frame and Simple mode, live on Pages |
 | 2 | R13, R5 | Styles rebuilt as parts with the variety rules; Swiss finished. Pedro looks at Swiss before bundle 3. Closed 24 Nov 2026 |
-| 3 | R6, R7 | Both Postmodern dialects finished; five finishes; marks |
+| 3 | R6, R7 | Both Postmodern dialects finished (R6 closed 24 Nov 2026); five finishes; marks |
 | 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit |
 | 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print |
 | 6 | R17, R12 | Text layers with hierarchy; retouch from notes |
@@ -40,14 +40,6 @@ Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they 
 ## Bundle 3: Postmodern, finishes, marks
 
 Read spec 7, 8.0, 8.2, 8.5 and 8.7, `docs/design/elements.md`, and look at `docs/design/refs/pomo-*.jpg` and every `docs/design/refs/v2-grunge-*.jpg`. The spike's `grunge` and `photocopy` functions in `docs/archive/spike/engine.js` are the reference for the photocopy dialect: port the ideas, not the code.
-
-### R6. Postmodern, both dialects
-
-- Ice cream: thirteen shapes, five ground patterns, the tile title treatment, positions per slot.
-- Photocopy: everything in spec 8.2, at least ten found graphics, the copier pass as part of the ground, the paper edge with its Advanced switch, the Dialect control.
-- The tuning pass for each dialect.
-
-**Done when:** the variety tests pass for Postmodern counting both dialects, and each dialect alone meets the 60-shuffle test (tested); no shape or found graphic is drawn over text in ice cream (tested); in photocopy every title word passes contrast with the paper edge on (tested); sheets match `refs/pomo-*.jpg` and `refs/v2-grunge-*.jpg` in character.
 
 ### R7. Finishes and marks
 
@@ -137,6 +129,7 @@ Read spec 8.7 and 8.8.
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **R6. Postmodern, both dialects.** 24 Nov 2026, 1 chat (bundle 3). Review R6 applied (fix: 2 errors, 7 should-fix, 10 minor; 19 of 19 applied, none rejected); Carried R6 (from R13) and R6 (3:4 lower 40%) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R6.md`.
 - **Bundle 2 viewer check.** 24 Nov 2026. Fix: 0 errors, 2 should-fix, 6 minor; 7 applied, M6 by the main chat. `docs/reviews/bundle-2.md`.
 - **R5. Swiss, finished.** 24 Nov 2026, 1 chat (bundle 2). Review R5 applied (fix: 0 errors, 7 should-fix, 5 minor, 12 of 12 applied); Carried R5 items and R13 items 1 to 5 cleared; see `docs/CHANGELOG.md` and `docs/reviews/R5.md`.
 - **R13. Parts and the variety engine.** 23 Nov 2026, 1 chat (bundle 2). Review R13 applied (fix: 0 errors, 5 should-fix, 4 minor); see `docs/CHANGELOG.md` and `docs/reviews/R13.md`. Variety tests report, and fail for every style until its own row.
