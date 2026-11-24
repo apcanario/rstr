@@ -10,6 +10,7 @@ import type { Spec } from './spec';
 import { STYLES } from './styles';
 import { textArea, type PartCtx } from './parts/types';
 import { compose5 } from './styles/compose';
+import { addMarks } from './marks';
 
 /** A style's palettes: its palette part's list. */
 const palettesOf = (style: Spec['style']) => STYLES[style].parts.palette.list;
@@ -87,6 +88,22 @@ export function unloadedFaces(sc: Scene, isLoaded: (key: string) => boolean): st
 export interface Solved { scene: Scene; tried: number; failures: Failure[]; }
 
 /**
+ * Spec 7.1: with a finish other than Clean, text set in a light weight (under 400) steps up one weight. Every
+ * pairing of the list sets its text at 400 or more today, so this changes nothing yet; it is here for the
+ * pairing that does not. The stepped face must be one the pairing's family has (fonts.ts loads by face).
+ */
+export function stepLight(T: Pairing, finish: Spec['finish']): Pairing {
+  if (finish === 'clean') return T;
+  let changed = false;
+  const out: Pairing = { ...T };
+  for (const k of ['display', 'text', 'label', 'serif', 'mono', 'pixel', 'heavy'] as const) {
+    const f = T[k];
+    if (f && f.weight < 400) { out[k] = { ...f, weight: f.weight + 100 } as never; changed = true; }
+  }
+  return changed ? out : T;
+}
+
+/**
  * Every form of every palette of the style, the one in use first: light and dark of each, so neither the
  * colour seed nor the mode can move a box.
  */
@@ -117,14 +134,23 @@ function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name:
  */
 export function solve(spec: Spec, m0: Measure, use: Use = {}): Solved {
   const P = choosePalette(spec);
-  const T = (use.pairing && PAIRINGS[spec.style].find((p) => p.id === use.pairing)) || choosePairing(spec);
+  const T = stepLight((use.pairing && PAIRINGS[spec.style].find((p) => p.id === use.pairing)) || choosePairing(spec), spec.finish);
   // every face layout measures with is recorded on the Scene, so a test can prove none was a fallback
   const measured = new Map<string, FontRef>();
   const m: Measure = (s, f, px, tr) => { measured.set(faceKey(f), f); return m0(s, f, px, tr); };
   let last: Failure[] = [];
+  // the marks layer (spec 7.2) goes on the Scene that passed, after text and graphics, in free space only;
+  // its micro labels are measured like any text, so their face is recorded with the rest
+  const done = (sc: Scene): Scene => {
+    const out = addMarks(sc, spec, m, P);
+    if (out === sc) return sc;
+    const faces = new Set(sc.faces);
+    for (const [k, f] of measured) if (!faces.has(k)) { faces.add(k); if (!sc.fonts.includes(f.family)) out.fonts = [...out.fonts, f.family].sort(); }
+    return { ...out, faces: [...faces].sort() };
+  };
   for (let k = 0; k < CANDIDATES; k++) {
     const r = passesAll(spec, m, P, T, k, 'c' + k, measured);
-    if (r.first) return { scene: r.first, tried: k + 1, failures: [] };
+    if (r.first) return { scene: done(r.first), tried: k + 1, failures: [] };
     last = r.failures;
   }
   const tries: Spec[] = [spec];
@@ -132,10 +158,10 @@ export function solve(spec: Spec, m0: Measure, use: Use = {}): Solved {
   if (spec.pick.motif) tries.push({ ...spec, pick: { ...spec.pick, layout: null, motif: null } });
   for (const s of tries.slice(0, -1)) {
     const r = passesAll(s, m, P, T, -1, 'fallback', measured);
-    if (r.first) return { scene: r.first, tried: CANDIDATES + 1, failures: last };
+    if (r.first) return { scene: done(r.first), tried: CANDIDATES + 1, failures: last };
   }
   const r = build(tries[tries.length - 1], m, P, T, -1);
-  return { scene: sceneOf(spec, r?.items ?? [], P, T, 'fallback', measured, r?.frame ?? '', r?.transform ?? 'none'), tried: CANDIDATES + 1, failures: last };
+  return { scene: done(sceneOf(spec, r?.items ?? [], P, T, 'fallback', measured, r?.frame ?? '', r?.transform ?? 'none')), tried: CANDIDATES + 1, failures: last };
 }
 
 export function layout(spec: Spec, m: Measure, use: Use = {}): Scene {

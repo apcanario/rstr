@@ -162,6 +162,54 @@ with served() as url, browser() as b:
                 if a != c:
                     fail(f'9.3 {style} {fmt}: the same spec drew different pixels', spec)
     print('9.3 pixels: same spec, same pixels checked')
+    # row R7, marks (spec 7.2): 9.2 with marks at light and full over N seed sets per style and format, light and
+    # dark; no mark on a text item, no micro label beyond the spec (both folded into the invariants run)
+    for level in ['light', 'full']:
+        for style in STYLES:
+            for fmt in FORMATS:
+                r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': [style], 'formats': [fmt], 'n': N, 'variants': 'cycle', 'marks': level})
+                print(f'marks {level:5} {style:6} {fmt:4}  {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+                fallback_check(f'marks {level} {style} {fmt}', r, 0)
+                for f in r['failures'][:5]:
+                    fail(f'marks {level} {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    # row R7, finishes (spec 7.1), every style x format x finish, light and dark, Postmodern in both dialects, marks
+    # on for half: the same spec gives the same pixels; with VHS and Glitch the pixels of every text item's ink are
+    # Clean's; no finish takes a text item under 3:1 where Clean had it at 3:1 or more
+    nf, nrest, worst = 0, 0, 0
+    for style in STYLES:
+        for fmt in FORMATS:
+            for fin in ['grain', 'grunge', 'vhs', 'glitch']:
+                for i in range(4):
+                    spec = pg.evaluate('([s, f, i, fin]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i % 2 ? "dark" : "light"; x.finish = fin; x.marks = i < 2 ? "off" : "full"; x.seeds = {layout: 51 + i, colour: 52 + i, graphic: 53 + i, type: 54 + i}; if (s === "pomo") x.pick.dialect = i % 2 ? "photocopy" : "icecream"; return x; }', [style, fmt, i, fin])
+                    a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
+                    c = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
+                    if a != c:
+                        fail(f'finish {fin} {style} {fmt}: the same spec drew different pixels', spec)
+                    r = pg.evaluate('(s) => window.__rstr.finishProof(s)', spec)
+                    nf += 1
+                    nrest += r['restored']
+                    if fin in ['vhs', 'glitch']:
+                        worst = max(worst, r['maxDelta'])
+                        if r['inkDiff']:
+                            fail(f'finish {fin} {style} {fmt}: {r["inkDiff"]} pixels of text ink differ from Clean ({r["byPart"]})', spec)
+                    if r['low']:
+                        fail(f'finish {fin} {style} {fmt}: under 3:1 after the finish: {r["low"][:3]}', spec)
+    print(f'finishes: {nf} designs, same pixels twice; VHS and Glitch leave text ink as Clean (largest channel difference {worst}/255, 2 allowed for rounding); no text taken under 3:1; the guard put back {nrest} items')
+    # row R7: export time for the largest format (9:16, 1080 x 1920) by stage, Grunge and Glitch, every style, and
+    # Postmodern photocopy with the copier pass timed on its own (Carried R7 from R6); the Style tab's four tiles
+    for fin in ['clean', 'grunge', 'glitch']:
+        for style, d in [('swiss', None), ('pomo', 'icecream'), ('pomo', 'photocopy'), ('brutal', None), ('vapor', None)]:
+            spec = pg.evaluate('([s, d, fin]) => { const x = window.__rstr.spec(); x.style = s; x.format = "9:16"; x.finish = fin; x.marks = "full"; x.seeds = {layout: 7, colour: 8, graphic: 9, type: 10}; if (d) x.pick.dialect = d; return x; }', [style, d, fin])
+            runs = [pg.evaluate('(s) => window.__rstr.bench(s)', spec) for _ in range(3)]
+            t = sorted(runs, key=lambda x: x['total'])[1]
+            print(f'export 9:16 {fin:6} {style:6} {d or "":9}  total {t["total"]:6.0f} ms (scene {t["scene"]:.0f}, paint {t["paint"]:.0f}, effect {t["effect"]:.0f}, text {t["text"]:.0f}, guard {t["guard"]:.0f}, jpeg {t["encode"]:.0f})' + (f'; copier pass alone {t["pass"]:.0f} ms' if t['pass'] else ''))
+            if t['total'] > 8000:
+                fail(f'export 9:16 {fin} {style}: {t["total"]:.0f} ms', spec)
+    for fin in ['clean', 'grunge', 'glitch']:
+        spec = pg.evaluate('(fin) => { const x = window.__rstr.spec(); x.format = "3:4"; x.finish = fin; x.seeds = {layout: 7, colour: 8, graphic: 9, type: 10}; return x; }', fin)
+        ts = [pg.evaluate('(s) => window.__rstr.tiles(s)', spec) for _ in range(3)][1:]
+        best = [min(a, b) for a, b in zip(*ts)]
+        print(f'style tiles 3:4 {fin:6}  ' + ', '.join(f'{s} {v:.0f}' for s, v in zip(STYLES, best)) + f' ms; four in {sum(best):.0f} ms')
     # 9.2 rule 6: exports are JPEG or PNG of exactly the format's pixels
     for style in STYLES:
         for fmt in FORMATS:

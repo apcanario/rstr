@@ -34,9 +34,6 @@ const MARKS: [Marks, string][] = [['off', 'Off'], ['light', 'Light'], ['full', '
 const DIALECT: [string, string][] = [['either', 'Either'], ['icecream', 'Ice cream'], ['photocopy', 'Photocopy']];
 const SLOT_LABEL: Record<Slot, string> = { title: 'Title', subtitle: 'Subtitle', info: 'Info', caption: 'Caption' };
 const KEPT_PAGE = 6;
-/** Finishes and marks that draw something arrive in R7; until then only Clean and Off can be chosen. */
-const DRAWN_FINISH: Finish[] = ['clean'];
-const DRAWN_MARKS: Marks[] = ['off'];
 /** Screens this tall hold four 48 px rows in the panel; the same query sets the panel's height in app.css. */
 const TALL = '(min-height: 760px)';
 
@@ -317,7 +314,9 @@ export function App({ ready }: { ready: Promise<void> }) {
       }
       setTimeout(next, 0);
     };
-    const t = setTimeout(next, 30);
+    // after 150 ms (Carried R7): with a finish on, a tile costs 100 to 270 ms on desktop Chrome, more on a phone,
+    // so tiles wait until a run of Shuffle taps pauses; the stop flag drops tiles of a design already left
+    const t = setTimeout(next, 150);
     return () => { stop = true; clearTimeout(t); };
   }, [spec, loaded, tab, sheet]);
 
@@ -348,9 +347,9 @@ export function App({ ready }: { ready: Promise<void> }) {
   };
 
   const setPage = (n: number) => setPages((p) => ({ ...p, [tab]: n }));
-  const seg = <T extends string>(list: [T, string][], cur: T, on: (v: T) => void, attr: string, can: (v: T) => boolean = () => true) => (
+  const seg = <T extends string>(list: [T, string][], cur: T, on: (v: T) => void, attr: string) => (
     <div class="seg" role="group">
-      {list.map(([v, label]) => <button class={cur === v ? 'on' : ''} aria-pressed={cur === v} disabled={!can(v)} {...{ [attr]: v }} onClick={() => on(v)}><L t={label} /></button>)}
+      {list.map(([v, label]) => <button class={cur === v ? 'on' : ''} aria-pressed={cur === v} {...{ [attr]: v }} onClick={() => on(v)}><L t={label} /></button>)}
     </div>
   );
 
@@ -392,9 +391,9 @@ export function App({ ready }: { ready: Promise<void> }) {
   const textPages = paged((['title', 'subtitle', 'info', 'caption'] as Slot[]).map(textRow));
   const lookPages = paged([
     seg([['light', 'Light'], ['dark', 'Dark']], spec.mode, (m) => set({ mode: m }), 'data-mode'),
-    // a non-Clean finish or a non-Off marks level kept from elsewhere stays tappable, so it can be left
-    seg(FINISHES, spec.finish, (f) => set({ finish: f }), 'data-finish', (f) => DRAWN_FINISH.includes(f) || f === spec.finish),
-    <div class="captioned"><L t="Marks" c="cap" />{seg(MARKS, spec.marks, (m) => set({ marks: m }), 'data-marks', (m) => DRAWN_MARKS.includes(m) || m === spec.marks)}</div>,
+    // spec 7 (R7): every finish and marks level draws
+    seg(FINISHES, spec.finish, (f) => set({ finish: f }), 'data-finish'),
+    <div class="captioned"><L t="Marks" c="cap" />{seg(MARKS, spec.marks, (m) => set({ marks: m }), 'data-marks')}</div>,
     <div class="captioned"><L t="New" c="cap" />
       <div class="seg rerolls" role="group">
         {FACETS.map((f) => (

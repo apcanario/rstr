@@ -13,7 +13,10 @@ import { browserMeasure } from './engine';
 import { clumsyOf, pickForGraphic, picksOf, runIndependence, runInvariants, runTune, runVariety, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
-import { ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
+import { bench, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
+import { labelsOf, markOverlaps } from './engine/marks';
+import { thumb } from './engine';
+import { withStyle } from './app/state';
 import { migrate, type Spec, type StyleId } from './engine/spec';
 
 /** Every tool call lays out the way the app does: with the wanted pairing only if its fonts are loaded (spec 6). */
@@ -66,6 +69,22 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     /** Graphic pixels inside text masks where the Scene says none, or of a colour it did not declare (9.2 at the pixel level). */
     graphicLeak: (raw: unknown) => { const s = migrate(raw); return graphicLeak(s, useOf(s)); },
     ghostShows: (raw: unknown) => { const s = migrate(raw); return ghostShows(s, useOf(s)); },
+    /** Row R7: a finish against Clean, text ink and contrast (spec 7.1). */
+    finishProof: (raw: unknown) => { const s = migrate(raw); return finishProof(s, useOf(s)); },
+    /** Row R7: marks on text, and micro labels that say more than the spec holds (spec 7.2). Both must be empty. */
+    marks: (raw: unknown) => { const s = migrate(raw); const sc = scene(s, browserMeasure(), useOf(s)); return { overlaps: markOverlaps(sc), badLabels: labelsOf(sc, s).filter((l) => !l.ok), labels: labelsOf(sc, s).length, marks: sc.items.filter((i) => i.kind === 'graphic' && i.layer === 'mark').length }; },
+    /** Row R7: one render timed by stage, plus its JPEG encode (ms). */
+    bench: (raw: unknown) => { const s = migrate(raw); return bench(s, useOf(s)); },
+    /** Row R7: the Style tab's four tile renders for a spec, timed (ms each), drawn as the app draws them. */
+    tiles(raw: unknown, w = 160): number[] {
+      const s = migrate(raw), out: number[] = [];
+      for (const id of ['swiss', 'pomo', 'brutal', 'vapor'] as StyleId[]) {
+        const x = withStyle(s, id), c = document.createElement('canvas'), t0 = performance.now();
+        thumb(c, x, w, useOf(x));
+        out.push(performance.now() - t0);
+      }
+      return out;
+    },
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),
     /** Ids and names of a style's palettes and pairings, for the longest-name checks on the controls. */

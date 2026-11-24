@@ -12,6 +12,7 @@ import { crossGeom } from './graphics/crosshairs';
 import { discGeom } from './graphics/disc';
 import { numeralGeom } from './graphics/numeral';
 import { STYLES } from './styles';
+import { labelsOf, markOverlaps } from './marks';
 import { DEFAULT_TEXT, defaultSpec, SLOTS, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
 
 export const TITLES = { one: 'Signal', three: 'Signal and noise', eight: 'Eight plain words make a long poster title' };
@@ -51,6 +52,9 @@ export interface Opts {
   /** Advanced values set on every spec (spec.params), and picks set on every spec. */
   params?: Spec['params'];
   pick?: Partial<Spec['pick']>;
+  /** The marks level and finish set on every spec (spec 7; absent: off and clean). */
+  marks?: Spec['marks'];
+  finish?: Spec['finish'];
 }
 /** What layout may use for a spec: the app's font check (spec 6). Absent: every pairing is drawn as asked. */
 export type Resolve = (spec: Spec) => Use;
@@ -94,6 +98,8 @@ export function* specs(o: Opts = {}): Generator<Spec> {
               s.style = style; s.format = format; s.mode = mode; s.text = structuredClone(v.text);
               s.pick = { ...s.pick, ...o.pick, ...pk };
               if (o.params) s.params = { ...o.params };
+              if (o.marks) s.marks = o.marks;
+              if (o.finish) s.finish = o.finish;
               yield s;
             }
 }
@@ -110,6 +116,11 @@ export function runInvariants(m: Measure, o: Opts = {}, resolve?: Resolve): Repo
     scene.faces.forEach((f) => faces.add(f));
     if (scene.layout === 'fallback' && r.fallbacks++ < 20) r.fallbackSpecs.push(spec);
     const f = check(scene);
+    // the marks layer (spec 7.2): no mark on a text item it does not hold; labels say only what the spec holds
+    if (spec.marks !== 'off') {
+      for (const m of markOverlaps(scene)) f.push({ rule: 3, part: 'mark', msg: m });
+      for (const l of labelsOf(scene, spec)) if (!l.ok) f.push({ rule: 0, part: 'mark', msg: `label "${l.label}" from ${l.src}` });
+    }
     if (f.length && r.failures.length < 50) r.failures.push({ spec, failures: f });
   }
   r.pairings = [...pairings].sort();
@@ -119,8 +130,11 @@ export function runInvariants(m: Measure, o: Opts = {}, resolve?: Resolve): Repo
 }
 
 const round = (q: number[][]) => q.map((p) => p.map((v) => Math.round(v * 100) / 100));
+// a mark's params hold its micro label, which may name the palette: a mark is compared by where it is (spec 7.2)
 const boxes = (sc: Scene, keep: (i: Item) => boolean) =>
-  JSON.stringify(sc.items.filter(keep).map((i) => [i.kind, i.kind === 'graphic' ? [i.name, i.box, i.seed, i.skip, i.params, i.xf] : i.kind === 'text' ? [i.slot, i.part] : 0, round(i.quad)]));
+  JSON.stringify(sc.items.filter(keep).map((i) => [i.kind, i.kind === 'graphic' ? (i.layer === 'mark' ? [i.name, i.box] : [i.name, i.box, i.seed, i.skip, i.params, i.xf]) : i.kind === 'text' ? [i.slot, i.part] : 0, round(i.quad)]));
+/** Marks sit where the text leaves room (spec 7.2): a new type seed may move them, as it moves the text. */
+const notMark = (i: Item) => !(i.kind === 'graphic' && i.layer === 'mark');
 
 /**
  * 9.3: the colour seed moves no box; the type seed moves no graphic; the graphic seed moves no text box.
@@ -140,7 +154,7 @@ export function runIndependence(m: Measure, o: Opts = {}, resolve?: Resolve): { 
     const c = vary('colour');
     if (boxes(base, () => true) !== boxes(c, () => true)) out.failures.push({ spec, facet: 'colour moved a box' });
     const t = vary('type');
-    if (boxes(base, (i) => i.kind === 'graphic') !== boxes(t, (i) => i.kind === 'graphic')) out.failures.push({ spec, facet: 'type moved a graphic' });
+    if (boxes(base, (i) => i.kind === 'graphic' && notMark(i)) !== boxes(t, (i) => i.kind === 'graphic' && notMark(i))) out.failures.push({ spec, facet: 'type moved a graphic' });
     // the check means something only where the type seed changed the pairing and so the text
     if (t.pairing !== base.pairing && boxes(base, (i) => i.kind === 'text') !== boxes(t, (i) => i.kind === 'text')) out.typeMoved++;
     const g = vary('graphic');
@@ -277,7 +291,7 @@ export function clumsyOf(sc: Scene, spec: Spec): string[] {
     return inside;
   };
   // a ground pattern or a surface pass is the ground, not cover (R6: Postmodern's pattern covers the whole canvas)
-  const marks = sc.items.filter((i) => i.kind === 'text' || (i.kind === 'graphic' && i.layer !== 'ground'));
+  const marks = sc.items.filter((i) => i.kind === 'text' || (i.kind === 'graphic' && i.layer !== 'ground' && i.layer !== 'mark'));
   // in 9:16 the story zones are the app's, not the design's: only the band between them counts
   const y0 = sc.format === '9:16' ? 260 : 0, y1 = sc.format === '9:16' ? 1600 : H;
   const rows = (j: number) => { const y = ((j + 0.5) * H) / ny; return y >= y0 && y <= y1; };
@@ -285,7 +299,7 @@ export function clumsyOf(sc: Scene, spec: Spec): string[] {
   // a style drawn as many small pieces (Postmodern's shapes and found graphics, R6) has no first graphic that
   // carries it: there the graphics are weighed together
   const pieces = sc.style === 'pomo', gcover = new Float32Array(nx * ny);
-  const gs = sc.items.filter((i) => i.kind === 'graphic' && i.layer !== 'ground');
+  const gs = sc.items.filter((i) => i.kind === 'graphic' && i.layer !== 'ground' && i.layer !== 'mark');
   const firstG = gs.find((g) => g.kind === 'graphic' && g.lead) ?? gs[0];
   for (const it of marks) {
     const k = it.kind === 'graphic' ? coverOf(it) : 1;

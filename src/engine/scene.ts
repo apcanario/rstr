@@ -69,8 +69,8 @@ export interface GraphicItem {
   cut?: 'rect' | 'disc';
   /** Filled inside the clip before the graphic draws: the plate a cut-in sits on. */
   plate?: string;
-  /** Depth (spec 8.0): ground, back graphics, front graphics. Text is the top layer. */
-  layer?: 'ground' | 'back' | 'front';
+  /** Depth (spec 8.0): ground, back graphics, front graphics. Text is the top layer. A mark (spec 7.2) sits in free space over all of them. */
+  layer?: 'ground' | 'back' | 'front' | 'mark';
   /** The first graphic of the design when it is drawn after the graphics cut into it (Swiss shapes): counted first. */
   lead?: boolean;
   /** What the variety tests count this graphic as, if not its name (a Postmodern shape counts as its shape). */

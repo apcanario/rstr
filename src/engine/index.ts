@@ -1,10 +1,9 @@
 /** The engine: layout -> Scene -> paint, then finish. All drawing lives under src/engine/. */
 import { FORMATS } from './formats';
-import { finish } from './finish';
+import { paintFinished } from './finish';
 import type { Ctx } from './graphics/types';
 import { layout, type Use } from './layout';
 import { canvasMeasure, type Measure } from './measure';
-import { paint } from './paint';
 import type { Scene } from './scene';
 import type { Spec } from './spec';
 
@@ -28,8 +27,8 @@ export function render(canvas: HTMLCanvasElement | OffscreenCanvas, spec: Spec, 
   if (canvas.height !== H) canvas.height = H;
   const ctx = canvas.getContext('2d') as Ctx;
   const sc = scene(spec, browserMeasure(), use);
-  paint(ctx, sc, t);
-  finish(ctx, spec);
+  // paint and finish (spec 4 stages 2 and 3): the finish needs the Scene for its two passes and its guard
+  paintFinished(ctx, sc, spec, t);
   return sc;
 }
 
@@ -53,6 +52,7 @@ export function thumb(canvas: HTMLCanvasElement, spec: Spec, w: number, use: Use
 }
 
 export { paint } from './paint';
+export { paintFinished } from './finish';
 export { layout, solve, choosePairing, resolvePairing, type Use } from './layout';
 export { check } from './invariants';
 export { FORMATS } from './formats';

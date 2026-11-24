@@ -241,33 +241,30 @@ def run(b, url, fail):
                 fail(f'{at}: Light/Dark on the Look tab did not change only the mode')
         if pg.query_selector('header [data-mode], header [data-testid="mode"]'):
             fail(f'{at}: a Light/Dark control is still in the header')
-        # Finish and Marks draw nothing until R7 (review R4 S1): only Clean and Off can be chosen; a finish or
-        # marks level that came with a design stays tappable so it can be left
-        def finish_marks():
-            """Each Finish and Marks button, over every page of the Look tab: whether it is disabled."""
-            out = {}
+        # Finish and Marks (spec 7, row R7): every button is enabled; each changes only the finish or the marks
+        # level, and the stage draws it (its pixels change)
+        def find_page(sel):
             for i in range(npages(pg)):
                 goto(pg, i)
-                out.update(pg.evaluate('() => Object.fromEntries([...document.querySelectorAll("[data-finish], [data-marks]")].map((b) => [b.dataset.finish || b.dataset.marks, b.disabled]))'))
+                if pg.query_selector(sel):
+                    return i
+            return -1
+        for attr, key, values in [('finish', 'finish', ['grain', 'grunge', 'vhs', 'glitch', 'clean']), ('marks', 'marks', ['light', 'full', 'off'])]:
+            for v in values:
+                if find_page(f'button[data-{attr}="{v}"]') < 0:
+                    fail(f'{at}: no {attr} button {v}')
+                    continue
+                if pg.get_attribute(f'button[data-{attr}="{v}"]', 'disabled') is not None:
+                    fail(f'{at}: the {attr} button {v} is disabled')
+                before, stage0 = spec(pg), pg.evaluate('() => window.__rstr.app.stage()')
+                tap(pg, f'button[data-{attr}="{v}"]')
+                idle(pg)
+                after, stage1 = spec(pg), pg.evaluate('() => window.__rstr.app.stage()')
+                if after[key] != v or {**after, key: 0} != {**before, key: 0}:
+                    fail(f'{at}: the {attr} button {v} did not change only {key}')
+                if before[key] != v and stage0 == stage1:
+                    fail(f'{at}: {attr} {v} drew the same stage as {before[key]}')
             goto(pg, 0)
-            return out
-        dis = sorted(k for k, v in finish_marks().items() if v)
-        if dis != sorted(['grain', 'grunge', 'vhs', 'glitch', 'light', 'full']):
-            fail(f'{at}: Finish and Marks should offer only Clean and Off until R7; disabled: {dis}')
-        s = spec(pg)
-        pg.evaluate('(x) => window.__rstr.app.load({ ...x, finish: "grain", marks: "light" })', s)
-        idle(pg)
-        fm = finish_marks()
-        if fm.get('grain') or fm.get('light') or fm.get('clean') or fm.get('off'):
-            fail(f'{at}: a design with Grain and Light marks cannot show or leave them: {fm}')
-        tap(pg, 'button[data-finish="clean"]')
-        goto(pg, 1)
-        tap(pg, 'button[data-marks="off"]')
-        if spec(pg)['finish'] != 'clean' or spec(pg)['marks'] != 'off':
-            fail(f'{at}: Clean and Off did not apply')
-        goto(pg, 0)
-        if not finish_marks().get('grain'):
-            fail(f'{at}: Grain is choosable again after leaving it')
         goto(pg, 1)
         for f in FACETS:
             before = spec(pg)

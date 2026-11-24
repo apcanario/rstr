@@ -1,11 +1,12 @@
 /** paint(ctx, scene, t): draws a Scene. No decisions, no randomness beyond the seeds the Scene carries. */
 import { MASK } from '../data/palettes/system';
 import { GRAPHICS } from './graphics';
+import { drawMark } from './markdraw';
 import { clock, type Time } from './graphics/clock';
 import type { Ctx } from './graphics/types';
 import type { Quad } from './geom';
 import { rng, skip } from './rng';
-import { fontCss, type GraphicItem, type Paint, type RectItem, type Scene, type TextItem } from './scene';
+import { fontCss, type GraphicItem, type Item, type Paint, type RectItem, type Scene, type TextItem } from './scene';
 
 function style(ctx: Ctx, p: Paint, size = 1): string | CanvasGradient {
   if (typeof p === 'string') return p;
@@ -31,7 +32,8 @@ function paintRect(ctx: Ctx, it: RectItem) {
   ctx.restore();
 }
 
-export function paintText(ctx: Ctx, it: TextItem) {
+/** spread: grunge's ink spread (spec 7.1), an outline of the fill's own colour this many px wide at part strength. */
+export function paintText(ctx: Ctx, it: TextItem, spread = 0) {
   ctx.save();
   place(ctx, it.xf);
   if (it.clip) { ctx.beginPath(); ctx.rect(it.clip.x, it.clip.y, it.clip.w, it.clip.h); ctx.clip(); }
@@ -63,6 +65,15 @@ export function paintText(ctx: Ctx, it: TextItem) {
       ctx.strokeStyle = style(ctx, it.stroke.paint, it.size);
       ctx.strokeText(r.s, 0, 0);
     }
+    if (spread > 0) {
+      const a = ctx.globalAlpha;
+      ctx.globalAlpha = a * 0.45;
+      ctx.lineWidth = (2 * spread) / Math.min(sx, sy);
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = style(ctx, it.fill, it.size);
+      ctx.strokeText(r.s, 0, 0);
+      ctx.globalAlpha = a;
+    }
     ctx.fillStyle = style(ctx, it.fill, it.size);
     ctx.fillText(r.s, 0, 0);
     ctx.restore();
@@ -71,7 +82,8 @@ export function paintText(ctx: Ctx, it: TextItem) {
   ctx.restore();
 }
 
-function knockText(ctx: Ctx, it: TextItem, pad: number) {
+/** A text item's glyphs (and echoes) in the mask colour, grown by pad px all round: what a knock-out or a finish's ring reads. */
+export function knockText(ctx: Ctx, it: TextItem, pad: number) {
   ctx.save();
   place(ctx, it.xf);
   ctx.font = fontCss(it.font, it.size);
@@ -108,7 +120,8 @@ function layer(w: number, h: number): Ctx | null {
 }
 
 function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, noLayer = false) {
-  const G = GRAPHICS[it.name];
+  // a mark (spec 7.2) is drawn by the marks layer, not the graphics library
+  const G = it.name === 'mark' ? { draw: (c: Ctx, g: GraphicItem, r: ReturnType<typeof rng>) => drawMark(c, g, r) } : GRAPHICS[it.name];
   if (!G) return;
   const T = clock(t);
   const run = (c: Ctx) => {
@@ -160,6 +173,12 @@ function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, n
 export interface PaintOpts {
   /** Paint no text items (the knock proof reads what lies under the text). */
   noText?: boolean;
+  /** Paint only the items this keeps (the two passes of a finish, spec 7.1); indices stay those of the Scene. */
+  only?: (it: Item) => boolean;
+  /** Do not fill the ground first (a second pass over what is already painted). */
+  noGround?: boolean;
+  /** Grunge's ink spread on type, px (spec 7.1). */
+  spread?: number;
   /** Take the no-layer path for knock-outs, as on a platform without offscreen canvases. */
   noLayer?: boolean;
 }
@@ -168,11 +187,14 @@ export function paint(ctx: Ctx, scene: Scene, t: Time | null = null, o: PaintOpt
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = scene.ground;
-  ctx.fillRect(0, 0, scene.w, scene.h);
+  if (!o.noGround) {
+    ctx.fillStyle = scene.ground;
+    ctx.fillRect(0, 0, scene.w, scene.h);
+  }
   for (const it of scene.items) {
+    if (o.only && !o.only(it)) continue;
     if (it.kind === 'rect') paintRect(ctx, it);
-    else if (it.kind === 'text') { if (!o.noText) paintText(ctx, it); }
+    else if (it.kind === 'text') { if (!o.noText) paintText(ctx, it, o.spread ?? 0); }
     else paintGraphic(ctx, it, scene, t, o.noLayer);
   }
 }

@@ -5,6 +5,7 @@ import { bounds, contains, overlaps } from './geom';
 import type { Ctx } from './graphics/types';
 import { behind } from './invariants';
 import { paint, paintText } from './paint';
+import { FINISH_MIN_RATIO, paintFinished, textContrast } from './finish';
 import { browserMeasure, scene as sceneOf } from './index';
 import type { Use } from './layout';
 import type { Scene, TextItem } from './scene';
@@ -168,4 +169,74 @@ export function ghostShows(spec: Spec, use: Use = {}): { share: number; shown: n
   const r = hot.runs[0], mt = m(r.s, hot.font, hot.size);
   const box = Math.max(1, (mt.left + mt.right) * (mt.ascent + mt.descent));
   return { share: shown / box, shown, box };
+}
+
+/**
+ * The finish proofs of spec 7.1 (row R7), on one spec with a finish other than Clean. The Scene is drawn twice, as
+ * Clean and with the finish, and every text item is read off both:
+ * - `inkDiff`: pixels fully inside a text item's ink (fill, outline, echoes) that differ from Clean. VHS and Glitch
+ *   must have none: the effect never touches text (the two-pass rule). Grain and Grunge cover text on purpose.
+ *   A channel off by 1 or 2 is compositing rounding (seen: 1/255 on one or two pixels of a gradient or haloed
+ *   title, where the order of draws differs), not a change; `maxDelta` reports the largest difference seen.
+ * - `low`: text items the finish took under 3:1 (mean ink against the mean of a ring round it, `textContrast`)
+ *   where Clean had them at 3:1 or more.
+ */
+export function finishProof(spec: Spec, use: Use = {}): { items: number; inkPx: number; inkDiff: number; maxDelta: number; byPart: Record<string, number>; low: { part: string; clean: number; fin: number }[]; restored: number } {
+  const [W, H] = FORMATS[spec.format];
+  const sc = sceneOf(spec, browserMeasure(), use);
+  const a = canvas(W, H), b = canvas(W, H), mask = canvas(W, H);
+  paint(a, sc);
+  const rep = paintFinished(b, sc, spec);
+  const A = a.getImageData(0, 0, W, H).data, B = b.getImageData(0, 0, W, H).data;
+  let items = 0, inkPx = 0, inkDiff = 0;
+  const byPart: Record<string, number> = {};
+  let maxDelta = 0;
+  const low: { part: string; clean: number; fin: number }[] = [];
+  for (const it of sc.items) {
+    if (it.kind !== 'text') continue;
+    items++;
+    mask.clearRect(0, 0, W, H);
+    paintText(mask, { ...it, fill: MASK, stroke: it.stroke && { ...it.stroke, paint: MASK }, echoes: it.echoes?.map((e) => ({ ...e, paint: MASK, halo: e.halo && MASK })) });
+    const r = bounds(it.quad), x0 = Math.max(0, Math.floor(r.x) - 2), y0 = Math.max(0, Math.floor(r.y) - 2);
+    const x1 = Math.min(W, Math.ceil(r.x + r.w) + 2), y1 = Math.min(H, Math.ceil(r.y + r.h) + 2);
+    if (x1 > x0 && y1 > y0) {
+      const m = mask.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        if (m[((y - y0) * (x1 - x0) + (x - x0)) * 4 + 3] !== 255) continue;
+        inkPx++;
+        const o = (y * W + x) * 4;
+        const dd = Math.max(Math.abs(A[o] - B[o]), Math.abs(A[o + 1] - B[o + 1]), Math.abs(A[o + 2] - B[o + 2]));
+        if (dd > maxDelta) maxDelta = dd;
+        if (dd > 2) { inkDiff++; byPart[it.slot + '.' + it.part] = (byPart[it.slot + '.' + it.part] ?? 0) + 1; }
+      }
+    }
+    const ca = textContrast(a, mask, it), cb = textContrast(b, mask, it);
+    if (ca && cb && ca.ratio >= FINISH_MIN_RATIO && cb.ratio < FINISH_MIN_RATIO - 1e-6) low.push({ part: it.slot + '.' + it.part, clean: ca.ratio, fin: cb.ratio });
+  }
+  return { items, inkPx, inkDiff, maxDelta, byPart, low, restored: rep.restored };
+}
+
+/** Time one render of a spec, by stage (row R7: export timing), and the JPEG encode of it. ms. */
+export async function bench(spec: Spec, use: Use = {}): Promise<{ scene: number; paint: number; effect: number; text: number; guard: number; restored: number; pass: number; encode: number; total: number }> {
+  const [W, H] = FORMATS[spec.format];
+  const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
+  const ctx = c.getContext('2d') as Ctx;
+  const t0 = performance.now();
+  const sc = sceneOf(spec, browserMeasure(), use);
+  const t1 = performance.now();
+  const rep = paintFinished(ctx, sc, spec);
+  const t2 = performance.now();
+  // the surface pass alone (the photocopy copier), drawn again over the finished canvas: its cost, not part of total
+  let pass = 0;
+  if (sc.items.some((i) => i.kind === 'graphic' && i.pass)) {
+    const tp = performance.now();
+    paint(ctx, sc, null, { only: (i) => i.kind === 'graphic' && !!i.pass, noGround: true });
+    pass = performance.now() - tp;
+    paintFinished(ctx, sc, spec);
+  }
+  const t3 = performance.now();
+  if ('convertToBlob' in c) await (c as OffscreenCanvas).convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+  else await new Promise<Blob | null>((r) => (c as HTMLCanvasElement).toBlob(r, 'image/jpeg', 0.92));
+  const t4 = performance.now();
+  return { scene: t1 - t0, paint: rep.paint, effect: rep.effect, text: rep.text, guard: rep.guard, restored: rep.restored, pass, encode: t4 - t3, total: t2 - t0 + (t4 - t3) };
 }

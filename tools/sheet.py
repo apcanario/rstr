@@ -31,6 +31,20 @@ with served() as url, browser() as b:
                 rows.append(cells)
             strip(rows).save(os.path.join(OUT, f'sheet-{style}-{mode}.jpg'), quality=85)
             print('wrote', f'shots/sheet-{style}-{mode}.jpg')
+    # row R7: one sheet per finish and one per marks level (off is every other sheet): every style in every format,
+    # light and dark alternating, the same seeds on each sheet so they compare cell for cell
+    for kind, values in [('finish', ['clean', 'grain', 'grunge', 'vhs', 'glitch']), ('marks', ['light', 'full'])]:
+        for v in values:
+            rows = []
+            for si, style in enumerate(STYLES):
+                cells = []
+                for fi, fmt in enumerate(FORMATS):
+                    n = si * 3 + fi
+                    spec = pg.evaluate('([s, f, n, k, v]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = n % 2 ? "dark" : "light"; x.seeds = {layout: 1000 + n * 7919, colour: 2000 + n * 104729, graphic: 3000 + n * 1299709, type: 4000 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null, dialect: s === "pomo" ? (n % 2 ? "photocopy" : "icecream") : null}; x.params = {}; x.finish = k === "finish" ? v : "clean"; x.marks = k === "marks" ? v : "off"; return x; }', [style, fmt, n, kind, v])
+                    cells.append((img(pg, spec), f'{style} {fmt} {spec["mode"]} {kind} {v}'))
+                rows.append(cells)
+            strip(rows, h=520).save(os.path.join(OUT, f'{kind}-{v}.jpg'), quality=85)
+            print('wrote', f'shots/{kind}-{v}.jpg')
     # Postmodern per dialect (R6): 12 designs across the formats, light and dark alternating
     for d in ['icecream', 'photocopy']:
         rows = []
