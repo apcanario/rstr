@@ -76,9 +76,8 @@ describe('9.2 with every graphic parameter at both ends of its range, per style'
         if (absent) missing.push(`${name}.${k}=${v}: ${absent}/${n}`);
         expect(n).toBe(2 * 3 * 2 * textVariants().length);
       }
-      // only Brutalist may fail to place its graphic: its band needs room the title can take (for R8)
-      if (style !== 'brutal') expect(missing, style).toEqual([]);
-      else console.log(`range ends, ${style}: Scenes where the band graphic could not be placed: ${missing.length ? missing.slice(0, 4).join('; ') + (missing.length > 4 ? ' ...' : '') : 'none'}`);
+      // every style places its graphic (Brutalist's band too since R8: a picked motif takes the small title)
+      expect(missing, style).toEqual([]);
       expect(ends).toBeGreaterThanOrEqual(usesOf(style).length * 6);
     }, 120000);
   }
@@ -121,8 +120,16 @@ describe('the variety tests of spec 8.0', () => {
       }
     }
   }, 240000);
+  test('Brutalist passes all three in every format on the stub measure (row R8, Carried R8 from R13)', () => {
+    for (const f of ['1:1', '3:4', '9:16'] as const) {
+      const v = runVariety(stubMeasure, 'brutal', f, 300);
+      console.log(`variety brutal ${f} (stub): repeats in 60 ${v.repeats60}; missing ${JSON.stringify(v.missing)}; top layout ${v.top.layout} ${(v.top.share * 100).toFixed(0)}%`);
+      expect(v.count).toBe(300);
+      expect(v.pass, `brutal ${f}: ${JSON.stringify(v)}`).toEqual({ sixty: true, coverage: true, share: true });
+    }
+  }, 120000);
   test('run for every other style on the stub measure and report (enforced from each style\'s own row)', () => {
-    for (const style of STYLE_IDS.filter((s) => s !== 'swiss' && s !== 'pomo')) {
+    for (const style of STYLE_IDS.filter((s) => s !== 'swiss' && s !== 'pomo' && s !== 'brutal')) {
       const v = runVariety(stubMeasure, style, '3:4', 300);
       expect(v.count).toBe(300);
       // reported only until each style's own row enforces it (review R13 M4: R5 asserts v.pass for Swiss here)

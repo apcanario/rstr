@@ -1,4 +1,5 @@
 /** The shared graphics library (spec 8.0): every graphic by name, each with its ranged parameters and a draw that takes t. */
+import { arrow } from './arrow';
 import { asterisks } from './asterisks';
 import { barcode } from './barcode';
 import { bars } from './bars';
@@ -30,6 +31,6 @@ import { waves } from './waves';
 import type { Graphic } from './types';
 
 export const GRAPHICS: Record<string, Graphic> = Object.fromEntries(
-  [topo, blocks, bars, dots, disc, lines, rules, numeral, crosshairs, lattice, rings, waves, barcode, slab, asterisks, pattern, shape, stars, sun, grid, horizon, scribble, tape, xmarks, torn, register, redact, copier].map((g) => [g.name, g]),
+  [topo, blocks, bars, dots, disc, lines, rules, numeral, crosshairs, lattice, rings, waves, barcode, slab, asterisks, arrow, pattern, shape, stars, sun, grid, horizon, scribble, tape, xmarks, torn, register, redact, copier].map((g) => [g.name, g]),
 );
 export type { Graphic, Range } from './types';

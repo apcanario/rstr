@@ -52,6 +52,8 @@ export interface Boxes {
   text: Rect;
   /** The area the title may take: its own area where the layout gives it one, else the text area. Set whenever the title has text. */
   title?: Rect;
+  /** The second part of a title split across the page (spec 8.3: title split across top and bottom); absent: one part. */
+  title2?: Rect;
   /** Where the slot goes, when the layout gives it its own row. */
   subtitle?: Rect;
   info?: Rect;

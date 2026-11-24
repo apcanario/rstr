@@ -327,12 +327,17 @@ function containers(c: Ctx): { card: GraphicItem | null; rest: GraphicItem[] } {
   const title = c.texts.filter((t) => t.slot === 'title');
   if (title.length) {
     const T = union(title.map((t) => bounds(t.quad))), len = Math.round(between(c.r, 360, 430));
-    for (const y of [T.y + T.h + 16, T.y - 20]) {
-      const bar = { x: Math.max(M, Math.min(T.x, c.W - len - M)), y, w: len, h: 4 };
-      if (!free(c, bar, 8)) continue;
-      rest.push(item(c, 'bar', bar, { tone: 0 }));
+    // under the title or over it, from its left end or its right
+    const at = (x: number) => Math.max(M, Math.min(x, c.W - len - M));
+    for (const [x, y] of [[at(T.x), T.y + T.h + 16], [at(T.x + T.w - len), T.y + T.h + 16], [at(T.x), T.y - 20], [at(T.x + T.w - len), T.y - 20]]) {
+      const bar = { x, y, w: len, h: 4 };
+      const away = y > T.y ? { x: bar.x, y, w: len, h: 24 } : { x: bar.x, y: y - 20, w: len, h: 24 };
+      // the bar needs a row of its own: in a slit between two text blocks (the Brutalist 20 px between the title and
+      // the subtitle bar, or the title and a graphic) it and its label read as strays (review R7); there, no bar
+      if (!free(c, bar, 8) || !free(c, away, 8) || c.busy.some((it) => it.kind === 'graphic' && hits(it.quad, away, 8) && !hits(it.quad, bar))) continue;
       const src = LABEL_SETS[Math.floor(c.r() * LABEL_SETS.length)], lab = labelOf(src, c.spec, c.sc.palette), lw = labelW(c, src) + 2;
-      // beside the bar on the free side, else under it
+      rest.push(item(c, 'bar', bar, { tone: 0 }));
+      // the label beside the bar on the free side (spec 7.2), else under it
       for (const L of [{ x: bar.x + len + 14, y: y - 8, w: lw, h: 20 }, { x: bar.x - 14 - lw, y: y - 8, w: lw, h: 20 }, { x: bar.x, y: y + 12, w: lw, h: 20 }]) {
         if (free(c, L, 8) && flat(c, L)) { rest.push(item(c, 'label', L, { label: lab, src: src.join(',') })); break; }
       }

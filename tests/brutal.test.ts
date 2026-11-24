@@ -1,0 +1,153 @@
+/** Brutalist, finished (row R8, spec 8.0, 8.3) on the stub measure. */
+import { describe, expect, test } from 'vitest';
+import { FORMAT_LIST } from '../src/engine/formats';
+import { bounds, overlaps, rectQuad } from '../src/engine/geom';
+import { GRAPHICS } from '../src/engine/graphics';
+import { choosePairing, choosePalette, partCtx, solve } from '../src/engine/layout';
+import { stubMeasure } from '../src/engine/measure';
+import { BRUTAL_CUTS, BRUTAL_GRAPHICS, brutalDraw } from '../src/engine/parts/graphics/brutal';
+import { BRUTAL_LAYOUTS, FULL_WIDTH, brutalLayout } from '../src/engine/parts/layout/brutal';
+import { brutalBreaks, brutalLines } from '../src/engine/parts/shared/brutal';
+import { shuffleSeeds, specs } from '../src/engine/proof';
+import { counted, rng } from '../src/engine/rng';
+import type { GraphicItem, Scene, TextItem } from '../src/engine/scene';
+import { defaultSpec, type Spec } from '../src/engine/spec';
+
+const titles = (sc: Scene) => sc.items.filter((i): i is TextItem => i.kind === 'text' && i.slot === 'title');
+const brutal = (i: number, f: Spec['format'] = '3:4') => { const s = defaultSpec(shuffleSeeds(i)); s.style = 'brutal'; s.format = f; return s; };
+const planOf = (s: Spec, sc: Scene) => brutalLayout.plan(partCtx(s, stubMeasure, choosePalette(s), choosePairing(s), Number(sc.layout.slice(1))))!;
+/** A title line's ink length along its run, in the page's frame. */
+const inkLen = (t: TextItem) => { const r = t.runs[0], mt = stubMeasure(r.s, t.font, t.size); return (mt.left + mt.right) * (r.sx ?? 1); };
+
+describe('R8: layouts, transforms, graphics (spec 8.0, 8.3)', () => {
+  const N = 600;
+  const plans = Array.from({ length: N }, (_, i) => { const s = brutal(i, FORMAT_LIST[i % 3]); return { s, plan: brutalLayout.plan(partCtx(s, stubMeasure, choosePalette(s), choosePairing(s), 0))! }; });
+  test('eight layouts, each rolled and none over 20%', () => {
+    expect(BRUTAL_LAYOUTS).toHaveLength(8);
+    const n = new Map<string, number>();
+    for (const p of plans) n.set(p.plan.frame, (n.get(p.plan.frame) ?? 0) + 1);
+    expect([...n.keys()].sort()).toEqual([...BRUTAL_LAYOUTS].sort());
+    for (const [k, v] of n) expect(v / N, k).toBeLessThan(0.2);
+  });
+  test('tilt and quarter each about one in six (never a quarter turn with the title up the edge)', () => {
+    const tilt = plans.filter((p) => p.plan.transform === 'tilt').length, quarter = plans.filter((p) => p.plan.transform === 'quarter').length;
+    expect(Math.abs(tilt / N - 1 / 6)).toBeLessThan(0.05);
+    expect(Math.abs(quarter / N - 1 / 6)).toBeLessThan(0.06);
+    for (const p of plans) if (p.plan.frame === 'title-up') expect(p.plan.transform).not.toBe('quarter');
+  });
+  test('twelve graphics from the shared library, arrow included', () => {
+    expect(BRUTAL_GRAPHICS).toHaveLength(12);
+    for (const g of BRUTAL_GRAPHICS) expect(GRAPHICS[g], g).toBeDefined();
+    for (const g of ['barcode', 'slab', 'asterisks', 'arrow', 'numeral']) expect(BRUTAL_GRAPHICS).toContain(g);
+    expect(Object.keys(GRAPHICS.arrow.params).length).toBeGreaterThanOrEqual(3);
+  });
+  test('cut-ins 0, 1, 2 near 0.38, 0.52, 0.10; every cut shape appears; the shared library at its heavy end', () => {
+    const counts = [0, 0, 0], shapes = new Set<string>();
+    const P = choosePalette(brutal(0));
+    for (let i = 0; i < N; i++) {
+      const d = brutalDraw(brutal(i), P, counted(rng(i * 7 + 1)), { x: 0, y: 0, w: 982, h: 300 });
+      counts[d.cuts.length]++;
+      d.cuts.forEach((k) => { shapes.add(k.shape); expect(k.name).not.toBe(d.first); });
+      if (d.first === 'bars' || d.first === 'lines') {
+        const R = GRAPHICS[d.first].params.weight;
+        expect(d.params.weight, d.first).toBeGreaterThanOrEqual(R.min + (R.max - R.min) * 0.55 - 1e-9);
+      }
+    }
+    [0.38, 0.52, 0.1].forEach((want, i) => expect(Math.abs(counts[i] / N - want), `cut-ins ${i}: ${counts[i]}`).toBeLessThan(0.05));
+    expect([...shapes].sort()).toEqual([...BRUTAL_CUTS].sort());
+  });
+});
+
+describe('R8: every title line fills the width (spec 8.3; Carried R8, review R1 M4)', () => {
+  test('lines break one word each up to four, else three balanced; fewer, wider lines only as a fallback break', () => {
+    expect(brutalLines('Signal and noise')).toEqual(['SIGNAL', 'AND', 'NOISE']);
+    expect(brutalLines('Eight plain words make a long poster title')).toHaveLength(3);
+    expect(brutalBreaks('Signal and noise')).toEqual([['SIGNAL', 'AND', 'NOISE'], ['SIGNAL', 'AND NOISE'], ['SIGNAL AND NOISE']]);
+    expect(brutalBreaks('Two\nlines')).toEqual([['TWO', 'LINES']]);
+  });
+  test('every title line of four words or fewer spans the full inner width within 1%, in every layout that promises it, every format, every text variant', () => {
+    let n = 0, lines = 0;
+    const seen = new Set<string>();
+    for (const s of specs({ styles: ['brutal'], n: 24, picks: 'none' })) {
+      if (s.text.title.v.trim().split(/\s+/).length > 4) continue;
+      const sc = solve(s, stubMeasure).scene;
+      if (sc.layout === 'fallback') continue;
+      const plan = planOf(s, sc), ts = titles(sc);
+      if (!ts.length) continue;
+      n++;
+      seen.add(plan.frame);
+      for (const t of ts) {
+        // the box the line sits in: the title's own or the second part of a split title
+        const boxes = [plan.boxes.title!, plan.boxes.title2].filter(Boolean);
+        const want = plan.titleUp ? plan.boxes.title!.h : boxes[0]!.w;
+        const got = inkLen(t);
+        expect(Math.abs(got - want) / want, `${plan.frame} ${s.format} ${JSON.stringify(s.seeds)} ${t.runs[0].s}: ${got} of ${want}`).toBeLessThan(0.01);
+        lines++;
+      }
+    }
+    expect([...seen].sort()).toEqual([...BRUTAL_LAYOUTS].sort());
+    expect(FULL_WIDTH.length).toBe(7);
+    expect(lines).toBeGreaterThan(n * 1.5);
+    console.log(`R8 full width: ${lines} title lines in ${n} designs`);
+  }, 120000);
+  test('the 1:1 Anton title (Klein, Alarm) fills the width where height binds (review R1 M4)', () => {
+    for (const palette of ['klein', 'alarm']) for (let i = 0; i < 30; i++) {
+      const s = brutal(i, '1:1');
+      s.pick.pairing = 'br-anton'; s.pick.palette = palette; s.pick.layout = 'title-top';
+      const sc = solve(s, stubMeasure).scene;
+      expect(sc.layout).not.toBe('fallback');
+      const plan = planOf(s, sc);
+      for (const t of titles(sc)) expect(Math.abs(inkLen(t) - plan.boxes.title!.w) / plan.boxes.title!.w).toBeLessThan(0.01);
+    }
+  });
+  test('eight words stay heavy: three lines or fewer, each at least 60 px in type size, no fallback', () => {
+    let n = 0;
+    for (const f of FORMAT_LIST) for (const layout of BRUTAL_LAYOUTS) for (let i = 0; i < 12; i++) {
+      const s = brutal(i, f);
+      s.pick.layout = layout; s.text.title.v = 'Eight plain words make a long poster title';
+      const sc = solve(s, stubMeasure).scene;
+      if (sc.layout === 'fallback') continue;
+      n++;
+      const ts = titles(sc);
+      expect(ts.length).toBeLessThanOrEqual(3);
+      for (const t of ts) expect(t.px, `${f} ${layout} ${i}`).toBeGreaterThanOrEqual(60);
+    }
+    expect(n).toBeGreaterThan(3 * 8 * 12 * 0.95);
+  });
+});
+
+describe('R8: the band and the marks (Carried R8 from R13 and from R7)', () => {
+  test('with the default text the band graphic is drawn in most shuffles, in every format', () => {
+    for (const f of FORMAT_LIST) {
+      let with_ = 0;
+      for (let i = 0; i < 300; i++) if (solve(brutal(i, f), stubMeasure).scene.graphics.length) with_++;
+      expect(with_ / 300, f).toBeGreaterThan(0.8);
+    }
+  });
+  test('the underline bar never sits in a slit: 24 px clear of any other text on the side away from the title', () => {
+    let bars = 0;
+    for (const s of specs({ styles: ['brutal'], n: 60, variants: 'cycle', marks: 'full', modes: ['light'] })) {
+      const sc = solve(s, stubMeasure).scene;
+      const bar = sc.items.find((i): i is GraphicItem => i.kind === 'graphic' && i.layer === 'mark' && i.params.kind === 'bar' && i.box.h === 4);
+      if (!bar) continue;
+      bars++;
+      const T = bounds(rectQuad({ ...titles(sc).map((t) => bounds(t.quad)).reduce((a, b) => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.max(a.x + a.w, b.x + b.w) - Math.min(a.x, b.x), h: Math.max(a.y + a.h, b.y + b.h) - Math.min(a.y, b.y) })) }));
+      const b = bar.box, away = b.y > T.y ? { x: b.x, y: b.y, w: b.w, h: 24 } : { x: b.x, y: b.y - 20, w: b.w, h: 24 };
+      for (const t of sc.items) if (t.kind === 'text' && t.slot !== 'title') expect(overlaps(t.quad, rectQuad(away)), JSON.stringify(s.seeds)).toBe(false);
+    }
+    expect(bars).toBeGreaterThan(10);
+  });
+  test('light marks: three or more on all but at most one of 600 Brutalist designs, never none', () => {
+    let few = 0, n = 0;
+    for (const s of specs({ styles: ['brutal'], n: 200, variants: 'cycle', marks: 'light', modes: ['light'] })) {
+      n++;
+      const sc = solve(s, stubMeasure).scene;
+      const kinds = new Set(sc.items.filter((i): i is GraphicItem => i.kind === 'graphic' && i.layer === 'mark' && !['bar', 'card', 'label'].includes(String(i.params.kind))).map((g) => g.params.mark));
+      expect(kinds.size, JSON.stringify(s.seeds)).toBeGreaterThan(0);
+      if (kinds.size < 3) few++;
+    }
+    console.log(`R8 marks: ${few} of ${n} Brutalist designs with fewer than three light marks`);
+    expect(n).toBe(600);
+    expect(few).toBeLessThanOrEqual(1);
+  }, 120000);
+});

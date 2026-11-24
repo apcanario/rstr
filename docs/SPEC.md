@@ -202,12 +202,14 @@ Two dialects in one style. The layout stream picks one unless `pick.dialect` is 
 
 HEAVY TYPE. The title is the graphic.
 
-- Upper case. One word per line up to four words, otherwise three balanced lines. **Every line is scaled to fill the full width**, then the whole block is stretched vertically to fill the height it has (0.55 to 1.9 times). Stretched type is the point.
+- Upper case. One word per line up to four words, otherwise three balanced lines. **Every line is scaled to fill the full width**, then the whole block is stretched vertically to fill the height it has (0.55 to 1.9 times). Stretched type is the point. Where those lines at full width cannot fit the height even at 0.55, words join onto fewer, balanced lines (each still full width) rather than any line shrinking off the width; a typed line break is kept as typed (R8, review R1 M4).
+- Title size classes (R8): the title takes about half (small), seven tenths (normal) or all (oversize) of its area, and the band of blunt graphics takes the rest. Normal keeps one word per line where that leaves a band, else gives up only a thin one; a small title may join words to leave the band its room.
 - One line sits on a full-bleed accent bar.
 - Thick rules. Caption in mono in a strip between rules at the top with a small format tag at the right. Subtitle in mono inside a solid ink bar. Info as a table: one row per pair, label left in mono, value right in the heavy face, a rule between rows.
 - Narrow margin (about 48 px at 1080). Two colours and one accent. No decoration.
 - Left-over space gets blunt graphics: barcode stripes, an accent slab with a disc, a row of asterisks, an arrow, a huge numeral, and the shared library drawn at its heaviest settings.
-- Layouts beyond the first: title set at 90 degrees up the edge, title cropped by the canvas edge (Advanced only, off by default), boxed variant with a full border, title split across top and bottom with the table between, one word per screen-filling line with the rest tiny, table-first with the title as the last row.
+- Layouts beyond the first: title set at 90 degrees up the edge, title cropped by the canvas edge (Advanced only, off by default), boxed variant with a full border, title split across top and bottom with the table between, one word per screen-filling line with the rest tiny, table-first with the title as the last row. Built at R8: title-top, title-bottom, table-first, split, boxed, title-up, screen, slab (a big band of graphic bleeding off both sides, the title under it). The cropped title is not built yet: a title cut by the canvas breaks rule 1 of 9.2, and Advanced has no control for it until R10.
+- With marks on (7.2), a strip at the canvas's top and bottom edges (the sides on a quarter turn) is kept free for them; otherwise the page fills to its margins.
 
 ### 8.4 Vaporwave
 
