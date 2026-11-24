@@ -327,14 +327,28 @@ function containers(c: Ctx): { card: GraphicItem | null; rest: GraphicItem[] } {
   const title = c.texts.filter((t) => t.slot === 'title');
   if (title.length) {
     const T = union(title.map((t) => bounds(t.quad))), len = Math.round(between(c.r, 360, 430));
-    // under the title or over it, from its left end or its right
+    // under the title or over it, from its left end or its right; a flush-left title (Swiss, spec 8.1: one axis)
+    // only from its left end (review R8 M1)
     const at = (x: number) => Math.max(M, Math.min(x, c.W - len - M));
-    for (const [x, y] of [[at(T.x), T.y + T.h + 16], [at(T.x + T.w - len), T.y + T.h + 16], [at(T.x), T.y - 20], [at(T.x + T.w - len), T.y - 20]]) {
+    const left = c.spec.style === 'swiss';
+    const spots = left ? [[at(T.x), T.y + T.h + 16], [at(T.x), T.y - 20]] : [[at(T.x), T.y + T.h + 16], [at(T.x + T.w - len), T.y + T.h + 16], [at(T.x), T.y - 20], [at(T.x + T.w - len), T.y - 20]];
+    for (const [x, y] of spots) {
       const bar = { x, y, w: len, h: 4 };
-      const away = y > T.y ? { x: bar.x, y, w: len, h: 24 } : { x: bar.x, y: y - 20, w: len, h: 24 };
-      // the bar needs a row of its own: in a slit between two text blocks (the Brutalist 20 px between the title and
-      // the subtitle bar, or the title and a graphic) it and its label read as strays (review R7); there, no bar
-      if (!free(c, bar, 8) || !free(c, away, 8) || c.busy.some((it) => it.kind === 'graphic' && hits(it.quad, away, 8) && !hits(it.quad, bar))) continue;
+      const down = y > T.y, away = down ? { x: bar.x, y, w: len, h: 24 } : { x: bar.x, y: y - 20, w: len, h: 24 };
+      // the bar needs a row of its own: in a slit between the title and a graphic (the Brutalist 20 px between the
+      // title and the band) it and its label read as strays (review R7); there, no bar. A slit is a graphic whose
+      // near edge lies in the strip on the side away from the title and whose body runs on beyond it; a bar over a
+      // graphic's body (a grid floor under a horizon glow), or by a small shape wholly in the strip, is not in one
+      // (review R8 S1). A text plate or a rule in the strip is one too (free(), the plates and rules); bare text 8 px
+      // clear of the bar is not (the bar's own clearance, as before R8).
+      const over = c.busy.some((it) => it.kind === 'graphic' && hits(it.quad, bar));
+      const slit = (it: Item) => {
+        if (over || it.kind !== 'graphic' || !hits(it.quad, away, 8)) return false;
+        // the near edge within the bar's own row (the 20 px its label takes beside it), the body beyond the strip
+        const G = bb(it.quad);
+        return down ? G.y >= bar.y && G.y <= bar.y + 12 && G.y + G.h > away.y + away.h : G.y + G.h <= bar.y + bar.h && G.y + G.h >= bar.y - 8 && G.y < away.y;
+      };
+      if (!free(c, bar, 8) || !free(c, away, 8, c.texts) || c.busy.some(slit)) continue;
       const src = LABEL_SETS[Math.floor(c.r() * LABEL_SETS.length)], lab = labelOf(src, c.spec, c.sc.palette), lw = labelW(c, src) + 2;
       rest.push(item(c, 'bar', bar, { tone: 0 }));
       // the label beside the bar on the free side (spec 7.2), else under it

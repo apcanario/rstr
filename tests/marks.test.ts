@@ -102,6 +102,28 @@ describe('marks (spec 7.2)', () => {
     expect(bars, `underline bars in ${bars} of ${n}`).toBeGreaterThan(n * 0.3);
   });
 
+  // review R8 S1: the slit rule (Carried R8 from R7) skips only a real slit; the other styles keep their bars, within
+  // 10% of the count before R8 (n 60, cycle, full, light: Swiss 87, Postmodern 77, Vaporwave 108 of 180). Brutalist
+  // keeps its own floor (tests/brutal.test.ts). M1: a Swiss bar starts at the flush-left title's left end.
+  test('underline bars per style hold their count before R8; a Swiss bar never hangs from the right end', () => {
+    const base: Record<string, number> = { swiss: 87, pomo: 77, vapor: 108 };
+    for (const style of Object.keys(base) as Spec['style'][]) {
+      let bars = 0;
+      for (const s of specs({ styles: [style], n: 60, variants: 'cycle', marks: 'full', modes: ['light'] })) {
+        const sc = solve(s, stubMeasure).scene;
+        const bar = marksOf(sc).find((g) => g.params.kind === 'bar' && g.box.h === 4);
+        if (!bar) continue;
+        bars++;
+        if (style === 'swiss') {
+          const tx = Math.min(...sc.items.filter((i) => i.kind === 'text' && i.slot === 'title').map((t) => bounds(t.quad).x));
+          expect(bar.box.x, show(s, 'swiss bar')).toBeLessThanOrEqual(Math.max(tx, 40) + 1);
+        }
+      }
+      console.log(`underline bars ${style}: ${bars} of 180 (before R8 ${base[style]})`);
+      expect(bars, style).toBeGreaterThanOrEqual(Math.ceil(base[style] * 0.9));
+    }
+  }, 180000);
+
   test('micro labels say only what the spec holds (a list of allowed sources)', () => {
     let labels = 0;
     for (const level of ['light', 'full'] as const) for (const s of specs({ n: 30, variants: 'cycle', marks: level })) {

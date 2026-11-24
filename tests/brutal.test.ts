@@ -8,6 +8,7 @@ import { stubMeasure } from '../src/engine/measure';
 import { BRUTAL_CUTS, BRUTAL_GRAPHICS, brutalDraw } from '../src/engine/parts/graphics/brutal';
 import { BRUTAL_LAYOUTS, FULL_WIDTH, brutalLayout } from '../src/engine/parts/layout/brutal';
 import { brutalBreaks, brutalLines } from '../src/engine/parts/shared/brutal';
+import { isCoreFace, PAIRINGS } from '../src/data/pairings';
 import { shuffleSeeds, specs } from '../src/engine/proof';
 import { counted, rng } from '../src/engine/rng';
 import type { GraphicItem, Scene, TextItem } from '../src/engine/scene';
@@ -56,6 +57,43 @@ describe('R8: layouts, transforms, graphics (spec 8.0, 8.3)', () => {
     [0.38, 0.52, 0.1].forEach((want, i) => expect(Math.abs(counts[i] / N - want), `cut-ins ${i}: ${counts[i]}`).toBeLessThan(0.05));
     expect([...shapes].sort()).toEqual([...BRUTAL_CUTS].sort());
   });
+  /** The share of an asterisk's circle its arms fill (arms bars through the centre, each of half-thickness weight). */
+  const filled = (arms: number, wt: number) => {
+    let inC = 0, inA = 0;
+    for (let i = 0; i < 200; i++) for (let j = 0; j < 200; j++) {
+      const x = (i + 0.5) / 100 - 1, y = (j + 0.5) / 100 - 1;
+      if (x * x + y * y > 1) continue;
+      inC++;
+      for (let a = 1; a <= arms; a++) { const t = (Math.PI / arms) * a; if (Math.abs(-Math.sin(t) * x + Math.cos(t) * y) <= wt) { inA++; break; } }
+    }
+    return inA / inC;
+  };
+  test('heavy asterisks stay asterisks: the arms fill under 0.75 of the circle at every draw (review R8 S4)', () => {
+    let n = 0;
+    for (let i = 0; i < N; i++) {
+      const d = brutalDraw(brutal(i), choosePalette(brutal(i)), counted(rng(i * 7 + 1)), { x: 0, y: 0, w: 982, h: 300 });
+      for (const p of [d.first === 'asterisks' ? d.params : null, ...d.cuts.filter((k) => k.name === 'asterisks').map((k) => k.params)]) {
+        if (!p) continue;
+        n++;
+        expect(filled(p.arms, p.weight), JSON.stringify(p)).toBeLessThan(0.75);
+      }
+    }
+    expect(n).toBeGreaterThan(50);
+  });
+  test('a cut never sits on a plate of the first graphic\'s ink (review R8 S5); a numeral is never cut in as a strip (M4)', () => {
+    let cuts = 0;
+    for (let i = 0; i < N; i++) {
+      const s = brutal(i, FORMAT_LIST[i % 3]), P = choosePalette(s);
+      const d = brutalDraw(s, P, counted(rng(i * 7 + 1)), { x: 0, y: 0, w: 982, h: 300 });
+      const under = d.plate ? P[d.plate] : P.ground, ink = [P.ink, P.ground, P.accent].find((x) => x !== under);
+      for (const k of d.cuts) {
+        cuts++;
+        if (P.accent !== ink) expect(P[k.role], JSON.stringify({ i, k })).not.toBe(ink);
+        if (k.name === 'numeral') expect(k.shape).not.toBe('strip');
+      }
+    }
+    expect(cuts).toBeGreaterThan(300);
+  });
 });
 
 describe('R8: every title line fills the width (spec 8.3; Carried R8, review R1 M4)', () => {
@@ -100,6 +138,31 @@ describe('R8: every title line fills the width (spec 8.3; Carried R8, review R1 
       for (const t of titles(sc)) expect(Math.abs(inkLen(t) - plan.boxes.title!.w) / plan.boxes.title!.w).toBeLessThan(0.01);
     }
   });
+  test('one word per line up to four words: always at normal and oversize where the area holds the lines, with every core display face; in 70% of all such designs off the edge (review R8 E1)', () => {
+    const core = PAIRINGS.brutal.filter((p) => isCoreFace(p.display)).map((p) => p.id);
+    const by = new Map<string, [number, number]>();
+    let all = 0, kept = 0;
+    for (const pairing of core) for (const s of specs({ styles: ['brutal'], n: 200, variants: 'cycle', pick: { pairing } })) {
+      const words = s.text.title.v.trim().split(/\s+/).filter(Boolean).length;
+      if (words < 2 || words > 4 || s.text.title.v.includes('\n') || !s.text.title.on) continue;
+      const sc = solve(s, stubMeasure).scene;
+      if (sc.layout === 'fallback') continue;
+      const ts = titles(sc);
+      if (!ts.length) continue;
+      const plan = planOf(s, sc), one = ts.length === words;
+      // up the edge the strip's cap (0.7 of the width, 0.55 beside an info table) binds, not the band
+      if (!plan.titleUp) { all++; if (one) kept++; }
+      const k = `${plan.size} ${plan.frame}`, c = by.get(k) ?? [0, 0];
+      by.set(k, [c[0] + (one ? 1 : 0), c[1] + 1]);
+      // where words join at normal or oversize, height bound: the band is thin (1.2 x 9% of the width) or absent
+      if (plan.size !== 'small' && !one && !plan.titleUp) {
+        const g = plan.boxes.graphic;
+        expect(g ? g.h : 0, `${k} ${s.format} ${pairing} ${JSON.stringify(s.seeds)}: ${ts.map((t) => t.runs[0].s).join(' / ')}`).toBeLessThanOrEqual(Math.round(sc.w * 0.09 * 1.2) + 1);
+      }
+    }
+    console.log(`R8 one word per line: ${kept} of ${all}; ${[...by].sort().map(([k, [a, b]]) => `${k} ${a}/${b}`).join(', ')}`);
+    expect(kept / all).toBeGreaterThanOrEqual(0.7);
+  }, 180000);
   test('eight words stay heavy: three lines or fewer, each at least 60 px in type size, no fallback', () => {
     let n = 0;
     for (const f of FORMAT_LIST) for (const layout of BRUTAL_LAYOUTS) for (let i = 0; i < 12; i++) {
@@ -117,11 +180,13 @@ describe('R8: every title line fills the width (spec 8.3; Carried R8, review R1 
 });
 
 describe('R8: the band and the marks (Carried R8 from R13 and from R7)', () => {
+  // review R8 E1: the band no longer takes height the rule's one-word lines need, so with every slot on it gives way
+  // where the area only just holds them (a tilted page, mostly): 78% in 1:1, 74% in 3:4, 89% in 9:16 at the R8 fix
   test('with the default text the band graphic is drawn in most shuffles, in every format', () => {
     for (const f of FORMAT_LIST) {
       let with_ = 0;
       for (let i = 0; i < 300; i++) if (solve(brutal(i, f), stubMeasure).scene.graphics.length) with_++;
-      expect(with_ / 300, f).toBeGreaterThan(0.8);
+      expect(with_ / 300, f).toBeGreaterThan(0.7);
     }
   });
   test('the underline bar never sits in a slit: 24 px clear of any other text on the side away from the title', () => {

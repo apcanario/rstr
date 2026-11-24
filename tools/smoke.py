@@ -7,7 +7,7 @@ import appcheck, fontcheck
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 200
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
-# styles whose row enforces the variety tests of spec 8.0 (R5: Swiss, R6: Postmodern); the rest report until R8, R9
+# styles whose row enforces the variety tests of spec 8.0 (R5: Swiss, R6: Postmodern, R8: Brutalist); the rest report until R9
 ENFORCED = ['swiss', 'pomo', 'brutal']
 FORMATS = ['1:1', '3:4', '9:16']
 SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920)}

@@ -3,9 +3,10 @@
  * blunt graphics, subtitle bar, info table) in different orders, plus the title up the edge, the boxed page and the
  * slab; a tilt of the whole composition or a quarter turn on top (each about one roll in six); the title size class.
  *
- * The band is what the title leaves: the size class sets the share of the title area the title takes (small 55%,
- * normal 75%, oversize all of it), held between the least height the title can take with every line at full width
- * and the most it takes at the greatest stretch. Those heights are measured with the bundled display faces of the
+ * The band is what the title leaves: the size class sets the share of the title area the title takes (small 50%,
+ * normal 70%, oversize all of it), held between the height the rule's own lines need at the least stretch (one word
+ * per line, by the tallest bundled face) and the most the title takes at the greatest stretch. The band never takes
+ * height those lines need: words join onto fewer lines only where the area itself is too low for them (spec 8.3). Those heights are measured with the bundled display faces of the
  * style's pairings, never the pairing in use, so the type seed cannot move the band (9.3), and only core faces count:
  * they are always loaded (review R1, the band risk). Every face then stretches to fill its own area.
  *
@@ -15,7 +16,7 @@
 import { isCoreFace, PAIRINGS } from '../../../data/pairings';
 import type { Rect } from '../../geom';
 import { bleed, frameFor } from '../frame';
-import { breaksFrom, brutalHeightAt, brutalLines, brutalMetrics, brutalMinHeight, blockInk, KY_MAX } from '../shared/brutal';
+import { breaksFrom, brutalHeightAt, brutalLines, brutalMetrics, brutalMinHeight, blockInk, KY_MAX, KY_MIN } from '../shared/brutal';
 import { basePlan, SIZE_CLASSES, TRANSFORMS, type LayoutPart, type SizeClass, type Transform } from '../types';
 
 export const BRUTAL_LAYOUTS = ['title-top', 'title-bottom', 'table-first', 'split', 'boxed', 'title-up', 'screen', 'slab'];
@@ -25,9 +26,27 @@ export const FULL_WIDTH = ['title-top', 'title-bottom', 'table-first', 'split', 
 const REF_FACES = [...new Map(PAIRINGS.brutal.filter((p) => isCoreFace(p.display)).map((p) => [p.display.family + p.display.weight, p.display])).values()];
 const SHARE: Record<SizeClass, number> = { small: 0.5, normal: 0.7, oversize: 1 };
 
+type Force = { name: string; transform: Transform } | null;
+
 export const brutalLayout: LayoutPart = {
   id: 'brutal', layouts: BRUTAL_LAYOUTS, margin: 49,
   plan(c) {
+    // a picked motif needs a band; where the rolled layout and transform leave none (the band never takes the
+    // title's own lines, review R8 E1), the plan is made again as the title at the top, untilted, from the same
+    // draws (replayed, so the layout stream reads as it did), unless Advanced or a picked layout set them
+    const draws: number[] = [], cands: unknown[] = [];
+    const rec = { ...c, rf: () => { const v = c.rf(); draws.push(v); return v; }, cand: <V>(l: readonly V[], s?: V) => { const v = c.cand(l, s); cands.push(v); return v; } } as typeof c;
+    const p = planWith(rec, null);
+    const sp = c.spec, tOn = sp.text.title.on && !!sp.text.title.v.trim();
+    if (!p || !sp.pick.motif || p.boxes.graphic || !tOn || sp.pick.layout || TRANSFORMS.includes(sp.params['layout.transform'] as Transform)) return p;
+    if (p.frame === 'title-top' && p.transform === 'none') return p;
+    let i = 0, j = 0;
+    const again = { ...c, rf: () => draws[i++], cand: () => cands[j++] } as unknown as typeof c;
+    return planWith(again, { name: 'title-top', transform: 'none' }) ?? p;
+  },
+};
+
+function planWith(c: Parameters<LayoutPart['plan']>[0], force: Force): ReturnType<LayoutPart['plan']> {
     const { W, H, spec, m, story } = c, prm = spec.params, tx = spec.text;
     // the layout stream, in a fixed order: layout, transform, tilt angle, size class, then the emphasised line
     const li = BRUTAL_LAYOUTS.indexOf(spec.pick.layout ?? '');
@@ -35,6 +54,7 @@ export const brutalLayout: LayoutPart = {
     let name = li >= 0 ? BRUTAL_LAYOUTS[li] : BRUTAL_LAYOUTS[Math.floor(ul * BRUTAL_LAYOUTS.length)];
     if (li < 0 && spec.pick.motif && name === 'screen') name = 'title-top';
     let transform: Transform = (['none', 'none', 'none', 'none', 'tilt', 'quarter'] as Transform[])[Math.floor(ut * 6)];
+    if (force) { name = force.name; transform = force.transform; }
     // a title already up the edge is not turned again (it would read sideways)
     if (name === 'title-up' && transform === 'quarter') transform = 'none';
     if (TRANSFORMS.includes(prm['layout.transform'] as Transform)) transform = prm['layout.transform'] as Transform;
@@ -49,7 +69,7 @@ export const brutalLayout: LayoutPart = {
     const deg = (ua < 0.5 ? -1 : 1) * (9 + 5 * ((ua * 2) % 1));
     const fr = frameFor(transform, deg, W, H, story), pg = fr.page;
 
-    const BAND = W * 0.09;
+    const BAND = W * 0.09, THIN = W * 0.065;
     const M = Math.round(W * 0.045), gap = Math.round(W * 0.02), { R, ms } = brutalMetrics(W);
     const up0 = transform === 'none' ? c.top : M, dn0 = transform === 'none' ? c.bot : pg.h - M;
     const plan = basePlan(name, pg, M);
@@ -86,8 +106,12 @@ export const brutalLayout: LayoutPart = {
       if (capOn) { B.caption = { x: x0, y: top, w: w0, h: capH }; top += capH + gap; }
       const iw = w0, innerH = bot - top;
       const k = size === 'small' ? 0.75 : size === 'normal' ? 1.05 : 1.45;
-      const thick = Math.min(...REF_FACES.map((f) => { const b = blockInk(m, brutalLines(tx.title.v), f, innerH, gap); return b.ink * k + b.gaps; }));
-      const sw = Math.round(Math.max(iw * 0.3, Math.min(iw * 0.55, thick)));
+      const ink = REF_FACES.map((f) => blockInk(m, brutalLines(tx.title.v), f, innerH, gap));
+      const thick = Math.min(...ink.map((b) => b.ink * k + b.gaps));
+      // the rule's own lines at the least stretch, by the thickest bundled face: the strip grows to 0.7 of the width
+      // to keep them before any words join (review R8 E1), or 0.55 where the info table needs the column beside it
+      const need = Math.max(...ink.map((b) => b.ink * KY_MIN + b.gaps));
+      const sw = Math.round(Math.max(iw * 0.3, Math.min(iw * 0.55, thick), Math.min(iw * (pairs ? 0.55 : 0.7), need)));
       plan.titleUp = true;
       const cx = x0 + sw + gap * 2, cw = iw - sw - gap * 2;
       let yb = bot;
@@ -110,17 +134,17 @@ export const brutalLayout: LayoutPart = {
     const typed = tx.title.v.includes('\n');
     const minH = (ls: string[]) => Math.max(...REF_FACES.map((f) => brutalMinHeight(m, breaksFrom(ls, typed), f, iw, gap)));
     const maxH = (ls: string[]) => Math.min(...REF_FACES.map((f) => brutalHeightAt(m, ls, f, iw, gap, KY_MAX)));
-    // the rule's own lines at the least stretch (by the lowest bundled face): at normal and oversize a band never
-    // takes the room the title needs to keep them
-    const ruleH = (ls: string[]) => Math.min(...REF_FACES.map((f) => brutalHeightAt(m, ls, f, iw, gap, 0)));
+    // the rule's own lines at the least stretch, by the tallest bundled face: in every size class a band never takes
+    // the room the title needs to keep them (spec 8.3; review R8 E1, S2)
+    const ruleH = (ls: string[]) => Math.max(...REF_FACES.map((f) => brutalHeightAt(m, ls, f, iw, gap, 0)));
+    /** The least height the title may be given: the rule's lines where the area holds them, else (height binds) the joined minimum. */
+    const need = (A: number, ls: string[]) => (A >= ruleH(ls) ? ruleH(ls) : minH(ls));
     const band = (A: number, t: string[], share: number) => {
-      const room = (lo: number) => { const left = A - Math.max(lo, Math.min(maxH(t), A * share)) - gap; return left >= BAND ? left : 0; };
-      // a small title may join words onto fewer lines to leave the band its room (spec 8.0: the size classes); a
-      // normal one keeps its lines where that leaves a band, else gives up only a thin one
-      if (size === 'small') return room(minH(t));
-      const g = room(ruleH(t));
-      if (g || size === 'oversize') return g;
-      return room(minH(t)) ? Math.round(BAND * 1.2) : 0;
+      // where the rule's lines leave less than a band, a band down to THIN (never at oversize) rather than none
+      if (A >= ruleH(t)) { const left = A - Math.max(ruleH(t), Math.min(maxH(t), A * share)) - gap; return left >= BAND || (size !== 'oversize' && left >= THIN) ? left : 0; }
+      // the area is too low for the rule's lines (they join whatever the band does): only a thin band, not at
+      // oversize, where the joined title leaves it room
+      return size !== 'oversize' && A - Math.max(minH(t), Math.min(maxH(t), A * share)) - gap >= BAND * 1.2 ? Math.round(BAND * 1.2) : 0;
     };
     // the split needs room for both halves at full width; where the table leaves too little, the title takes the top
     if (split) {
@@ -147,10 +171,14 @@ export const brutalLayout: LayoutPart = {
       const n1 = Math.ceil(lines.length / 2), t1 = lines.slice(0, n1), t2 = lines.slice(n1);
       const tab = (pairs ? pairs * rh : 0) + (subOn ? bh : 0) + (pairs && subOn ? R * 1.4 : 0);
       const X = bot - top - tab - 2 * gap;
-      const lo = minH(t1) + minH(t2), hi = maxH(t1) + maxH(t2);
+      // each half keeps the rule's lines where both fit; only where they cannot do the halves join (review R8 E1)
+      const rule = X >= ruleH(t1) + ruleH(t2);
+      const lo1 = rule ? ruleH(t1) : minH(t1), lo = lo1 + (rule ? ruleH(t2) : minH(t2)), hi = maxH(t1) + maxH(t2);
       const want = Math.max(lo, Math.min(hi, X * SHARE[size]));
-      const g = X - want - gap >= BAND ? X - want - gap : 0, T = X - (g ? g + gap : 0);
-      const h1 = T * (minH(t1) / lo);
+      // where the halves join (height binds) the band is only thin, as in band() below
+      const g = rule ? (X - want - gap >= BAND || (size !== 'oversize' && X - want - gap >= THIN) ? X - want - gap : 0) : size !== 'oversize' && X - want - gap >= BAND * 1.2 ? Math.round(BAND * 1.2) : 0;
+      const T = X - (g ? g + gap : 0);
+      const h1 = T * (lo1 / lo);
       B.title = { x: x0, y: top, w: iw, h: h1 };
       let y = top + h1 + gap;
       if (g) { B.graphic = { x: x0, y, w: iw, h: g }; y += g + gap; }
@@ -165,21 +193,22 @@ export const brutalLayout: LayoutPart = {
     const t = lines;
     let g = 0;
     if (name === 'slab') {
-      g = Math.min(A * 0.45, A - minH(t) - gap);
+      // the big band takes only what the rule's lines leave; where the area binds them anyway, a thin one
+      g = A >= ruleH(t) ? Math.min(A * 0.45, A - ruleH(t) - gap) : A - Math.max(minH(t), Math.min(maxH(t), A * SHARE.small)) - gap >= BAND * 1.2 ? Math.round(BAND * 1.2) : 0;
       if (g < BAND) g = 0;
     } else if (name === 'screen') {
       // the rest is tiny: a thin band of graphic over the footer, where the title leaves it room
-      g = A - minH(t) - gap >= BAND * 1.2 ? Math.round(BAND * 1.2) : 0;
+      g = A - need(A, t) - gap >= BAND * 1.2 ? Math.round(BAND * 1.2) : 0;
     } else g = band(A, t, SHARE[size]);
     const graphicFirst = name === 'title-bottom' || name === 'slab';
     if (g) {
       let gb: Rect = graphicFirst ? { x: x0, y: areaTop, w: iw, h: g } : { x: x0, y: areaBot - g, w: iw, h: g };
-      // the slab bleeds off both sides of the page (spec 8.0 depth)
-      if (name === 'slab') { gb = { x: sideMk, y: gb.y, w: pg.w - 2 * sideMk, h: gb.h }; if (transform !== 'none' && !sideMk) gb = bleed(gb, pg, fr.canvas); }
+      // the slab bleeds off both sides of the page (spec 8.0 depth); on a tilt every band does, so the corners the
+      // tilt leaves are covered by the band and the accent bar, and the title box stays as it is (review R8 M3)
+      if (name === 'slab' || transform === 'tilt') { gb = { x: sideMk, y: gb.y, w: pg.w - 2 * sideMk, h: gb.h }; if (transform !== 'none' && !sideMk) gb = bleed(gb, pg, fr.canvas); }
       B.graphic = gb;
     }
     B.title = graphicFirst ? { x: x0, y: areaTop + (g ? g + gap : 0), w: iw, h: A - (g ? g + gap : 0) } : { x: x0, y: areaTop, w: iw, h: A - (g ? g + gap : 0) };
     plan.titleSide = name === 'table-first' || name === 'title-bottom' ? 'bottom' : 'top';
     return plan;
-  },
-};
+}

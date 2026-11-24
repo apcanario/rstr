@@ -14,7 +14,7 @@ import type { StyleId } from '../src/engine/spec';
 const SNAPSHOT: Partial<Record<StyleId, string>> = {
   swiss: '3d2d70e8',
   pomo: 'a7d0858f',
-  brutal: '1ecbd80d',
+  brutal: '41ea25ad',
   vapor: '839d6639',
 };
 

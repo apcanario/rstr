@@ -40,6 +40,13 @@ function heavyParams(name: string, specParams: Record<string, unknown>, rg: () =
     const R = G.params[k], t = (out[k] - R.min) / (R.max - R.min || 1);
     out[k] = clampTo(R, end === 'hi' ? R.min + (R.max - R.min) * (0.55 + 0.45 * t) : R.min + (R.max - R.min) * 0.45 * t);
   }
+  // heavy asterisks stay asterisks: the arm's half-thickness at 0.14 to 0.24 of the radius and fewer arms the
+  // thicker they are (arms x weight at most 0.7), so the arms never fill the star into a polygon (review R8 S4)
+  if (name === 'asterisks') {
+    const R = G.params.weight, t = (out.weight - R.min) / (R.max - R.min || 1);
+    out.weight = 0.14 + 0.1 * Math.max(0, Math.min(1, (t - 0.55) / 0.45));
+    out.arms = Math.max(G.params.arms.min, Math.min(out.arms, Math.floor(0.7 / out.weight)));
+  }
   // Advanced values win (chooseParams without a stream returns only those)
   return { ...out, ...chooseParams(G, specParams) };
 }
@@ -64,16 +71,20 @@ export function brutalDraw(spec: { pick: { motif: string | null }; params: Recor
   const u = rg(), set = spec.params['graphics.cut'];
   const drawn = typeof set === 'number' ? Math.max(0, Math.min(2, Math.round(set))) : u < 0.1 ? 2 : u < 0.62 ? 1 : 0;
   const under = plate ? P[plate] : P.ground;
-  const roles = (['accent', 'ink', 'ground'] as Role[]).filter((r) => P[r] !== under);
+  // a cut's plate shows as a cut: never the first graphic's plate, nor the ink it is drawn in (every cut overlaps it;
+  // review R8 S5: an ink disc cut into ink arrows read as one mass); else the accent
+  const firstInk = coloursOn(P, under).ink;
+  const roles = (['accent', 'ink', 'ground'] as Role[]).filter((r) => P[r] !== under && P[r] !== firstInk);
   const cuts: BrutalCut[] = [];
   const used = new Set([first]), shapes = new Set<string>();
   const { x, y, w, h } = band;
   for (let k = 0; k < drawn; k++) {
     const name = pick(rg, BRUTAL_GRAPHICS.filter((n) => !used.has(n)));
     used.add(name);
-    const shape = pick(rg, BRUTAL_CUTS.filter((s) => !shapes.has(s) && !(s === 'disc' && name === 'disc')));
+    // a numeral is not cut in as a strip: a figure the strip's height reads as stray digits (review R8 M4)
+    const shape = pick(rg, BRUTAL_CUTS.filter((s) => !shapes.has(s) && !(s === 'disc' && name === 'disc') && !(s === 'strip' && name === 'numeral')));
     shapes.add(shape);
-    const role = pick(rg, roles.length ? roles : (['accent', 'ink', 'ground'] as Role[]));
+    const role = pick(rg, roles.length ? roles : (['accent'] as Role[]));
     const a = rg(), b = rg();
     let box: Rect;
     if (shape === 'disc') {
