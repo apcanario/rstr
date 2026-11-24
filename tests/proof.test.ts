@@ -10,12 +10,10 @@ const show = (fs: { spec: unknown }[]) => fs.slice(0, 3).map((f) => JSON.stringi
 /** The specs that fell back, for the message when a fallback was not expected. */
 const showFb = (r: { fallbackSpecs: unknown[] }) => r.fallbackSpecs.slice(0, 3).map((s) => JSON.stringify(s)).join('\n');
 /**
- * Fallbacks allowed when a layout or motif is picked (review R2 S1): a picked Vaporwave sky title cannot
- * always fit. Counts as of R2; a rise means a change cut candidates. Unpicked and per-palette runs allow none.
+ * Fallbacks allowed when a layout or motif is picked (review R2 S1). Until R9 a picked Vaporwave sky title could not
+ * always fit (12 allowed on the stub); R9 keeps the sky title above the sun in a box every palette carries, so none.
  */
-// vapor 10 -> 12 in R3: the type seed now reaches wider display faces. The 12 is stub-only: it rests on the stub's
-// name-hash widths (src/engine/measure.ts), not real metrics. Re-derive it from the online smoke run when possible.
-const PICKED_FALLBACKS: Record<StyleId, number> = { swiss: 0, pomo: 0, brutal: 0, vapor: 12 };
+const PICKED_FALLBACKS: Record<StyleId, number> = { swiss: 0, pomo: 0, brutal: 0, vapor: 0 };
 
 describe('9.2 on the stub measure, every style x format x mode, every text variant on every seed set', () => {
   for (const style of STYLE_IDS) {
@@ -41,11 +39,13 @@ describe('9.2 with every value of pick.layout and pick.motif', () => {
     const got = [...specs({ styles: ['swiss'], formats: ['1:1'], modes: ['light'], n: 1, picks: 'each', variants: 'cycle' })].map((s) => s.pick);
     expect(got.map((p) => p.layout ?? p.motif)).toEqual(picksOf('swiss').map((p) => p.layout ?? p.motif));
   });
-  test('a picked Vaporwave sky title at 1:1 falls back to a frame that passes', () => {
-    const r = runInvariants(stubMeasure, { styles: ['vapor'], formats: ['1:1'], n: 40, picks: 'each', variants: 'cycle' });
-    expect(r.failures, show(r.failures)).toEqual([]);
-    expect(r.fallbacks).toBeGreaterThan(0);
-    expect(r.fallbacks, showFb(r)).toBeLessThanOrEqual(44); // 44 of 160 as of R2
+  test('a picked Vaporwave sky title passes at every format with no fallback (row R9, Carried R9: 44 of 160 fell back at 1:1 as of R2)', () => {
+    for (const f of ['1:1', '3:4', '9:16'] as const) {
+      const r = runInvariants(stubMeasure, { styles: ['vapor'], formats: [f], n: 40, pick: { layout: 'title-sky' }, variants: 'cycle' });
+      expect(r.failures, show(r.failures)).toEqual([]);
+      expect(r.fallbacks, showFb(r)).toBe(0);
+      expect(r.count).toBe(40 * 2);
+    }
   });
 });
 

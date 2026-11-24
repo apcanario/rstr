@@ -28,9 +28,15 @@ import { stars } from './stars';
 import { sun } from './sun';
 import { topo } from './topo';
 import { waves } from './waves';
+import { sphere } from './sphere';
+import { checker } from './checker';
+import { windows } from './windows';
+import { gradbars } from './gradbars';
+import { mountains } from './mountains';
+import { tunnel } from './tunnel';
 import type { Graphic } from './types';
 
 export const GRAPHICS: Record<string, Graphic> = Object.fromEntries(
-  [topo, blocks, bars, dots, disc, lines, rules, numeral, crosshairs, lattice, rings, waves, barcode, slab, asterisks, arrow, pattern, shape, stars, sun, grid, horizon, scribble, tape, xmarks, torn, register, redact, copier].map((g) => [g.name, g]),
+  [topo, blocks, bars, dots, disc, lines, rules, numeral, crosshairs, lattice, rings, waves, barcode, slab, asterisks, arrow, pattern, shape, stars, sun, grid, horizon, scribble, tape, xmarks, torn, register, redact, copier, sphere, checker, windows, gradbars, mountains, tunnel].map((g) => [g.name, g]),
 );
 export type { Graphic, Range } from './types';

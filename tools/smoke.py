@@ -7,15 +7,16 @@ import appcheck, fontcheck
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 200
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
-# styles whose row enforces the variety tests of spec 8.0 (R5: Swiss, R6: Postmodern, R8: Brutalist); the rest report until R9
-ENFORCED = ['swiss', 'pomo', 'brutal']
+# styles whose row enforces the variety tests of spec 8.0 (R5: Swiss, R6: Postmodern, R8: Brutalist, R9: Vaporwave)
+ENFORCED = ['swiss', 'pomo', 'brutal', 'vapor']
 FORMATS = ['1:1', '3:4', '9:16']
 SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920)}
 fails = []
-# Fallbacks allowed when a layout or motif is picked, at N = 200 (review R2 S1): a picked Vaporwave sky title
-# cannot always fit. The runs draw seeds 0..N-1, so for N <= 200 these counts are a ceiling; above, scaled.
+# Fallbacks allowed when a layout or motif is picked, at N = 200 (review R2 S1). Until R9 a picked Vaporwave sky
+# title could not always fit (196 at 1:1, 6 at 3:4 and 9:16); R9 keeps it above the sun, so none now. The runs
+# draw seeds 0..N-1, so for N <= 200 these counts are a ceiling; above, scaled.
 # Unpicked and per-palette runs allow none: a fallback there means a palette or form cut every candidate.
-PICKED_FALLBACKS = {('vapor', '1:1'): 196, ('vapor', '3:4'): 6, ('vapor', '9:16'): 6}
+PICKED_FALLBACKS = {}
 
 
 def fail(msg, spec=None):
@@ -97,7 +98,7 @@ with served() as url, browser() as b:
     # knock-outs: stars and grid in a marker colour never show inside any text item's mask, with and without the layer
     nk = 0
     for fmt in FORMATS:
-        for lay in ['title-sky', 'title-floor', None]:
+        for lay in ['title-sky', 'title-floor', 'tunnel', 'windows', None]:
             for i in range(4):
                 spec = pg.evaluate('([f, l, i]) => { const x = window.__rstr.spec(); x.style = "vapor"; x.format = f; x.pick.layout = l; x.seeds = {layout: 500 + i, colour: 600 + i, graphic: 700 + i, type: 800 + i}; return x; }', [fmt, lay, i])
                 r = pg.evaluate('(s) => window.__rstr.knock(s)', spec)
@@ -295,7 +296,7 @@ with served() as url, browser() as b:
                 print(f'variety {style:6} {fmt:4}  {d}: 60 shuffles: {v["repeats60"]} repeats; 300: missing {miss or "nothing"}; top layout {v["top"]["layout"]} {v["top"]["share"] * 100:.0f}%')
                 if style in ENFORCED and not v['pass']['sixty']:
                     fail(f'variety {style} {fmt} {d}: {v["repeats60"]} repeats in 60')
-    print(f'variety: enforced for {", ".join(ENFORCED)}; reported only for the rest until their own rows')
+    print(f'variety: enforced for {", ".join(ENFORCED)}')
     print(f'engine checks took {time.time() - t0:.0f} s')
     # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face
     t0 = time.time()

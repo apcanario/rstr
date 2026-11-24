@@ -128,12 +128,12 @@ describe('the variety tests of spec 8.0', () => {
       expect(v.pass, `brutal ${f}: ${JSON.stringify(v)}`).toEqual({ sixty: true, coverage: true, share: true });
     }
   }, 120000);
-  test('run for every other style on the stub measure and report (enforced from each style\'s own row)', () => {
-    for (const style of STYLE_IDS.filter((s) => s !== 'swiss' && s !== 'pomo' && s !== 'brutal')) {
-      const v = runVariety(stubMeasure, style, '3:4', 300);
+  test('Vaporwave passes all three in every format on the stub measure (row R9, Carried R9 from R13)', () => {
+    for (const f of ['1:1', '3:4', '9:16'] as const) {
+      const v = runVariety(stubMeasure, 'vapor', f, 300);
+      console.log(`variety vapor ${f} (stub): repeats in 60 ${v.repeats60}; missing ${JSON.stringify(v.missing)}; top layout ${v.top.layout} ${(v.top.share * 100).toFixed(0)}%`);
       expect(v.count).toBe(300);
-      // reported only until each style's own row enforces it (review R13 M4: R5 asserts v.pass for Swiss here)
-      console.log(`variety ${style} 3:4 (stub): repeats in 60 ${v.repeats60}; missing ${JSON.stringify(v.missing)}; top layout ${v.top.layout} ${(v.top.share * 100).toFixed(0)}%`);
+      expect(v.pass, `vapor ${f}: ${JSON.stringify(v)}`).toEqual({ sixty: true, coverage: true, share: true });
     }
   }, 240000);
 });

@@ -106,7 +106,9 @@ describe('marks (spec 7.2)', () => {
   // 10% of the count before R8 (n 60, cycle, full, light: Swiss 87, Postmodern 77, Vaporwave 108 of 180). Brutalist
   // keeps its own floor (tests/brutal.test.ts). M1: a Swiss bar starts at the flush-left title's left end.
   test('underline bars per style hold their count before R8; a Swiss bar never hangs from the right end', () => {
-    const base: Record<string, number> = { swiss: 87, pomo: 77, vapor: 108 };
+    // Vaporwave since R9: 69 (the pre-R8 rule gives 66 on the same Scenes; the old Vaporwave had 108 under both
+    // rules). The drop is R9's layouts: a title on a window or a band has no free row for a bar (free() reads plates).
+    const base: Record<string, number> = { swiss: 87, pomo: 77, vapor: 69 };
     for (const style of Object.keys(base) as Spec['style'][]) {
       let bars = 0;
       for (const s of specs({ styles: [style], n: 60, variants: 'cycle', marks: 'full', modes: ['light'] })) {
@@ -119,7 +121,7 @@ describe('marks (spec 7.2)', () => {
           expect(bar.box.x, show(s, 'swiss bar')).toBeLessThanOrEqual(Math.max(tx, 40) + 1);
         }
       }
-      console.log(`underline bars ${style}: ${bars} of 180 (before R8 ${base[style]})`);
+      console.log(`underline bars ${style}: ${bars} of 180 (base ${base[style]}: before R8, Vaporwave since R9)`);
       expect(bars, style).toBeGreaterThanOrEqual(Math.ceil(base[style] * 0.9));
     }
   }, 180000);
