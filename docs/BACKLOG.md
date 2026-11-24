@@ -11,6 +11,7 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 | 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print |
 | 6 | R17, R12 | Text layers with hierarchy; retouch from notes |
 | 7 | R18 | Mix: crosses of two styles (experimental, Advanced) |
+| 8 | R19 | Finishes retouched: Grunge as a real photocopy, stronger Grain, stronger VHS (Pedro, 24 Nov 2026, from bundle 3) |
 | later | M | Motion, then the APK. Needs a Fable chat first (spec 11) |
 
 Bundle numbers changed on 23 Nov 2026 when the old bundle 2 was split in two so Pedro can look at Swiss before Postmodern is built: old 2 is now 2 and 3, old 3 to 6 are now 4 to 7. Row ids did not change.
@@ -120,6 +121,19 @@ Read spec 8.7 and 8.8.
 - A tuning pass per pair (six pairs), with sheets; pairs that only make mud are switched off, each with a reason in the changelog.
 
 **Done when:** every allowed pair passes 9.2 over 200 seeds in every format (tested); a failed part falls back and the design still draws (tested); Mix is unreachable in Simple (tested); a sheet per pair exists. Which crosses are worth keeping is Pedro's call.
+
+## Bundle 8: finishes retouched
+
+Read spec 7.1 and `docs/design/elements.md`; look at `docs/design/refs/v2-grunge-*.jpg` and `shots/finish-*.jpg`. Pedro's verdict on the bundle 3 finishes, 24 Nov 2026, after looking at the sheets: "The grunge only puts a black ragged border on the page, it's nothing like a photocopy. The grain could be stronger, the glitch is good, the vhs also could use more oomph." Glitch stays as it is.
+
+### R19. Finishes retouched
+
+- **Grunge** becomes a photocopy of the whole page, not a border: toner speckle and dropout across the page, streaks and banding along the copier's scan direction, crushed contrast, uneven toner density, dust and hair, with the edge as one part of it. Port ideas from the spike's `grunge` and `photocopy` functions in `docs/archive/spike/engine.js`; the photocopy dialect's own copier pass (spec 8.2) stays separate and Grunge must not double it.
+- **Grain** stronger: visibly present at 1x on a phone at Simple's default, with the strength dial (`finish.<name>.strength`, Carried R10 from R7) still scaling it.
+- **VHS** stronger: more tracking noise, chroma bleed, head-switching band and scanline weight, more visible at the default strength.
+- Glitch unchanged except where the shared two-pass code requires.
+
+**Done when:** at the default strength each of Grain, Grunge and VHS differs from Clean by more than a stated pixel-difference threshold over the page, measured over 100 seeds per style (tested); Grunge marks the interior of the page, not only the edge: the share of changed pixels in the central 60% is at least a stated fraction of the border's (tested); the two-pass rule, the 3:1 text guard and "VHS and Glitch leave text ink as Clean" still hold for all five finishes over the same seeds as R7's tests (tested); export time for 9:16 with each retouched finish recorded and not more than twice the R7 figures (Grunge photocopy 688 ms) without a changelog line saying why; sheets show every style under every finish and are compared with `refs/v2-grunge-*.jpg`. Whether the finishes now read as a photocopy, as grain, as VHS is Pedro's call.
 
 ## Done
 
