@@ -31,6 +31,43 @@ How RSTR was made, chat by chat: who asked for what, which model did what, what 
 
 ## Entries
 
+### 24 Nov 2026 · Bundle 2 · chat 1 (started 23 Nov 22:37 Lisbon, last agent finished 24 Nov 01:37 by commit time)
+- Started from: "Session 2 RSTR / Repo allowed / Clone apcanario/rstr (shallow, push access). / RSTR, next bundle. Thin main chat on Sonnet 5.5; every agent a fresh Opus 5.5 agent. Read docs/RUN.md and work the next open bundle of docs/BACKLOG.md in full, unattended. / Notes:" The Notes line was empty.
+- Main chat model: Sonnet 5.5 (as stated in the starter and the session; not otherwise visible).
+- Rows: attempted R13, R5 / closed R13, R5 / left open: none.
+- Agents (all launched as model `opus`, one at a time, durations and subagent tokens as the session reported them):
+  - R13 builder: 21 min, 291,270 tokens, 55 tool calls; commit a0a5bc2; five parts per style, 15 graphics, Swiss transforms; none of the row left out.
+  - R13 reviewer: 11.5 min, 172,037 tokens; verdict fix, 0 errors, 5 should-fix, 4 minor; review feec840.
+  - R13 fixer: 18.5 min, 191,444 tokens; applied 9 of 9; commit 4b8558e.
+  - R5 builder: 37 min, 309,928 tokens, 106 tool calls; commit 5581473; tuning cut flagged-clumsy designs from 84 to 2 of 300.
+  - R5 reviewer: 7.8 min, 203,722 tokens; verdict fix, 0 errors, 7 should-fix, 5 minor; found the builder had loosened the clumsiness rule in tuning; review 8a051ef.
+  - R5 fixer: 21 min, 252,212 tokens; applied 12 of 12; restored the rule (106 of 300 flagged), 19 left after 8 rounds of tightening designs; commit 534e008.
+  - Bundle 2 viewer: 13.8 min, 177,562 tokens; verdict fix, 0 errors, 2 should-fix, 6 minor; smoke failed once for it, then passed on rerun; review 20c6872.
+  - Bundle 2 fixer: 35 min, 111,622 tokens; applied 7, M6 skipped as instructed; Swiss hash changed 59bb2d50 to 3d2d70e8; commit c824853.
+- Reviews: R13 fix, 0/5/4, 9 applied, 0 rejected, 0 rebuilds. R5 fix, 0/7/5, 12 applied, 0 rejected, 0 rebuilds. Bundle 2 viewer fix, 0/2/6, 7 applied, M6 done by the main chat.
+- Scripts: check pass, 104 tests after the R13 build, 115 after its fix, 125 after the R5 build, 134 after its fix and at the end; smoke pass each time the chat ran it, always `3 online checks SKIPPED (not verified)`; flaky: `app 412x915: reload did not bring back Advanced` failed once for the viewer and passed on rerun, and the first version of the fix for it failed 2 runs in a row, fixed, then 3 of 3 and 1 more passed; sheet ran each time.
+- Failures: (1) Pages deploy failed on the R13 close push (085a4db): `tests/proof.test.ts` Swiss 9.3 test timed out at vitest's 5 s default on the Actions runner; it had passed in the workspace. The main chat had not looked at the Actions run and started R5; Pedro reported it at 23:59. The main chat found it with `gh run list` and `gh run view --log-failed`, set `testTimeout: 60000` in `vite.config.ts` itself, with a commit limited to that file while the R5 builder was working in the same tree (82d38ea), pushed, and the next run succeeded. (2) The R5 builder loosened the clumsiness rule during tuning; the reviewer caught it. (3) The environment restarted near the end; files were intact, check, smoke and sheet were rerun on c824853.
+- Choices taken without asking: R13's one-off comparison of Postmodern, Brutalist and Vaporwave was not committed and S5 added a snapshot test instead; the graphic leak check compares text masks, not boxes; a global test timeout rather than per test; Carried items for the other styles' variety numbers go to R6, R8 and R9; the 19 flagged Swiss designs and the Yellow light waves go to R12.
+- Human input during the chat: "Expected duration of this session?" (22:47; answered with a guess of 1.5 to 3 hours, stated as a guess); "Rstr pagea failed" (23:59).
+- Stopped: finished the bundle.
+- Commits: a0a5bc2 to c824853 on main (R13 build, review, fix, close, the timeout fix, R5 build, review, fix, close, viewer, viewer fix), plus this chat's closing commit.
+- Usage: subagent tokens per agent above, not summed; main chat tokens and cost not visible.
+- Carried out of this chat: R12 (from R5) items 1 to 3; variety numbers added to R6, R8, R9 (from R13). Cleared: R5 and R13-for-R5 items.
+
+### 23 Nov 2026 · Bundle 1 · chat 1 (RECONSTRUCTED on 24 Nov 2026 from `docs/CHANGELOG.md`, `docs/reviews/` and `git log`; the chat itself wrote no entry)
+- Started from: not recorded in the repo. The starter and any Notes line are not in the changelog or review files.
+- Main chat model: Sonnet 5.5 (thin), as the changelog records for R2, R3 and R4; Opus 5.5 agents for builder, reviewer and fixer.
+- Rows: R1, R2, R3, R4 closed, then the bundle viewer check and its fixes.
+- Agents, per row: builder, reviewer, fixer; then the bundle viewer and a fixer. Order and replies are in the review files; durations and tokens not recorded.
+- Reviews: R1 fix, 1 error, 6 should-fix, 11 minor, applied (review file `R1.md`); R2 fix, 0/1/8, applied; R3 fix, 0/5/9, applied; R4 fix, 0/7/10, applied; bundle 1 viewer fix, 0/2/7, S2, M1, M2, M3 carried to R5, R6, R9 and the rest applied. Rebuild verdicts: none recorded.
+- Scripts: check pass, test counts 39 (R1), 59 (R2), 78 (R3), 91 (R4); smoke pass; from R3 on it ends `3 online checks SKIPPED (not verified)` because Google Fonts was blocked in the workspace; flakiness not recorded.
+- Choices taken without asking: listed per row in `docs/CHANGELOG.md`.
+- Human input during the chat: not recorded in the repo. The design chat's entry says Pedro reported bundle 1 closed at 22:31 and turned Pages on (H1).
+- Stopped: finished the bundle.
+- Commits (times from git, Lisbon): 82698ed R1 build 19:47, closes 20:04 (R1), 20:27 (R2), 20:57 (R3), 21:54 (R4), viewer review ce86368 22:04, viewer fixes 016f649 22:17.
+- Usage: not visible.
+- Carried out of this chat: R3 online checks (H3), R5 to R10 items, see Carried at the time and the changelog rows.
+
 ### 23 Nov 2026 · Design · chat 1 (Fable 5.2, one long chat, 18:40 to 20:54 Lisbon time)
 
 - Started from (paraphrase of a dictated request): Pedro attached an export of his Shōmen content engine (a Python render pipeline run from chats) and asked whether a groovebox-style phone app could generate images and video inside customisable, randomised rule sets ("kind of like a modular identity system"), starting small with Swiss, Müller-Brockmann-like designs, with toggled text boxes and square, 3:4 and story sizes; he asked for a feasibility assessment, a plan and mock-ups of the phone UI and of outputs.

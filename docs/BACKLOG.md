@@ -136,6 +136,7 @@ Read spec 8.7 and 8.8.
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **Bundle 2 viewer check.** 24 Nov 2026. Fix: 0 errors, 2 should-fix, 6 minor; 7 applied, M6 by the main chat. `docs/reviews/bundle-2.md`.
 - **R5. Swiss, finished.** 24 Nov 2026, 1 chat (bundle 2). Review R5 applied (fix: 0 errors, 7 should-fix, 5 minor, 12 of 12 applied); Carried R5 items and R13 items 1 to 5 cleared; see `docs/CHANGELOG.md` and `docs/reviews/R5.md`.
 - **R13. Parts and the variety engine.** 23 Nov 2026, 1 chat (bundle 2). Review R13 applied (fix: 0 errors, 5 should-fix, 4 minor); see `docs/CHANGELOG.md` and `docs/reviews/R13.md`. Variety tests report, and fail for every style until its own row.
 - **Bundle 1 viewer check.** 23 Nov 2026. Fix: 0 errors, 2 should-fix, 7 minor; S2, M1 to M3 carried to R5, R6 and R9, the rest applied. `docs/reviews/bundle-1.md`.
