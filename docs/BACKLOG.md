@@ -6,7 +6,7 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 |---|---|---|
 | 1 | R1, R2, R3, R4 | The real engine, palettes with light and dark, 42 font pairings fetched online, the app frame and Simple mode, live on Pages |
 | 2 | R13, R5 | Styles rebuilt as parts with the variety rules; Swiss finished. Pedro looks at Swiss before bundle 3. Closed 24 Nov 2026 |
-| 3 | R6, R7 | Both Postmodern dialects finished (R6 and R7 closed 24 Nov 2026; bundle viewer check pending); five finishes; marks |
+| 3 | R6, R7 | Both Postmodern dialects finished Closed 24 Nov 2026; five finishes; marks |
 | 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit |
 | 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print |
 | 6 | R17, R12 | Text layers with hierarchy; retouch from notes |
@@ -125,6 +125,7 @@ Read spec 8.7 and 8.8.
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **Bundle 3 viewer check.** 24 Nov 2026. Fix: 0 errors, 2 should-fix, 5 minor; 7 applied, 0 rejected. `docs/reviews/bundle-3.md`.
 - **R7. Finishes and marks.** 24 Nov 2026, 1 chat (bundle 3). Review R7 applied (fix: 2 errors, 3 should-fix, 7 minor; 12 of 12 applied, M6 at this close, none rejected); Carried R7 and R7 (from R6) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R7.md`.
 - **R6. Postmodern, both dialects.** 24 Nov 2026, 1 chat (bundle 3). Review R6 applied (fix: 2 errors, 7 should-fix, 10 minor; 19 of 19 applied, none rejected); Carried R6 (from R13) and R6 (3:4 lower 40%) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R6.md`.
 - **Bundle 2 viewer check.** 24 Nov 2026. Fix: 0 errors, 2 should-fix, 6 minor; 7 applied, M6 by the main chat. `docs/reviews/bundle-2.md`.

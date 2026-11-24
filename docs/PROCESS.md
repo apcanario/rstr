@@ -31,6 +31,29 @@ How RSTR was made, chat by chat: who asked for what, which model did what, what 
 
 ## Entries
 
+### 24 Nov 2026 · Bundle 3 · chat 1 (started 06:06 Lisbon, last agent finished about 15:30 by the session clock)
+- Started from: "Rstr Session 3 / Repo allowed / Clone apcanario/rstr (shallow, push access). / RSTR, next bundle. Thin main chat on Sonnet 5.5; every agent a fresh Opus 5.5 agent. Read docs/RUN.md and work the next open bundle of docs/BACKLOG.md in full, unattended. / Notes:" The Notes line was empty.
+- Main chat model: Sonnet 5.5 (as stated in the starter and the session; not otherwise visible).
+- Rows: attempted R6, R7 / closed R6, R7 / left open: none.
+- Agents (all launched as model `opus`, one at a time; duration, subagent tokens and tool calls as the session reported them):
+  - R6 builder: 72 min, 462,083 tokens, 138 calls; commit f57ed8a; both Postmodern dialects, Dialect control, paper edge; a stub-host font check failed once in its first smoke run.
+  - R6 reviewer: 24 min, 232,448 tokens, 68 calls; verdict fix, 2 errors, 7 should-fix, 10 minor; review R6.
+  - R6 fixer: 98 min, 225,788 tokens, 87 calls; applied 18 of 19, M10 and the changelog half of M8 left to the main chat; commit 47766c5.
+  - R7 builder: 81 min, 337,825 tokens, 81 calls; commit 9860066; five finishes, marks, Look tab controls.
+  - R7 reviewer: 33 min, 227,282 tokens, 58 calls; verdict fix, 2 errors, 3 should-fix, 7 minor; found letters vanishing under Glitch and VHS and photocopy words grey under Grain and Grunge; review R7.
+  - R7 fixer: 56 min, 218,382 tokens, 76 calls; applied 11 of 12, M6 left to the main chat; commit b9d1b53.
+  - Bundle 3 viewer: first run killed by a server restart after about 18 min with no report; resumed from its transcript, 15 min more, 227,835 tokens, 60 calls; verdict fix, 0 errors, 2 should-fix, 5 minor; review bundle-3.
+  - Bundle 3 fixer: 133 min, 269,158 tokens, 112 calls; applied 7 of 7; commit 5d42201.
+- Reviews: R6 fix, 2/7/10, 19 applied or recorded, 0 rejected, 0 rebuilds. R7 fix, 2/3/7, 12 applied or recorded, 0 rejected, 0 rebuilds. Bundle 3 viewer fix, 0/2/5, 7 applied, 0 rejected.
+- Scripts: check pass, 149 tests after the R6 build, 156 after its fix, 182 after the R7 build, 189 after its fix, 194 after the bundle fix; smoke pass each time the chat or an agent ran it, always `3 online checks SKIPPED (not verified)`; flaky: the stub-host `unused sw-hanken` font check failed once in the R6 builder's first smoke run (message not recorded) and passed on the next two, 10 of 10 isolated runs passed for the R6 reviewer; sheet ran each time.
+- Failures: (1) the server behind the session restarted at about 13:30 and stopped the bundle 3 viewer after about 18 min; the repo was intact and matched origin; the viewer was resumed, a smoke run it had left running finished. (2) The main chat's first combined check, smoke and sheet command for R6 hit the foreground timeout and moved to the background; it was waited on, not rerun. (3) R7 review E1 and E2: the builder's 3:1 guard averaged whole items and exempted photocopy title words, so letters vanished under Glitch and VHS and words went grey under Grain and Grunge; fixed in the R7 fix. (4) R6 M10 and R7 M6 and the changelog half of R6 M8 were left to the main chat because agents may not edit the changelog; done at each close.
+- Choices taken without asking: Carried R6 items passed to the R6 builder and Carried R7 items to the R7 builder as this chat's notes; the Carried line "R7 (from R7 review, for the row's close)" held the changelog material for the main chat and was removed at R7's close; the M10 hash lines recorded at R6's close.
+- Human input during the chat (times Lisbon): "Status?" (10:06); "How long since it reported?" (10:07); "So the r6 took a long time? How long did each take?" (10:25); "How far along is r7?" (10:26); "Gotcha. But this started last night more than 7 hours ago" (10:26; the chat's first message was at 06:06 and the log shows bundle 2 ending 01:37; the chat answered that); "Nevermind! What styles is this covering?" (10:27); "Lezzgooooo" (11:21); "what are you running now and what is left?" (13:32); "so we're only doing r6 and r7 in this session?" (13:33); "Status?" (15:14).
+- Stopped: finished the bundle.
+- Commits: f57ed8a to 5d42201 on main (R6 build, fix, R7 build, fix, bundle fix), the R6, R7 and bundle closing commits, and this chat's closing commit.
+- Usage: subagent tokens per agent above, not summed; main chat tokens and cost not visible.
+- Carried out of this chat: added R12 (from R6), R10 (from R6), R7 (from R6) (this one cleared by R7), R10 (from R7), R16 (from R7), R8 (from R7), R12 (from bundle 3); H5 by hand. Cleared: R6 (from R13), R6, R7, R7 (from R6).
+
 ### 24 Nov 2026 · Bundle 2 · chat 1 (started 23 Nov 22:37 Lisbon, last agent finished 24 Nov 01:37 by commit time)
 - Started from: "Session 2 RSTR / Repo allowed / Clone apcanario/rstr (shallow, push access). / RSTR, next bundle. Thin main chat on Sonnet 5.5; every agent a fresh Opus 5.5 agent. Read docs/RUN.md and work the next open bundle of docs/BACKLOG.md in full, unattended. / Notes:" The Notes line was empty.
 - Main chat model: Sonnet 5.5 (as stated in the starter and the session; not otherwise visible).
