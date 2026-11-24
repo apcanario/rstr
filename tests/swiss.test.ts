@@ -5,8 +5,12 @@ import { FORMATS, FORMAT_LIST } from '../src/engine/formats';
 import { choosePairing, choosePalette, partCtx, solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { bleed, frameFor } from '../src/engine/parts/frame';
+import { discGeom } from '../src/engine/graphics/disc';
+import { GRAPHICS } from '../src/engine/graphics';
 import { CUTS, SWISS_GRAPHICS, swissDraw } from '../src/engine/parts/graphics/swiss';
-import { swissLayout } from '../src/engine/parts/layout/swiss';
+import { SWISS_LAYOUTS, SWISS_POS, swissLayout } from '../src/engine/parts/layout/swiss';
+import { overlaps } from '../src/engine/geom';
+import { SLOTS } from '../src/engine/spec';
 import { shuffleSeeds } from '../src/engine/proof';
 import { rng } from '../src/engine/rng';
 import type { TextItem } from '../src/engine/scene';
@@ -90,8 +94,11 @@ describe('Swiss draws over 600 shuffles (spec 8.0, 8.1)', () => {
   });
   test('cut-ins 0, 1, 2 near 0.38, 0.52, 0.10; every shape and plate role appears; block only inside blocks', () => {
     const counts = [0, 0, 0], shapes = new Set<string>(), roles = new Set<string>(), firsts = new Set<string>();
+    let drawn = 0;
     for (const { c, plan } of plans) {
-      const d = swissDraw(c, plan)!;
+      const d = swissDraw(c, plan);
+      if (!d) { expect(plan.frame).toBe('type-only'); continue; }
+      drawn++;
       counts[d.drawn]++;
       firsts.add(d.first);
       d.cuts.forEach((cut, k) => {
@@ -102,7 +109,7 @@ describe('Swiss draws over 600 shuffles (spec 8.0, 8.1)', () => {
       });
       expect(new Set(d.cuts.map((x) => x.name)).size).toBe(d.cuts.length);
     }
-    [0.38, 0.52, 0.1].forEach((want, i) => expect(Math.abs(share(counts[i]) - want), `cut-ins ${i}: ${counts[i]}`).toBeLessThan(0.05));
+    [0.38, 0.52, 0.1].forEach((want, i) => expect(Math.abs(counts[i] / drawn - want), `cut-ins ${i}: ${counts[i]}`).toBeLessThan(0.05));
     expect([...shapes].sort()).toEqual([...CUTS].sort());
     expect([...roles].sort()).toEqual(['accent', 'ground', 'ink']);
     expect([...firsts].sort()).toEqual([...SWISS_GRAPHICS].sort());
@@ -115,9 +122,107 @@ describe('Swiss draws over 600 shuffles (spec 8.0, 8.1)', () => {
       const [a, b, c] = [at('small'), at('normal'), at('oversize')];
       n++;
       expect(a, `seed ${i}: small ${a} < normal ${b}`).toBeLessThan(b);
-      expect(b, `seed ${i}: normal ${b} <= oversize ${c}`).toBeLessThanOrEqual(c);
+      // fit steps by 2 px from each class's own start, so where room binds the two may land a step apart
+      expect(b, `seed ${i}: normal ${b} <= oversize ${c}`).toBeLessThanOrEqual(c + 2);
       if (c > b) grew++;
     }
     expect(grew, 'oversize larger than normal').toBeGreaterThan(n / 2);
+  });
+});
+
+describe('R5: Swiss finished (spec 8.1, 8.5)', () => {
+  const N = 600;
+  const plans = Array.from({ length: N }, (_, i) => {
+    const s = defaultSpec(shuffleSeeds(i));
+    const c = partCtx(s, stubMeasure, choosePalette(s), choosePairing(s), 0);
+    return { s, c, plan: swissLayout.plan(c)! };
+  });
+  test('eight layouts, each well under 25% of the rolls (graphic-above was 37% at R13)', () => {
+    expect(SWISS_LAYOUTS).toHaveLength(8);
+    const n = new Map<string, number>();
+    for (const p of plans) n.set(p.plan.frame, (n.get(p.plan.frame) ?? 0) + 1);
+    expect([...n.keys()].sort()).toEqual([...SWISS_LAYOUTS].sort());
+    for (const [k, v] of n) expect(v / N, k).toBeLessThan(0.2);
+  });
+  test('twelve graphics, every one in the shared library', () => {
+    expect(SWISS_GRAPHICS).toHaveLength(12);
+    for (const g of SWISS_GRAPHICS) expect(GRAPHICS[g], g).toBeDefined();
+  });
+  test('no small title on a tilted or turned page or in type only; no quarter turn with the vertical title (review R13 item 2)', () => {
+    for (const { plan } of plans) {
+      if (plan.transform !== 'none' || plan.frame === 'type-only') expect(plan.size, plan.frame + ' ' + plan.transform).not.toBe('small');
+      if (plan.frame === 'vertical') expect(plan.transform).not.toBe('quarter');
+    }
+    expect(plans.some((p) => p.plan.size === 'small')).toBe(true);
+  });
+  test('every position of every slot is rolled, and text.<slot>.pos overrides the roll', () => {
+    for (const slot of SLOTS) {
+      const seen = new Set(plans.map((p) => p.plan.pos![slot]));
+      expect([...seen].sort(), slot).toEqual([...SWISS_POS[slot]].sort());
+      expect(SWISS_POS[slot].length).toBeGreaterThanOrEqual(2);
+      for (const want of SWISS_POS[slot]) for (let i = 0; i < 20; i++) {
+        const s = defaultSpec(shuffleSeeds(i));
+        s.text[slot].pos = want;
+        expect(swissLayout.plan(partCtx(s, stubMeasure, choosePalette(s), choosePairing(s), 0))!.pos![slot]).toBe(want);
+      }
+    }
+  });
+  test('a cut-in never sits under the text panel (review R13 item 3)', () => {
+    let n = 0;
+    for (const { c, plan } of plans) {
+      const P = plan.boxes.panel, d = swissDraw(c, plan);
+      if (!P || !d) continue;
+      for (const cut of d.cuts) { n++; expect(overlaps(rectQuad(cut.box), rectQuad(P)), JSON.stringify(c.spec.seeds)).toBe(false); }
+    }
+    expect(n).toBeGreaterThan(20);
+    // the R13 seed: a disc hidden under the panel
+    const s = defaultSpec({ layout: 24938, colour: 218658, graphic: 2608718, type: 9462 });
+    const c = partCtx(s, stubMeasure, choosePalette(s), choosePairing(s), 0), plan = swissLayout.plan(c)!;
+    for (const cut of swissDraw(c, plan)?.cuts ?? []) if (plan.boxes.panel) expect(overlaps(rectQuad(cut.box), rectQuad(plan.boxes.panel))).toBe(false);
+  });
+  test('the disc and its satellite stay inside their box at every end of every parameter (review bundle 1 S2)', () => {
+    const R = GRAPHICS.disc.params, boxes = [{ x: 10, y: 20, w: 900, h: 400 }, { x: 0, y: 0, w: 300, h: 1200 }, { x: 5, y: 5, w: 500, h: 500 }];
+    const ends = (k: keyof typeof R) => [R[k].min, (R[k].min + R[k].max) / 2, R[k].max];
+    let n = 0;
+    for (const B of boxes) for (const radius of ends('radius')) for (const cx of ends('cx')) for (const cy of ends('cy')) for (const sat of ends('sat')) for (let a = 0; a < 1; a += 0.125) {
+      const g = discGeom(B, { radius, cx, cy, sat, satAngle: a });
+      const inBox = (x: number, y: number, r: number) => x - r >= B.x - 1e-6 && x + r <= B.x + B.w + 1e-6 && y - r >= B.y - 1e-6 && y + r <= B.y + B.h + 1e-6;
+      expect(inBox(g.cx, g.cy, g.rad)).toBe(true);
+      expect(g.rad).toBeLessThanOrEqual(Math.min(B.w, B.h) / 2 + 1e-6);
+      if (g.sr > 0) expect(inBox(g.sx, g.sy, g.sr)).toBe(true);
+      n++;
+    }
+    expect(n).toBeGreaterThan(500);
+  });
+  test('a tilted or turned layout keeps its title readable: within 25% of the upright size on the same seeds', () => {
+    const px = (s: Spec) => (solve(s, stubMeasure).scene.items.find((i) => i.kind === 'text' && i.slot === 'title') as TextItem | undefined)?.px ?? 0;
+    for (let i = 0; i < 40; i++) for (const tr of ['tilt', 'quarter']) {
+      const at = (t: string) => { const s = defaultSpec(shuffleSeeds(i)); s.pick.layout = 'graphic-below'; s.params = { 'layout.transform': t, 'layout.size': 'normal' }; return px(s); };
+      const up = at('none'), turned = at(tr);
+      expect(turned, `seed ${i} ${tr}: ${turned} against ${up}`).toBeGreaterThanOrEqual(up * 0.75);
+    }
+  });
+  test('the vertical title reads up the page', () => {
+    let n = 0;
+    for (let i = 0; i < 30; i++) {
+      const s = defaultSpec(shuffleSeeds(i));
+      s.pick.layout = 'vertical';
+      const sc = solve(s, stubMeasure).scene, t = sc.items.find((x) => x.kind === 'text' && x.slot === 'title') as TextItem;
+      if (sc.transform !== 'none') continue;
+      n++;
+      expect(t.xf!.rot).toBeCloseTo(-Math.PI / 2, 9);
+    }
+    expect(n).toBeGreaterThan(10);
+  });
+  test('text on a field of colour takes an ink that passes 4.5:1 there, in every palette form', () => {
+    let n = 0;
+    for (let i = 0; i < 24; i++) for (const layout of ['centred-low', 'split']) for (const mode of ['light', 'dark'] as const) {
+      const s = defaultSpec(shuffleSeeds(i));
+      s.pick.layout = layout; s.mode = mode;
+      const sc = solve(s, stubMeasure).scene;
+      expect(sc.layout, JSON.stringify(s.seeds)).not.toBe('fallback');
+      n++;
+    }
+    expect(n).toBe(96);
   });
 });

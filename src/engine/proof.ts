@@ -196,3 +196,69 @@ export function runVariety(m: Measure, style: StyleId, format: Format, n = 300, 
   const st = STYLES[style];
   return varietyOf(rows, { layouts: st.layouts, graphics: st.parts.graphics.vocab, palettes: st.parts.palette.list.map((p) => p.id), pairings: PAIRINGS[style].map((p) => p.id) });
 }
+
+/**
+ * The tuning pass (row R5): flags a design that is legal but likely clumsy, by rules a reviewer named. It cannot
+ * judge looks (spec 9.5); it only finds the candidates for a person to look at. Rules, on the Scene:
+ * - `tiny title`: the title is under 6% of the canvas width tall (px) where it has three words or fewer;
+ * - `empty`: more than 55% of the canvas (in 9:16, of the band between the story zones) is bare ground, with no text,
+ *   graphic box or field of colour over it (a 24-cell-wide grid), type only excepted;
+ * - `small graphic`: the first graphic shows on less than 10% of the canvas;
+ * - `fallback`: no candidate passed.
+ */
+export function clumsyOf(sc: Scene, spec: Spec): string[] {
+  const out: string[] = [];
+  const W = sc.w, H = sc.h;
+  const title = sc.items.find((i) => i.kind === 'text' && i.slot === 'title');
+  if (title && title.kind === 'text' && spec.text.title.v.trim().split(/\s+/).length <= 3 && title.px < W * 0.06) out.push(`tiny title ${Math.round(title.px)} px`);
+  const nx = 24, ny = Math.round((24 * H) / W), cover = new Uint8Array(nx * ny);
+  const inQuad = (q: number[][], x: number, y: number) => {
+    let inside = false;
+    for (let i = 0, j = q.length - 1; i < q.length; j = i++) {
+      const [xi, yi] = q[i], [xj, yj] = q[j];
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  // a field of colour (a rect that is not a plate under text and covers a tenth of the canvas) is not bare ground
+  const big = (q: number[][]) => { const xs = q.map((p) => p[0]), ys = q.map((p) => p[1]); return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys)) > 0.1 * W * H; };
+  const marks = sc.items.filter((i) => i.kind === 'text' || i.kind === 'graphic' || (i.kind === 'rect' && !i.plate && big(i.quad)));
+  // in 9:16 the story zones are the app's, not the design's: only the band between them counts
+  const y0 = sc.format === '9:16' ? 260 : 0, y1 = sc.format === '9:16' ? 1600 : H;
+  const rows = (j: number) => { const y = ((j + 0.5) * H) / ny; return y >= y0 && y <= y1; };
+  let firstArea = -1;
+  const gs = sc.items.filter((i) => i.kind === 'graphic' && i.layer !== 'ground');
+  const firstG = gs.find((g) => g.kind === 'graphic' && g.lead) ?? gs[0];
+  for (const it of marks) {
+    let n = 0;
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      const x = ((i + 0.5) * W) / nx, y = ((j + 0.5) * H) / ny;
+      // text marks count with a margin of one cell: a line of type owns the space around it
+      const hit = it.kind === 'text' ? [-1, 0, 1].some((d) => inQuad(it.quad, x, y + (d * H) / ny)) : inQuad(it.quad, x, y);
+      if (hit) { cover[j * nx + i] = 1; n++; }
+    }
+    if (it === firstG) firstArea = n / (nx * ny);
+  }
+  let cells = 0, covered = 0;
+  for (let j = 0; j < ny; j++) if (rows(j)) for (let i = 0; i < nx; i++) { cells++; covered += cover[j * nx + i]; }
+  const empty = 1 - covered / cells;
+  // type only is ground and type by definition: the rule does not apply to it
+  if (empty > 0.55 && sc.frame !== 'type-only') out.push(`empty ${Math.round(empty * 100)}%`);
+  if (firstArea >= 0 && firstArea < 0.1) out.push(`small graphic ${Math.round(firstArea * 100)}%`);
+  if (sc.layout === 'fallback') out.push('fallback');
+  return out;
+}
+
+export interface Clumsy { spec: Spec; frame: string; transform: string; graphics: string[]; palette: string; why: string[]; }
+/** The tuning run: n shuffles of a style in each format (light and dark alternating), and the ones clumsyOf flags. */
+export function runTune(m: Measure, style: StyleId, n = 300, resolve?: Resolve): { count: number; flagged: Clumsy[]; byRule: Record<string, number> } {
+  const flagged: Clumsy[] = [], byRule: Record<string, number> = {};
+  for (let i = 0; i < n; i++) {
+    const s = defaultSpec(shuffleSeeds(1000 + i));
+    s.style = style; s.format = FORMAT_LIST[i % 3]; s.mode = i % 2 ? 'dark' : 'light';
+    const sc = solve(s, m, resolve?.(s)).scene, why = clumsyOf(sc, s);
+    for (const w of why) { const k = w.split(/ \d/)[0]; byRule[k] = (byRule[k] ?? 0) + 1; }
+    if (why.length) flagged.push({ spec: s, frame: sc.frame, transform: sc.transform, graphics: sc.graphics, palette: sc.palette, why });
+  }
+  return { count: n, flagged, byRule };
+}

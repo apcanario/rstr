@@ -5,7 +5,7 @@ import { FORMATS } from './formats';
 import { check, type Failure } from './invariants';
 import type { Measure } from './measure';
 import { counted, mix, pick, rng } from './rng';
-import type { FontRef, Item, Scene, TextItem } from './scene';
+import type { FontRef, GraphicItem, Item, Scene, TextItem } from './scene';
 import type { Spec } from './spec';
 import { STYLES } from './styles';
 import { textArea, type PartCtx } from './parts/types';
@@ -71,7 +71,8 @@ function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: str
   for (const i of items) if (i.kind === 'text') all.set(faceKey((i as TextItem).font), (i as TextItem).font);
   const fonts = [...new Set([...all.values()].map((f) => f.family))].sort();
   const faces = [...all.keys()].sort();
-  const graphics = items.flatMap((i) => (i.kind === 'graphic' && i.layer !== 'ground' ? [i.tag ?? i.name] : []));
+  const gs = items.filter((i): i is GraphicItem => i.kind === 'graphic' && i.layer !== 'ground');
+  const graphics = [...gs.filter((g) => g.lead), ...gs.filter((g) => !g.lead)].map((g) => g.tag ?? g.name);
   return { w: W, h: H, style: spec.style, format: spec.format, palette: P.id, pairing: T.id, layout: layoutName, frame, transform, graphics, ground: P.ground, items, fonts, faces };
 }
 

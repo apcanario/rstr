@@ -100,8 +100,16 @@ describe('the variety tests of spec 8.0', () => {
     // a repeat after the first 60 does not count against the 60-shuffle test
     expect(varietyOf([...ok, { ...ok[0] }], lists).repeats60).toBe(0);
   });
-  test('run for every style on the stub measure and report (enforced from each style\'s own row)', () => {
-    for (const style of STYLE_IDS) {
+  test('Swiss passes all three in every format on the stub measure (row R5, Carried R13 item 4)', () => {
+    for (const f of ['1:1', '3:4', '9:16'] as const) {
+      const v = runVariety(stubMeasure, 'swiss', f, 300);
+      console.log(`variety swiss ${f} (stub): repeats in 60 ${v.repeats60}; missing ${JSON.stringify(v.missing)}; top layout ${v.top.layout} ${(v.top.share * 100).toFixed(0)}%`);
+      expect(v.count).toBe(300);
+      expect(v.pass, `swiss ${f}: ${JSON.stringify(v)}`).toEqual({ sixty: true, coverage: true, share: true });
+    }
+  }, 120000);
+  test('run for every other style on the stub measure and report (enforced from each style\'s own row)', () => {
+    for (const style of STYLE_IDS.filter((s) => s !== 'swiss')) {
       const v = runVariety(stubMeasure, style, '3:4', 300);
       expect(v.count).toBe(300);
       // reported only until each style's own row enforces it (review R13 M4: R5 asserts v.pass for Swiss here)

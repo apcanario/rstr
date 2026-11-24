@@ -60,6 +60,12 @@ export interface Boxes {
   graphic?: Rect;
   /** A plate of ground the text sits on. */
   panel?: Rect;
+  /**
+   * A full or split field of colour (spec 8.1): the accent where some ink reaches 4.5:1 on it, else the ink
+   * (`fieldColour` in parts/shared/field.ts). Graphics draws it under everything; type sets text on it in an ink
+   * that passes. Graphics in the field are drawn in colours that show on it.
+   */
+  field?: Rect;
   /** Above and below the horizon. */
   sky?: Rect;
   floor?: Rect;
@@ -100,6 +106,10 @@ export interface Plan {
   emphasis: number;
   /** The disc the composition centres on (a sun), if any. */
   focus?: { x: number; y: number; r: number };
+  /** The title is set reading up the page, in boxes.title (spec 8.1, title vertical up the left edge). */
+  titleUp?: boolean;
+  /** Where each text slot goes, from the style's own list of positions (spec 8.5); absent: the style's first. */
+  pos?: Partial<Record<Slot, string>>;
 }
 
 /** A plan with every shared value at its neutral setting, for a layout to fill in. */

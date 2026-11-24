@@ -61,6 +61,8 @@ export interface GraphicItem {
   plate?: string;
   /** Depth (spec 8.0): ground, back graphics, front graphics. Text is the top layer. */
   layer?: 'ground' | 'back' | 'front';
+  /** The first graphic of the design when it is drawn after the graphics cut into it (Swiss shapes): counted first. */
+  lead?: boolean;
   /** What the variety tests count this graphic as, if not its name (a Postmodern shape counts as its shape). */
   tag?: string;
   avoid?: Quad[];            // text quads the graphic keeps off: nothing of it lies directly behind their ink

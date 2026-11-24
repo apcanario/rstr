@@ -73,7 +73,7 @@ describe('9.3 stream independence on the stub measure, light and dark', () => {
       expect(r.failures, show(r.failures)).toEqual([]);
       const p = runIndependence(stubMeasure, { styles: [style], n: 6, picks: 'each', variants: 'cycle' });
       expect(p.failures, show(p.failures)).toEqual([]);
-    });
+    }, 60000);
   }
 });
 

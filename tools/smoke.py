@@ -7,6 +7,8 @@ import appcheck, fontcheck
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 200
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
+# styles whose row enforces the variety tests of spec 8.0 (R5: Swiss); the rest report until R6, R8, R9
+ENFORCED = ['swiss']
 FORMATS = ['1:1', '3:4', '9:16']
 SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920)}
 fails = []
@@ -155,7 +157,9 @@ with served() as url, browser() as b:
             miss = {k: x for k, x in v['missing'].items() if x}
             res = lambda ok: 'pass' if ok else 'FAIL'
             print(f'variety {style:6} {fmt:4}  60 shuffles: {v["repeats60"]} repeats ({res(v["pass"]["sixty"])}); 300 shuffles: missing {miss or "nothing"} ({res(v["pass"]["coverage"])}); top layout {v["top"]["layout"]} {v["top"]["share"] * 100:.0f}% ({res(v["pass"]["share"])})')
-    print('variety: reported, not enforced (row R13); each style enforces it in its own row')
+            if style in ENFORCED and not all(v['pass'].values()):
+                fail(f'variety {style} {fmt}: {v["pass"]}')
+    print(f'variety: enforced for {", ".join(ENFORCED)}; reported only for the rest until their own rows')
     print(f'engine checks took {time.time() - t0:.0f} s')
     # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face
     t0 = time.time()
