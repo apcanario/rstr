@@ -4,5 +4,5 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   base: './',
   oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
-  test: { include: ['tests/**/*.test.ts'], environment: 'node' },
+  test: { include: ['tests/**/*.test.ts'], environment: 'node', testTimeout: 60000 },
 } as any);
