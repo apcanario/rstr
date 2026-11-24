@@ -6,8 +6,8 @@ export const lattice: Graphic = {
   name: 'lattice',
   params: {
     cols: { min: 2, max: 24, def: 6, int: true },
-    weight: { min: 0.001, max: 0.03, def: 0.003, log: true },   // share of the canvas width
-    filled: { min: 0, max: 0.5, def: 0.12 },                    // share of cells filled
+    weight: { min: 0.003, max: 0.03, def: 0.003, log: true },   // share of the canvas width
+    filled: { min: 0.15, max: 0.5, def: 0.2 },                  // share of cells filled
     square: { min: 0, max: 1, def: 1, int: true },              // square cells, else as many rows as columns
   },
   draw(ctx, g, r, T) {

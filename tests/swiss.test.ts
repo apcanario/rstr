@@ -6,6 +6,8 @@ import { choosePairing, choosePalette, partCtx, solve } from '../src/engine/layo
 import { stubMeasure } from '../src/engine/measure';
 import { bleed, frameFor } from '../src/engine/parts/frame';
 import { discGeom } from '../src/engine/graphics/disc';
+import { numeralGeom } from '../src/engine/graphics/numeral';
+import { crossGeom } from '../src/engine/graphics/crosshairs';
 import { GRAPHICS } from '../src/engine/graphics';
 import { CUTS, SWISS_GRAPHICS, swissDraw } from '../src/engine/parts/graphics/swiss';
 import { SWISS_LAYOUTS, SWISS_POS, swissLayout } from '../src/engine/parts/layout/swiss';
@@ -13,10 +15,16 @@ import { overlaps } from '../src/engine/geom';
 import { SLOTS } from '../src/engine/spec';
 import { shuffleSeeds } from '../src/engine/proof';
 import { rng } from '../src/engine/rng';
-import type { TextItem } from '../src/engine/scene';
+import type { RectItem, TextItem } from '../src/engine/scene';
+import { contrast, needRatio } from '../src/engine/colour';
 import { defaultSpec, type Spec } from '../src/engine/spec';
 
 const close = (a: Pt, b: Pt) => { expect(a[0]).toBeCloseTo(b[0], 6); expect(a[1]).toBeCloseTo(b[1], 6); };
+const inQuad = (q: Pt[], x: number, y: number) => {
+  let c = false;
+  for (let i = 0, j = q.length - 1; i < q.length; j = i++) if (q[i][1] > y !== q[j][1] > y && x < ((q[j][0] - q[i][0]) * (y - q[i][1])) / (q[j][1] - q[i][1]) + q[i][0]) c = !c;
+  return c;
+};
 const inside = (p: Pt, r: Rect, tol = 0.5) => p[0] >= r.x - tol && p[0] <= r.x + r.w + tol && p[1] >= r.y - tol && p[1] <= r.y + r.h + tol;
 
 describe('rigid transforms (geom)', () => {
@@ -194,13 +202,44 @@ describe('R5: Swiss finished (spec 8.1, 8.5)', () => {
     }
     expect(n).toBeGreaterThan(500);
   });
-  test('a tilted or turned layout keeps its title readable: within 25% of the upright size on the same seeds', () => {
-    const px = (s: Spec) => (solve(s, stubMeasure).scene.items.find((i) => i.kind === 'text' && i.slot === 'title') as TextItem | undefined)?.px ?? 0;
-    for (let i = 0; i < 40; i++) for (const tr of ['tilt', 'quarter']) {
-      const at = (t: string) => { const s = defaultSpec(shuffleSeeds(i)); s.pick.layout = 'graphic-below'; s.params = { 'layout.transform': t, 'layout.size': 'normal' }; return px(s); };
-      const up = at('none'), turned = at(tr);
-      expect(turned, `seed ${i} ${tr}: ${turned} against ${up}`).toBeGreaterThanOrEqual(up * 0.75);
+  test('the numeral and its stroke stay inside their box at every end of every parameter (review R5 S3)', () => {
+    const R = GRAPHICS.numeral.params, boxes = [{ x: 10, y: 20, w: 900, h: 400 }, { x: 0, y: 0, w: 300, h: 1200 }, { x: 5, y: 5, w: 500, h: 500 }, { x: 0, y: 0, w: 120, h: 900 }];
+    const ends = (k: string) => [R[k].min, (R[k].min + R[k].max) / 2, R[k].max];
+    let n = 0;
+    for (const B of boxes) for (const weight of ends('weight')) for (const scale of ends('scale')) for (const x of ends('x')) {
+      const { ink } = numeralGeom(B, { weight, scale, x });
+      expect(ink.x).toBeGreaterThanOrEqual(B.x - 1e-6);
+      expect(ink.y).toBeGreaterThanOrEqual(B.y - 1e-6);
+      expect(ink.x + ink.w).toBeLessThanOrEqual(B.x + B.w + 1e-6);
+      expect(ink.y + ink.h).toBeLessThanOrEqual(B.y + B.h + 1e-6);
+      n++;
     }
+    expect(R.scale.max).toBeLessThanOrEqual(1);
+    expect(n).toBe(108);
+  });
+  test('crosshairs are never specks: the arm is at least half a module or half the box (review R5 S7)', () => {
+    const R = GRAPHICS.crosshairs.params;
+    for (const B of [{ w: 1080, h: 540 }, { w: 936, h: 300 }, { w: 156, h: 900 }, { w: 80, h: 80 }]) for (const mod of [100, 156]) for (let count = R.count.min; count <= R.count.max; count++) for (const size of [R.size.min, R.size.max]) {
+      const g = crossGeom(B, mod, count, size);
+      expect(g.L).toBeGreaterThanOrEqual(Math.min(mod, B.w, B.h) * 0.5 - 1e-9);
+      expect(g.n).toBeLessThanOrEqual(Math.max(1, g.cols - 1) * Math.max(1, g.rows - 1));
+      expect(g.n).toBeGreaterThanOrEqual(1);
+    }
+  });
+  test('a tilted or turned layout keeps its title readable: within 25% of the upright size on the same seeds, in every layout and format (review R5 S1)', () => {
+    const px = (s: Spec) => (solve(s, stubMeasure).scene.items.find((i) => i.kind === 'text' && i.slot === 'title') as TextItem | undefined)?.px ?? 0;
+    let n = 0;
+    for (const f of FORMAT_LIST) for (const layout of SWISS_LAYOUTS) for (const tr of ['tilt', 'quarter']) {
+      // the vertical title never takes a quarter turn (it would read upside down)
+      if (layout === 'vertical' && tr === 'quarter') continue;
+      for (let i = 0; i < 40; i++) {
+        const at = (t: string) => { const s = defaultSpec(shuffleSeeds(i)); s.format = f; s.pick.layout = layout; s.params = { 'layout.transform': t, 'layout.size': 'normal' }; return px(s); };
+        const up = at('none'), turned = at(tr);
+        expect(turned, `${f} ${layout} seed ${i} ${tr}: ${turned} against ${up}`).toBeGreaterThanOrEqual(up * 0.75);
+        n++;
+      }
+    }
+    expect(n).toBe(3 * 15 * 40);
   });
   test('the vertical title reads up the page', () => {
     let n = 0;
@@ -214,15 +253,28 @@ describe('R5: Swiss finished (spec 8.1, 8.5)', () => {
     }
     expect(n).toBeGreaterThan(10);
   });
-  test('text on a field of colour takes an ink that passes 4.5:1 there, in every palette form', () => {
-    let n = 0;
+  test('text on a field of colour takes an ink that passes 4.5:1 there (3:1 when large), in every palette form (review R5 M3)', () => {
+    let n = 0, onField = 0;
     for (let i = 0; i < 24; i++) for (const layout of ['centred-low', 'split']) for (const mode of ['light', 'dark'] as const) {
       const s = defaultSpec(shuffleSeeds(i));
       s.pick.layout = layout; s.mode = mode;
       const sc = solve(s, stubMeasure).scene;
       expect(sc.layout, JSON.stringify(s.seeds)).not.toBe('fallback');
+      expect(sc.frame, JSON.stringify(s.seeds)).toBe(layout);
+      // the field is the first rect of the Scene that is not a plate under text
+      const F = sc.items.find((x) => x.kind === 'rect' && !x.plate) as RectItem;
+      expect(F, JSON.stringify(s.seeds)).toBeDefined();
+      for (const t of sc.items) {
+        if (t.kind !== 'text') continue;
+        const xs = t.quad.map((p) => p[0]), ys = t.quad.map((p) => p[1]);
+        const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+        if (!inQuad(F.quad, cx, cy)) continue;
+        onField++;
+        for (const ink of t.ink) expect(contrast(ink, F.fill as string), `${t.slot} ${t.part} ${JSON.stringify(s.seeds)} ${mode}`).toBeGreaterThanOrEqual(needRatio(t.px) - 1e-9);
+      }
       n++;
     }
+    expect(onField).toBeGreaterThan(200);
     expect(n).toBe(96);
   });
 });

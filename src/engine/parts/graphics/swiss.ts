@@ -8,13 +8,14 @@
  * a shape (disc, numeral, blocks, crosshairs) under a full-bleed panel is placed in the part the panel leaves
  * free, on an accent plate; the disc is never cut into a disc (it would be clipped flat, review bundle 1 S2); a
  * cut-in's plate is never the colour the first graphic sits on (it would only erase it); a shape stands in front
- * of its cut-ins; a column or band covers at most 60% of the graphic.
+ * of its cut-ins; a column or band covers at most 60% of the graphic; blocks with a disc cut in draw no disc of
+ * their own (review R5 S6); blocks in a box over a third of the page fill two cells or more (review R5 M5).
  */
 import type { Form } from '../../../data/palettes/types';
 import type { Rect } from '../../geom';
 import { GRAPHICS } from '../../graphics';
-import { blockCells } from '../../graphics/blocks';
-import { chooseParams } from '../../graphics/params';
+import { FILLS, blockCells } from '../../graphics/blocks';
+import { chooseParams, paramKey } from '../../graphics/params';
 import { mkGraphic, mkRect } from '../../items';
 import { mix, pick } from '../../rng';
 import type { Item } from '../../scene';
@@ -80,6 +81,13 @@ export function swissDraw(c: PartCtx, plan: Plan): SwissDraw | null {
   // a shape goes where the panel leaves room, out to the canvas edge the graphic's box reaches (a tilted page bleeds)
   const VB = freeOf(MR0, panel);
   const MR = panel && SHAPES.includes(first) && V.w >= mod && V.h >= mod ? VB : MR0;
+  // blocks rolls only the patterns that fill two cells or more: one filled cell of three left the box mostly ground
+  // (review R5 M5, which asked this for boxes over a third of the page; the tuning pass found it in smaller boxes
+  // too); the single fills stay for pins and Advanced
+  if (first === 'blocks' && typeof spec.params[paramKey('blocks', 'fill')] !== 'number' && FILLS[p1.fill].filter(Boolean).length < 2) {
+    const two = FILLS.map((f, i) => (f.filter(Boolean).length >= 2 ? i : -1)).filter((i) => i >= 0);
+    p1.fill = two[p1.fill % two.length];
+  }
   const out: SwissDraw = { first, reversed, params: p1, box: MR, drawn: 0, cuts: [] };
   // how many cut in: Advanced sets it, else the stream (about 6 in 10 one, 1 in 10 two)
   const u = rg(), set = spec.params['graphics.cut'];
@@ -97,7 +105,15 @@ export function swissDraw(c: PartCtx, plan: Plan): SwissDraw | null {
     const shape = pick(rg, shapes), role = pick(rg, roles.length ? roles : (['accent', 'ink', 'ground'] as Role[]));
     const a = rg(), b = rg(), mm = Math.min(V.w, V.h);
     let box: Rect;
-    if (shape === 'disc') {
+    if (shape === 'disc' && first === 'blocks') {
+      // into blocks the disc goes where the blocks' own disc was, in the largest cell (review R5 S6: an eclipse
+      // beside it read as a mistake, and with the blocks' disc gone the cell was left bare)
+      let big = clip(blockCells(MR, { sx: p1.sx, sy: p1.sy, side: p1.side }, mod).sort((p, q) => q.w * q.h - p.w * p.h)[0], V);
+      if (big.w < mod / 2 || big.h < mod / 2) big = V;
+      const r = Math.min(big.w, big.h) * (0.3 + a * 0.15);
+      rg();
+      box = { x: big.x + big.w / 2 - r, y: big.y + big.h / 2 - r, w: 2 * r, h: 2 * r };
+    } else if (shape === 'disc') {
       const r = mm * (0.18 + a * 0.3);
       box = { x: V.x + r + (V.w - 2 * r) * b, y: V.y + r + (V.h - 2 * r) * rg(), w: 0, h: 0 };
       box = { x: box.x - r, y: box.y - r, w: 2 * r, h: 2 * r };
@@ -116,6 +132,8 @@ export function swissDraw(c: PartCtx, plan: Plan): SwissDraw | null {
     }
     out.cuts.push({ name, shape, role, box, params: chooseParams(GRAPHICS[name], spec.params, rg) });
   }
+  // a disc cut into blocks takes the place of the blocks' own disc (review R5 S6): the blocks draw none then
+  if (first === 'blocks' && typeof spec.params[paramKey('blocks', 'disc')] !== 'number' && out.cuts.some((k) => k.shape === 'disc')) out.params.disc = 0;
   return out;
 }
 

@@ -7,7 +7,7 @@ export const rings: Graphic = {
   name: 'rings',
   params: {
     count: { min: 2, max: 40, def: 10, int: true, log: true },
-    weight: { min: 0.05, max: 0.9, def: 0.4 },     // the heaviest ring, share of the pitch
+    weight: { min: 0.2, max: 0.9, def: 0.4 },      // the heaviest ring, share of the pitch
     cx: { min: 0, max: 1, def: 0.5 },
     cy: { min: 0, max: 1, def: 0.5 },
     prog: { min: 0, max: 1, def: 0.6 },           // 0 all alike, 1 from hairline to the heaviest

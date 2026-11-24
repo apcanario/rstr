@@ -44,14 +44,15 @@ with served() as url, browser() as b:
             rows.append(cells)
         strip(rows, h=420).save(os.path.join(OUT, f'variety-{style}.jpg'), quality=85)
         print('wrote', f'shots/variety-{style}.jpg')
-    # per style: every palette, light above dark, one layout at 3:4, so the two forms can be compared
+    # per style: every palette, light above dark, one layout at 3:4, so the two forms can be compared (Swiss pins
+    # graphic-above: its seeds roll type only, which shows no graphic or field, review R5 M1)
     for style in STYLES:
         ids = pg.evaluate('(s) => window.__rstr.palettes(s)', style)
         rows = []
         for mode in ['light', 'dark']:
             cells = []
             for pid in ids:
-                spec = pg.evaluate('([s, p, md]) => { const x = window.__rstr.spec(); x.style = s; x.format = "3:4"; x.mode = md; x.seeds = {layout: 4242, colour: 1, graphic: 5151, type: 6}; x.pick = {palette: p, pairing: null, motif: null, layout: null}; return x; }', [style, pid, mode])
+                spec = pg.evaluate('([s, p, md]) => { const x = window.__rstr.spec(); x.style = s; x.format = "3:4"; x.mode = md; x.seeds = {layout: 4242, colour: 1, graphic: 5151, type: 6}; x.pick = {palette: p, pairing: null, motif: null, layout: s === "swiss" ? "graphic-above" : null}; return x; }', [style, pid, mode])
                 cells.append((img(pg, spec), f'{pid} {mode}'))
             rows.append(cells)
         strip(rows, h=420).save(os.path.join(OUT, f'palettes-{style}.jpg'), quality=85)

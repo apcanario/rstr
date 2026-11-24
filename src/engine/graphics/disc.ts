@@ -21,7 +21,7 @@ export function discGeom(R: Rect, p: { radius: number; cx: number; cy: number; s
 export const disc: Graphic = {
   name: 'disc',
   params: {
-    radius: { min: 0.3, max: 0.5, def: 0.42 },    // share of the box's short side, satellite included
+    radius: { min: 0.4, max: 0.5, def: 0.42 },    // share of the box's short side, satellite included
     cx: { min: 0, max: 1, def: 0.5 },             // where the centre sits in the room it has
     cy: { min: 0, max: 1, def: 0.55 },
     sat: { min: 0, max: 0.14, def: 0.1 },         // satellite radius, share of the short side

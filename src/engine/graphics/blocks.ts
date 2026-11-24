@@ -7,7 +7,7 @@ import type { Graphic } from './types';
 const P = {
   sx: { min: 0.1, max: 0.9, def: 0.4 },      // where the column split falls
   sy: { min: 0.1, max: 0.9, def: 0.5 },      // where the row split falls
-  disc: { min: 0, max: 0.48, def: 0.3 },     // disc radius, share of the largest block's short side
+  disc: { min: 0.15, max: 0.48, def: 0.3 },  // disc radius, share of the largest block's short side
   side: { min: 0, max: 1, def: 0, int: true },
   fill: { min: 0, max: 11, def: 2, int: true }, // which cells are filled, and with what (FILLS)
 };

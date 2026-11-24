@@ -1,8 +1,9 @@
 /**
- * Postmodern, Brutalist and Vaporwave stay as they are until their own rows (review R13 S5). For each style, a
+ * Swiss as finished at R5 (review R5 S4), and Postmodern, Brutalist and Vaporwave until their own rows (review
+ * R13 S5), stay as they are. For each style, a
  * hash of every Scene item (kind, quad, fills, name, params, runs: the whole item, numbers rounded to 1e-3) over
  * 40 seed sets x 3 formats x 2 modes on the stub measure. A row that changes one of these styles on purpose
- * updates its hash here and says so in the changelog. Swiss is left out: R5 tunes it.
+ * updates its hash here and says so in the changelog. Bundle 3 touches shared code: a Swiss change shows here.
  */
 import { describe, expect, test } from 'vitest';
 import { solve } from '../src/engine/layout';
@@ -11,6 +12,7 @@ import { specs } from '../src/engine/proof';
 import type { StyleId } from '../src/engine/spec';
 
 const SNAPSHOT: Partial<Record<StyleId, string>> = {
+  swiss: '59bb2d50',
   pomo: '8627a7e7',
   brutal: '8480f767',
   vapor: '839d6639',

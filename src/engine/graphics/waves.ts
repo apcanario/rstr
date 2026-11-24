@@ -9,7 +9,7 @@ export const waves: Graphic = {
     count: { min: 3, max: 40, def: 12, int: true, log: true },
     amp: { min: 0.005, max: 0.2, def: 0.04, log: true },    // share of the box height
     freq: { min: 0.5, max: 8, def: 2 },                     // cycles across the box
-    weight: { min: 0.04, max: 0.9, def: 0.3 },              // share of the pitch
+    weight: { min: 0.2, max: 0.9, def: 0.3 },               // share of the pitch
     shift: { min: 0, max: 1, def: 0.15 },                   // phase step from line to line, turns
     inkEvery: { min: 0, max: 6, def: 0, int: true },
   },

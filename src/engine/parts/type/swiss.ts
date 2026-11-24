@@ -3,7 +3,7 @@
  * info as label/value columns, caption small, tracked and upper case beside a rule. Each slot sits where the
  * plan's positions say: the title at the top of the text area or low, above the foot; the subtitle under or over
  * the title; info and caption at the foot (info above the rule, caption under it) or at the head (caption over
- * its rule, then info). The title may read up the page (plan.titleUp). Sizes are set against the canvas width,
+ * its rule when alone there; with info, the foot's order: info, rule, caption). The title may read up the page (plan.titleUp). Sizes are set against the canvas width,
  * not the page, so a tilted or turned page gives the text less room, never smaller type (graphics pay for the
  * tilt). Text on a field of colour takes the ink that reads on it.
  */
@@ -52,13 +52,16 @@ export const swissType: TypePart = {
       for (const t of b.texts) items.push(mkText(m, { ...t, runs: t.runs.map((r) => ({ ...r, y: r.y + dy })) }));
     };
 
-    // caption and its rule: under the rule at the foot, over it at the head
+    // caption and its rule: under the rule at the foot, over it at the head; with info at the head too the head
+    // takes the foot's order, info above the rule and the caption under it (spec 8.1, review R5 M4)
+    const infoOn = tx.info.on && tx.info.v.slice(0, 3).some((p) => p.k.trim() || p.v.trim());
+    const bothHead = pos.caption === 'head' && pos.info === 'head' && infoOn;
     let caption: Block | null = null;
     if (tx.caption.on && tx.caption.v.trim()) {
       const f = fitLine(m, upper(tx.caption.v), T.mono, capS, MIN.caption, TR.w, 0.12, force);
       if (!f) { if (!force) return null; }
       else {
-        const foot = pos.caption !== 'head', lh = f.asc + f.desc, gap = G * 0.55;
+        const foot = pos.caption !== 'head' || bothHead, lh = f.asc + f.desc, gap = G * 0.55;
         const ty = foot ? rh + gap : 0, ry = foot ? 0 : lh + gap;
         caption = {
           h: lh + gap + rh,
@@ -93,8 +96,8 @@ export const swissType: TypePart = {
     }
     // the head and the foot of the text area
     const head: Block[] = [], foot: Block[] = [];
-    if (caption && pos.caption === 'head') head.push(caption);
     if (info && pos.info === 'head') head.push(info);
+    if (caption && pos.caption === 'head') head.push(caption);
     if (info && pos.info !== 'head') foot.push(info);
     if (caption && pos.caption !== 'head') foot.push(caption);
     const gapOf = (a: Block) => (a === caption ? G * 0.9 : G);
@@ -125,7 +128,9 @@ export const swissType: TypePart = {
       }
     } else if (hasT) {
       const maxH = room - (hasS ? subS * 1.3 + G : 0);
-      const t = maxH > 0 ? fit(m, { text: tx.title.v, font: T.display, maxW: aw, maxH, start: W * 0.15 * c.cap * cls.k, min: MIN.title, lh: 0.94, maxLines: cls.lines, track: -0.028, force }) : null;
+      // type only is carried by its title: it starts large and fits down until the width or the room binds (review R5 S2)
+      const kT = cls.k * (plan.frame === 'type-only' ? 1.75 : 1);
+      const t = maxH > 0 ? fit(m, { text: tx.title.v, font: T.display, maxW: aw, maxH, start: W * 0.15 * c.cap * kT, min: MIN.title, lh: 0.94, maxLines: cls.lines, track: -0.028, force }) : null;
       if (!t) { if (!force) return null; }
       else {
         const tInk = inkOn(P, bg, needRatio(t.size));

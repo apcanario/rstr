@@ -5,8 +5,8 @@ import type { Graphic } from './types';
 export const rules: Graphic = {
   name: 'rules',
   params: {
-    count: { min: 3, max: 30, def: 9, int: true },
-    weight: { min: 0.002, max: 0.07, def: 0.012, log: true },  // share of the canvas width
+    count: { min: 6, max: 30, def: 9, int: true },
+    weight: { min: 0.008, max: 0.07, def: 0.012, log: true },  // share of the canvas width
     stagger: { min: 0, max: 1, def: 0.6 },                    // 0 every rule full length, 1 lengths from one column to all
     right: { min: 0, max: 1, def: 0, int: true },             // rules hang from the right edge
     inkEvery: { min: 0, max: 6, def: 3, int: true },          // 0: no ink rule

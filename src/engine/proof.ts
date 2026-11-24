@@ -5,7 +5,12 @@ import { choosePairing, solve, type Use } from './layout';
 import { PAIRINGS } from '../data/pairings';
 import type { Measure } from './measure';
 import { mix } from './rng';
-import type { Item, Scene } from './scene';
+import type { GraphicItem, Item, Scene } from './scene';
+import { GRAPHICS } from './graphics';
+import { FILLS, blockCells } from './graphics/blocks';
+import { crossGeom } from './graphics/crosshairs';
+import { discGeom } from './graphics/disc';
+import { numeralGeom } from './graphics/numeral';
 import { STYLES } from './styles';
 import { DEFAULT_TEXT, defaultSpec, SLOTS, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
 
@@ -198,12 +203,49 @@ export function runVariety(m: Measure, style: StyleId, format: Format, n = 300, 
 }
 
 /**
+ * How much of its box a graphic reads as covering, 0 to 1, from its name and parameters (review R5 S2): a rough
+ * ink density, not a measurement. A plate (a cut-in, a reversed graphic) covers its box; a solid shape covers its
+ * own area, generously; a field of marks covers by its ink share, times four (a pattern at a quarter ink reads as a
+ * full tone), so hairline lattices and rings, pinstripes, low-count rules and a few small crosses count for little.
+ * A graphic not named here (the other styles') counts as covering its box.
+ */
+export function coverOf(g: GraphicItem): number {
+  if (g.plate) return 1;
+  const G = GRAPHICS[g.name];
+  if (!G) return 1;
+  const p = (k: string) => (typeof g.params[k] === 'number' ? (g.params[k] as number) : G.params[k].def);
+  const R = g.box, A = Math.max(1, R.w * R.h), m = Math.max(1, Math.min(R.w, R.h));
+  const W = Number(g.params.W) || 1080, mod = Number(g.params.mod) || R.w / 6;
+  const tone = (share: number) => Math.min(1, 4 * Math.max(0, share));
+  switch (g.name) {
+    case 'disc': { const d = discGeom(R, { radius: p('radius'), cx: p('cx'), cy: p('cy'), sat: p('sat'), satAngle: p('satAngle') }); return Math.min(1, (2 * Math.PI * d.rad * d.rad) / A); }
+    case 'numeral': { const { ink } = numeralGeom(R, { weight: p('weight'), scale: p('scale'), x: p('x') }); return Math.min(1, (1.5 * ink.w * ink.h) / A); }
+    case 'blocks': {
+      const cells = blockCells(R, { sx: p('sx'), sy: p('sy'), side: p('side') }, mod), f = FILLS[p('fill')] ?? FILLS[2];
+      const big = cells.slice().sort((a, b) => b.w * b.h - a.w * a.h)[0], rad = Math.min(big.w, big.h) * p('disc');
+      const filled = cells.reduce((s, c, i) => s + (f[i] ? c.w * c.h : 0), 0) + (f[cells.indexOf(big)] ? 0 : Math.PI * rad * rad);
+      return Math.min(1, filled / A);
+    }
+    case 'crosshairs': { const { n, L } = crossGeom(R, mod, p('count'), p('size')); return Math.min(1, (n * 0.7 * 4 * L * L) / A); }
+    case 'lattice': { const cw = R.w / p('cols'), lw = Math.max(1, W * p('weight')); return Math.min(1, p('filled') + tone((2 * lw) / cw)); }
+    case 'rules': { const th = Math.max(1, W * p('weight')); return tone(Math.min(1, th / (R.h / p('count'))) * (1 - p('stagger') / 2)); }
+    case 'lines': case 'bars': case 'rings': return tone(p('weight') * (1 - p('prog') / 2));
+    case 'waves': return tone(p('weight'));
+    case 'dots': return tone(0.785 / (1 + 2 * p('falloff')));
+    case 'topo': return tone((p('levels') * W * 0.0019 * p('weight') * 3) / m);
+    default: return 1;
+  }
+}
+
+/**
  * The tuning pass (row R5): flags a design that is legal but likely clumsy, by rules a reviewer named. It cannot
  * judge looks (spec 9.5); it only finds the candidates for a person to look at. Rules, on the Scene:
  * - `tiny title`: the title is under 6% of the canvas width tall (px) where it has three words or fewer;
- * - `empty`: more than 55% of the canvas (in 9:16, of the band between the story zones) is bare ground, with no text,
- *   graphic box or field of colour over it (a 24-cell-wide grid), type only excepted;
- * - `small graphic`: the first graphic shows on less than 10% of the canvas;
+ * - `empty`: more than 55% of the canvas (in 9:16, of the band between the story zones) is bare (60% in type only,
+ *   which is ground and type by definition). Covered is what text (plus one grid cell round it) or a graphic sits
+ *   on; a graphic covers its box only as far as its ink reaches (`coverOf`); a field or panel of colour is bare
+ *   where nothing sits on it (review R5 S2: counting fields as cover hid sparse centred-low and split designs);
+ * - `small graphic`: the first graphic covers less than 10% of the canvas, weighted the same way;
  * - `fallback`: no candidate passed.
  */
 export function clumsyOf(sc: Scene, spec: Spec): string[] {
@@ -211,7 +253,7 @@ export function clumsyOf(sc: Scene, spec: Spec): string[] {
   const W = sc.w, H = sc.h;
   const title = sc.items.find((i) => i.kind === 'text' && i.slot === 'title');
   if (title && title.kind === 'text' && spec.text.title.v.trim().split(/\s+/).length <= 3 && title.px < W * 0.06) out.push(`tiny title ${Math.round(title.px)} px`);
-  const nx = 24, ny = Math.round((24 * H) / W), cover = new Uint8Array(nx * ny);
+  const nx = 24, ny = Math.round((24 * H) / W), cover = new Float32Array(nx * ny);
   const inQuad = (q: number[][], x: number, y: number) => {
     let inside = false;
     for (let i = 0, j = q.length - 1; i < q.length; j = i++) {
@@ -220,9 +262,7 @@ export function clumsyOf(sc: Scene, spec: Spec): string[] {
     }
     return inside;
   };
-  // a field of colour (a rect that is not a plate under text and covers a tenth of the canvas) is not bare ground
-  const big = (q: number[][]) => { const xs = q.map((p) => p[0]), ys = q.map((p) => p[1]); return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys)) > 0.1 * W * H; };
-  const marks = sc.items.filter((i) => i.kind === 'text' || i.kind === 'graphic' || (i.kind === 'rect' && !i.plate && big(i.quad)));
+  const marks = sc.items.filter((i) => i.kind === 'text' || i.kind === 'graphic');
   // in 9:16 the story zones are the app's, not the design's: only the band between them counts
   const y0 = sc.format === '9:16' ? 260 : 0, y1 = sc.format === '9:16' ? 1600 : H;
   const rows = (j: number) => { const y = ((j + 0.5) * H) / ny; return y >= y0 && y <= y1; };
@@ -230,20 +270,20 @@ export function clumsyOf(sc: Scene, spec: Spec): string[] {
   const gs = sc.items.filter((i) => i.kind === 'graphic' && i.layer !== 'ground');
   const firstG = gs.find((g) => g.kind === 'graphic' && g.lead) ?? gs[0];
   for (const it of marks) {
+    const k = it.kind === 'graphic' ? coverOf(it) : 1;
     let n = 0;
     for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
       const x = ((i + 0.5) * W) / nx, y = ((j + 0.5) * H) / ny;
       // text marks count with a margin of one cell: a line of type owns the space around it
       const hit = it.kind === 'text' ? [-1, 0, 1].some((d) => inQuad(it.quad, x, y + (d * H) / ny)) : inQuad(it.quad, x, y);
-      if (hit) { cover[j * nx + i] = 1; n++; }
+      if (hit) { cover[j * nx + i] = Math.max(cover[j * nx + i], k); n++; }
     }
-    if (it === firstG) firstArea = n / (nx * ny);
+    if (it === firstG) firstArea = (n * k) / (nx * ny);
   }
   let cells = 0, covered = 0;
   for (let j = 0; j < ny; j++) if (rows(j)) for (let i = 0; i < nx; i++) { cells++; covered += cover[j * nx + i]; }
   const empty = 1 - covered / cells;
-  // type only is ground and type by definition: the rule does not apply to it
-  if (empty > 0.55 && sc.frame !== 'type-only') out.push(`empty ${Math.round(empty * 100)}%`);
+  if (empty > (sc.frame === 'type-only' ? 0.6 : 0.55)) out.push(`empty ${Math.round(empty * 100)}%`);
   if (firstArea >= 0 && firstArea < 0.1) out.push(`small graphic ${Math.round(firstArea * 100)}%`);
   if (sc.layout === 'fallback') out.push('fallback');
   return out;

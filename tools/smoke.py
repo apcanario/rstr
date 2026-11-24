@@ -65,6 +65,7 @@ with served() as url, browser() as b:
         for tr in ['tilt', 'quarter']:
             r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': ['swiss'], 'formats': [fmt], 'n': max(20, N // 4), 'variants': 'cycle', 'params': {'layout.transform': tr}})
             print(f'9.2 swiss  {fmt:4}  {tr} forced: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+            fallback_check(f'9.2 swiss {fmt} {tr}', r, 0)
             for f in r['failures'][:5]:
                 fail(f'9.2 swiss {fmt} {tr}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
     # 9.2 with every graphic parameter at both ends of its range (row R13), every text variant, no fallback; and

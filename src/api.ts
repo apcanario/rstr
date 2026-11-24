@@ -10,7 +10,7 @@ import type { Scene } from './engine/scene';
 import { check } from './engine/invariants';
 import { solve, unloadedFaces } from './engine/layout';
 import { browserMeasure } from './engine';
-import { picksOf, runIndependence, runInvariants, runTune, runVariety, type Opts } from './engine/proof';
+import { clumsyOf, picksOf, runIndependence, runInvariants, runTune, runVariety, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
 import { graphicLeak, knockLeak, pixelHash } from './engine/pixels';
@@ -77,6 +77,8 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       variety: (style: StyleId, format: Format, n?: number) => runVariety(browserMeasure(), style, format, n, resolve),
       /** The tuning pass (row R5): n shuffles across the formats and the ones flagged as likely clumsy. */
       tune: (style: StyleId, n?: number) => runTune(browserMeasure(), style, n, resolve),
+      /** The tuning rules on one spec: what clumsyOf flags in it (empty if nothing). */
+      clumsy: (raw: unknown) => { const s = migrate(raw); return clumsyOf(solve(s, browserMeasure(), resolve(s)).scene, s); },
       /** Library graphics a style draws, with their parameter ranges: what the range-end checks walk. */
       graphics: (style: StyleId) => {
         const st = STYLES[style];

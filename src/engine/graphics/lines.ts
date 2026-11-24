@@ -6,7 +6,7 @@ export const lines: Graphic = {
   name: 'lines',
   params: {
     count: { min: 3, max: 48, def: 12, int: true, log: true },
-    weight: { min: 0.04, max: 0.95, def: 0.6 },       // the heaviest line, share of the pitch
+    weight: { min: 0.2, max: 0.95, def: 0.6 },        // the heaviest line, share of the pitch
     prog: { min: 0, max: 1, def: 0.7 },               // 0 all alike, 1 from hairline to the heaviest
     vertical: { min: 0, max: 1, def: 0, int: true },
     inkEvery: { min: 0, max: 6, def: 5, int: true },  // 0: no ink line

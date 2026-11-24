@@ -8,7 +8,7 @@ export const bars: Graphic = {
   params: {
     angle: { min: -75, max: 75, def: 45 },               // degrees
     count: { min: 3, max: 24, def: 8, int: true },
-    weight: { min: 0.1, max: 0.95, def: 0.55 },          // the heaviest bar, share of the pitch
+    weight: { min: 0.25, max: 0.95, def: 0.55 },          // the heaviest bar, share of the pitch
     prog: { min: 0, max: 1, def: 0.8 },                  // 0 all alike, 1 from hairline to the heaviest
     inkEvery: { min: 0, max: 6, def: 4, int: true },     // 0: no ink bar
   },
