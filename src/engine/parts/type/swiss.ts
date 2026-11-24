@@ -3,7 +3,8 @@
  * info as label/value columns, caption small, tracked and upper case beside a rule. Each slot sits where the
  * plan's positions say: the title at the top of the text area or low, above the foot; the subtitle under or over
  * the title; info and caption at the foot (info above the rule, caption under it) or at the head (caption over
- * its rule when alone there; with info, the foot's order: info, rule, caption). The title may read up the page (plan.titleUp). Sizes are set against the canvas width,
+ * its rule when alone there; with info, the foot's order: info, rule, caption). Info apart from the caption keeps
+ * a rule of its own under it. The title may read up the page (plan.titleUp). Sizes are set against the canvas width,
  * not the page, so a tilted or turned page gives the text less room, never smaller type (graphics pay for the
  * tilt). Text on a field of colour takes the ink that reads on it.
  */
@@ -81,11 +82,19 @@ export const swissType: TypePart = {
       if (pairs.some((it, i) => it.k.trim() && !labs[i])) ok = false;
       const labH = Math.max(0, ...labs.map((l) => (l ? l.asc + l.desc : 0)));
       const vTop = labH ? labH + labS * 0.45 : 0;
+      // values set on one line, all at one size, when every value fits on one line at MIN.info or more; only then
+      // may a value wrap to two (review bundle 2 S2: "23 Nov / 2026" broke in a narrow column)
+      const vW = cw - G * 0.5;
+      const one = pairs.map((it) => (it.v.trim() ? fitLine(m, it.v, T.text, infS, MIN.info, vW) : null));
+      const oneOk = pairs.every((it, i) => !it.v.trim() || one[i]);
+      const oneS = Math.min(infS, ...one.map((f) => (f ? f.size : infS)));
       pairs.forEach((it, i) => {
         const x = ax + i * cw, l = labs[i];
         if (l) b.texts.push({ slot: 'info', part: 'label' + i, font: label, size: l.size, tracking: l.tracking, runs: [{ s: l.lines[0], x, y: labH - l.desc }], fill: labInk, ink: [labInk], min: MIN.info });
         if (it.v.trim()) {
-          const v = fit(m, { text: it.v, font: T.text, maxW: cw - G * 0.5, maxH: infS * 2.4, start: infS, min: MIN.info, lh: 1.2, maxLines: 2, force });
+          const v = oneOk
+            ? fit(m, { text: it.v.replace(/\s*\n\s*/g, ' '), font: T.text, maxW: vW, maxH: infS * 2.4, start: oneS, step: 1, min: MIN.info, lh: 1.2, maxLines: 1 })
+            : fit(m, { text: it.v, font: T.text, maxW: vW, maxH: infS * 2.4, start: infS, min: MIN.info, lh: 1.2, maxLines: 2, force });
           if (!v) { ok = false; return; }
           b.texts.push({ slot: 'info', part: 'value' + i, font: T.text, size: v.size, runs: v.lines.map((s, j) => ({ s, x, y: vTop + v.asc + j * v.size * 1.2 })), fill: ink, ink: [ink], min: MIN.info });
           b.h = Math.max(b.h, vTop + v.height);
@@ -93,6 +102,13 @@ export const swissType: TypePart = {
       });
       if (!ok && !force) return null;
       if (b.texts.length) info = b;
+    }
+    // info sits above a rule wherever it is (spec 8.1): when the caption is not at the same end to bring its rule,
+    // info draws its own (review bundle 2 M3)
+    if (info && !(caption && (pos.info === 'head') === (pos.caption === 'head'))) {
+      const gap = G * 0.55;
+      info.rects.push({ r: { x: TR.x, y: info.h + gap, w: TR.w, h: rh }, fill: ink });
+      info.h += gap + rh;
     }
     // the head and the foot of the text area
     const head: Block[] = [], foot: Block[] = [];
@@ -129,8 +145,10 @@ export const swissType: TypePart = {
     } else if (hasT) {
       const maxH = room - (hasS ? subS * 1.3 + G : 0);
       // type only is carried by its title: it starts large and fits down until the width or the room binds (review R5 S2)
-      const kT = cls.k * (plan.frame === 'type-only' ? 1.75 : 1);
-      const t = maxH > 0 ? fit(m, { text: tx.title.v, font: T.display, maxW: aw, maxH, start: W * 0.15 * c.cap * kT, min: MIN.title, lh: 0.94, maxLines: cls.lines, track: -0.028, force }) : null;
+      // a long title in type only may take two more lines, so it grows into the room instead of leaving the lower
+      // part of the page bare (review bundle 2 M2)
+      const only = plan.frame === 'type-only', kT = cls.k * (only ? 1.75 : 1);
+      const t = maxH > 0 ? fit(m, { text: tx.title.v, font: T.display, maxW: aw, maxH, start: W * 0.15 * c.cap * kT, min: MIN.title, lh: 0.94, maxLines: cls.lines + (only ? 2 : 0), track: -0.028, force }) : null;
       if (!t) { if (!force) return null; }
       else {
         const tInk = inkOn(P, bg, needRatio(t.size));

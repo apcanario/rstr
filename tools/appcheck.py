@@ -393,6 +393,18 @@ def run(b, url, fail):
         st = pg.evaluate('() => window.__rstr.app.state()')
         if len(st['kept']) < 3 or len(st['back']) < 3:
             fail(f'{at}: before reload, {len(st["kept"])} kept and {len(st["back"])} Back steps; the test needs more')
+        if pg.get_attribute('[data-testid="advanced"]', 'aria-pressed') != 'true':
+            fail(f'{at}: before reload, Advanced is not on')
+        # wait for the autosave effect to have written this state, or the reload races it (review bundle 2 S1)
+        try:
+            pg.wait_for_function('''() => {
+                const s = JSON.parse(localStorage.getItem('rstr.app.v1') || '{}');
+                const want = window.__rstr.app.state(), k = (x) => JSON.stringify(x);
+                return s.advanced === true && k(s.spec) === k(want.spec) && k(s.kept) === k(want.kept)
+                    && k(s.locks) === k(want.locks) && k(s.back) === k(want.back);
+            }''', timeout=5000)
+        except Exception:
+            fail(f'{at}: before reload, the autosave did not write the design, Kept, locks and Advanced within 5 s')
         pg.reload()
         pg.wait_for_function('window.__rstr !== undefined')
         pg.evaluate('() => window.__rstr.ready')

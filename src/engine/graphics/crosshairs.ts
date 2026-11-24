@@ -27,11 +27,22 @@ export const crosshairs: Graphic = {
     const G = crosshairs, R = g.box, C = g.colours, W = Number(g.params.W), mod = Number(g.params.mod) || R.w / 6;
     const { n, L, cols, rows } = crossGeom(R, mod, val(g, G, 'count'), val(g, G, 'size'));
     const lw = Math.max(1, W * val(g, G, 'weight')), ring = val(g, G, 'ring');
+    const avoid = [0, 1].filter((k) => typeof g.params['avoidR' + k] === 'number')
+      .map((k) => ({ x: Number(g.params['avoidX' + k]), y: Number(g.params['avoidY' + k]), r: Number(g.params['avoidR' + k]) }));
     for (let i = 0; i < n; i++) {
       // on grid lines, so the marks register with the columns
       // a box one module across has no inner grid line: the mark goes on its centre line, never on its edge
       const at = (k: number, u: number) => (n === 1 || k < 2 ? 0.5 : (1 + Math.floor(u * (k - 1))) / k);
-      const x = R.x + at(cols, r()) * R.w, y = R.y + at(rows, r()) * R.h;
+      let x = R.x + at(cols, r()) * R.w, y = R.y + at(rows, r()) * R.h;
+      // discs to keep clear of (Swiss passes the disc cut-ins it stands in front of, review bundle 2 M4): a mark
+      // whose ring would touch one rolls again; one that cannot clear it after a few rolls is left out, unless it
+      // is the only mark
+      const hits = (px: number, py: number) => avoid.some((d) => Math.hypot(px - d.x, py - d.y) < d.r + L * 0.62 + 2 * lw);
+      if (avoid.length && hits(x, y)) {
+        let k = 0;
+        for (; k < 8 && hits(x, y); k++) { x = R.x + at(cols, r()) * R.w; y = R.y + at(rows, r()) * R.h; }
+        if (hits(x, y) && n > 1) continue;
+      }
       const e = L * T.rev(i * 0.15);
       ctx.fillStyle = C.a;
       ctx.fillRect(x - e, y - lw / 2, 2 * e, lw);

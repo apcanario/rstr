@@ -6,7 +6,8 @@
  *
  * Rules from the tuning pass (docs/tuning-R5.md): a cut-in never sits under the text panel (review R13 item 3);
  * a shape (disc, numeral, blocks, crosshairs) under a full-bleed panel is placed in the part the panel leaves
- * free, on an accent plate; the disc is never cut into a disc (it would be clipped flat, review bundle 1 S2); a
+ * free, on an accent plate; a band keeps a module clear of the panel; crosshairs keep their marks off a disc
+ * cut-in; the disc is never cut into a disc (it would be clipped flat, review bundle 1 S2); a
  * cut-in's plate is never the colour the first graphic sits on (it would only erase it); a shape stands in front
  * of its cut-ins; a column or band covers at most 60% of the graphic; blocks with a disc cut in draw no disc of
  * their own (review R5 S6); blocks in a box over a third of the page fill two cells or more (review R5 M5).
@@ -15,6 +16,7 @@ import type { Form } from '../../../data/palettes/types';
 import type { Rect } from '../../geom';
 import { GRAPHICS } from '../../graphics';
 import { FILLS, blockCells } from '../../graphics/blocks';
+import { discGeom } from '../../graphics/disc';
 import { chooseParams, paramKey } from '../../graphics/params';
 import { mkGraphic, mkRect } from '../../items';
 import { mix, pick } from '../../rng';
@@ -124,8 +126,15 @@ export function swissDraw(c: PartCtx, plan: Plan): SwissDraw | null {
       // never more than 60% of what shows of the first graphic, so the cut never hides it (tuning)
       box = { x, y: V.y, w: Math.max(mod * 0.5, Math.min(cw * mod, V.x + V.w - x, V.w * 0.6)), h: V.h };
     } else if (shape === 'band') {
-      const h = Math.min(V.h * 0.6, Math.max(mod, Math.round((V.h * (0.18 + a * 0.3)) / mod) * mod));
-      box = { x: V.x, y: V.y + (V.h - h) * b, w: V.w, h };
+      // a band keeps one module clear of a text panel above or below it, so no sliver of the first graphic is
+      // left between them (review bundle 2 M1)
+      let y0 = V.y, y1 = V.y + V.h;
+      if (panel && panel.x < V.x + V.w && panel.x + panel.w > V.x) {
+        if (panel.y >= V.y + V.h - 1 && y1 - y0 > 3 * mod) y1 -= mod;
+        if (panel.y + panel.h <= V.y + 1 && y1 - y0 > 3 * mod) y0 += mod;
+      }
+      const h = Math.min((y1 - y0) * 0.6, Math.max(mod, Math.round(((y1 - y0) * (0.18 + a * 0.3)) / mod) * mod));
+      box = { x: V.x, y: y0 + (y1 - y0 - h) * b, w: V.w, h };
     } else {
       const cells = blockCells(MR, { sx: p1.sx, sy: p1.sy, side: p1.side }, mod);
       box = clip(cells.slice().sort((p, q) => q.w * q.h - p.w * p.h)[0], V);
@@ -154,7 +163,15 @@ export const swissGraphics: GraphicsPart = {
     const rev = d.reversed && !onField;
     const C1 = onField ? coloursOnHex(P, fc!) : rev ? coloursOn(P, 'accent') : { a: P.accent, ink: P.ink, bg: P.ground };
     const plate1 = rev ? P.accent : undefined;
-    const g1 = mkGraphic(d.first, d.box, seed(0), 0, C1, fillsOf(C1, plate1), { W, mod, ...d.params });
+    // crosshairs in front of a disc keep their marks off it (review bundle 2 M4): a disc-shaped cut-in, or the
+    // disc graphic cut in on a plate (where discGeom puts it, satellite included)
+    const avoid: Record<string, number> = {};
+    if (d.first === 'crosshairs') d.cuts.filter((k) => k.shape === 'disc' || k.name === 'disc').slice(0, 2).forEach((k, i) => {
+      const g = k.shape === 'disc' ? null : discGeom(k.box, k.params as Parameters<typeof discGeom>[1]);
+      avoid['avoidX' + i] = g ? g.cx : k.box.x + k.box.w / 2; avoid['avoidY' + i] = g ? g.cy : k.box.y + k.box.h / 2;
+      avoid['avoidR' + i] = Math.min(k.box.w, k.box.h) * (g ? k.params.radius : 0.5);
+    });
+    const g1 = mkGraphic(d.first, d.box, seed(0), 0, C1, fillsOf(C1, plate1), { W, mod, ...d.params, ...avoid });
     if (plate1) g1.plate = plate1;
     g1.layer = 'back';
     // a shape (disc, numeral, crosshairs) stands in front of what is cut in, so a cut never hides it (tuning)
