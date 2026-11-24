@@ -7,8 +7,8 @@ import appcheck, fontcheck
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 200
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
-# styles whose row enforces the variety tests of spec 8.0 (R5: Swiss); the rest report until R6, R8, R9
-ENFORCED = ['swiss']
+# styles whose row enforces the variety tests of spec 8.0 (R5: Swiss, R6: Postmodern); the rest report until R8, R9
+ENFORCED = ['swiss', 'pomo']
 FORMATS = ['1:1', '3:4', '9:16']
 SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920)}
 fails = []
@@ -77,7 +77,7 @@ with served() as url, browser() as b:
             for k, R in g['params'].items():
                 for v in [R['min'], R['max']]:
                     nends += 1
-                    o = {'styles': [style], 'n': 2, 'start': 60, 'params': {f'g.{g["name"]}.{k}': v, 'graphics.cut': 2}, 'pick': {'motif': g['name'] if g['motif'] else None}}
+                    o = {'styles': [style], 'n': 2, 'start': 60, 'params': {f'g.{g["name"]}.{k}': v, 'graphics.cut': 2}, 'pick': g['pick']}
                     r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', o)
                     if r['fallbacks']:
                         fail(f'9.2 {style} {g["name"]}.{k}={v}: {r["fallbacks"]} of {r["count"]} fell back', r['fallbackSpecs'][0])
@@ -85,7 +85,7 @@ with served() as url, browser() as b:
                         fail(f'9.2 {style} {g["name"]}.{k}={v}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
                     for fmt in FORMATS:
                         for i in range(2):
-                            spec = pg.evaluate('([s, f, i, o]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i ? "dark" : "light"; x.params = o.params; x.pick.motif = o.pick.motif; x.seeds = {layout: 61 + i, colour: 62 + i, graphic: 63 + i, type: 64 + i}; return x; }', [style, fmt, i, o])
+                            spec = pg.evaluate('([s, f, i, o]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i ? "dark" : "light"; x.params = o.params; x.pick = { ...x.pick, ...o.pick }; x.seeds = {layout: 61 + i, colour: 62 + i, graphic: 63 + i, type: 64 + i}; return x; }', [style, fmt, i, o])
                             t1 = time.time()
                             px = pg.evaluate('(s) => window.__rstr.graphicLeak(s)', spec)
                             npix += 1
@@ -160,6 +160,15 @@ with served() as url, browser() as b:
             print(f'variety {style:6} {fmt:4}  60 shuffles: {v["repeats60"]} repeats ({res(v["pass"]["sixty"])}); 300 shuffles: missing {miss or "nothing"} ({res(v["pass"]["coverage"])}); top layout {v["top"]["layout"]} {v["top"]["share"] * 100:.0f}% ({res(v["pass"]["share"])})')
             if style in ENFORCED and not all(v['pass'].values()):
                 fail(f'variety {style} {fmt}: {v["pass"]}')
+    # spec 8.2 (R6): each Postmodern dialect alone meets the 60-shuffle test (and is reported on the other two)
+    for style in STYLES:
+        for d in pg.evaluate('(s) => window.__rstr.proof.dialects(s)', style):
+            for fmt in FORMATS:
+                v = pg.evaluate('([s, f, d]) => window.__rstr.proof.variety(s, f, 300, { dialect: d })', [style, fmt, d])
+                miss = {k: x for k, x in v['missing'].items() if x}
+                print(f'variety {style:6} {fmt:4}  {d}: 60 shuffles: {v["repeats60"]} repeats; 300: missing {miss or "nothing"}; top layout {v["top"]["layout"]} {v["top"]["share"] * 100:.0f}%')
+                if style in ENFORCED and not v['pass']['sixty']:
+                    fail(f'variety {style} {fmt} {d}: {v["repeats60"]} repeats in 60')
     print(f'variety: enforced for {", ".join(ENFORCED)}; reported only for the rest until their own rows')
     print(f'engine checks took {time.time() - t0:.0f} s')
     # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face

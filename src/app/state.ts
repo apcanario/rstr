@@ -35,7 +35,7 @@ export function reroll(s: Spec, f: Facet, seed: () => number = newSeed): Spec {
 
 /** A style change: picks name things of one style, so they all go; seeds stay. */
 export function withStyle(s: Spec, style: Spec['style']): Spec {
-  return { ...s, style, pick: { palette: null, pairing: null, motif: null, layout: null } };
+  return { ...s, style, pick: { palette: null, pairing: null, motif: null, layout: null, dialect: null } };
 }
 
 /** Push the design before a change onto Back, keeping the newest BACK_STEPS. */

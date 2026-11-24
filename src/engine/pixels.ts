@@ -71,11 +71,13 @@ function segDist(p: number[], a: number[], b: number[]): number {
  * Scene's boxes and fills are set at placement. Paint the design without text, once with its graphics and
  * once without, and look only inside every text item's painted mask (fill, outline, echoes):
  * - where the Scene puts no graphic behind the item, the two renders must be identical (`leaks`);
- * - where it does, every pixel must be a colour the Scene declared behind it, or a blend of two (`stray`).
+ * - where it does, every pixel must be a colour the Scene declared behind it, or a blend of two or three (`stray`).
  */
 export function graphicLeak(spec: Spec, use: Use = {}): { leaks: number; stray: number; masked: number; items: number } {
   const [W, H] = FORMATS[spec.format];
-  const sc: Scene = sceneOf(spec, browserMeasure(), use);
+  // a surface pass (the copier) is texture over everything, like a finish: what it does to text is not a graphic leak
+  const sc0: Scene = sceneOf(spec, browserMeasure(), use);
+  const sc: Scene = { ...sc0, items: sc0.items.filter((i) => !(i.kind === 'graphic' && i.pass)) };
   const withG = canvas(W, H), without = canvas(W, H);
   paint(withG, sc, null, { noText: true });
   paint(without, { ...sc, items: sc.items.filter((i) => i.kind !== 'graphic') }, null, { noText: true });
@@ -102,6 +104,12 @@ export function graphicLeak(spec: Spec, use: Use = {}): { leaks: number; stray: 
       } else {
         let best = Infinity;
         for (let u = 0; u < allowed.length && best > 6; u++) for (let v = u; v < allowed.length && best > 6; v++) best = Math.min(best, segDist(p, allowed[u], allowed[v]));
+        // where three areas meet (a corner of one graphic on the edge of another), antialiasing blends three
+        // declared colours: test the triangle too, by points along each pair (R6: photocopy's many opaque pieces)
+        for (let u = 0; u < allowed.length && best > 6; u++) for (let v = u + 1; v < allowed.length && best > 6; v++) for (let k = 1; k < 10 && best > 6; k++) {
+          const q = [0, 1, 2].map((c) => allowed[u][c] + ((allowed[v][c] - allowed[u][c]) * k) / 10);
+          for (let w = 0; w < allowed.length && best > 6; w++) if (w !== u && w !== v) best = Math.min(best, segDist(p, q, allowed[w]));
+        }
         if (best > 6) stray++;
       }
     }

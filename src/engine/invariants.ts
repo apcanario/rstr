@@ -25,6 +25,10 @@ export const coloursOf = (p: Paint): string[] => (typeof p === 'string' ? [p] : 
 
 /** An outline at least this wide (as a share of the type size) carries legibility on its own. */
 export const OUTLINE_MIN = 0.04;
+/** A paper halo at least this wide (share of the type size) is what the fill of a haloed word sits on. */
+export const HALO_MIN = 0.05;
+/** The halo's colours if the item has a halo wide enough to carry its fill (spec 8.2, paper edge), else null. */
+export const haloOf = (t: TextItem): string[] | null => (t.stroke?.halo && t.stroke.width >= HALO_MIN * t.size - 1e-9 ? coloursOf(t.stroke.paint) : null);
 
 /**
  * The colours that carry a text item's legibility, derived from what is painted, never from what a style
@@ -79,14 +83,15 @@ export function check(scene: Scene, rules: number[] = [1, 2, 3, 4, 5]): Failure[
     if (rules.includes(3)) {
       for (let j = i + 1; j < scene.items.length; j++) {
         const it = scene.items[j];
-        if (it.kind === 'text') continue;
+        if (it.kind === 'text' || (it.kind === 'graphic' && it.pass)) continue;
         const hit = (overlaps(it.quad, t.quad) || (it.kind === 'rect' && it.shadowQuad && overlaps(it.shadowQuad, t.quad))) && !avoided(it, t.quad);
         if (hit) f.push({ rule: 3, part: name, msg: `${it.kind}${it.kind === 'graphic' ? ' ' + it.name : ''} drawn over it` });
       }
     }
-    if (rules.includes(4)) {
-      const bg = behind(scene, i), need = needRatio(t.px);
-      for (const c of inkOf(t)) for (const b of bg) {
+    if (rules.includes(4) && !t.waive?.includes(4)) {
+      // a haloed word's fill sits on its halo; anything else is read against what is behind it
+      const halo = haloOf(t), bg = halo ?? behind(scene, i), need = needRatio(t.px);
+      for (const c of halo ? coloursOf(t.fill) : inkOf(t)) for (const b of bg) {
         const r = contrast(c, b);
         if (r < need - 1e-6) { f.push({ rule: 4, part: name, msg: `contrast ${r.toFixed(2)} < ${need} (${c} on ${b})` }); break; }
       }
@@ -95,6 +100,8 @@ export function check(scene: Scene, rules: number[] = [1, 2, 3, 4, 5]): Failure[
   }
   if (rules.includes(2)) {
     for (let a = 0; a < texts.length; a++) for (let b = a + 1; b < texts.length; b++) {
+      const ga = texts[a][0].group;
+      if (ga && ga === texts[b][0].group) continue;
       if (overlaps(texts[a][0].quad, texts[b][0].quad))
         f.push({ rule: 2, part: texts[a][0].slot + '.' + texts[a][0].part, msg: 'overlaps ' + texts[b][0].slot + '.' + texts[b][0].part });
     }

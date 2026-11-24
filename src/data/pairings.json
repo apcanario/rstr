@@ -391,6 +391,10 @@
      "family": "DM Mono",
      "weight": 400
     },
+    "heavy": {
+     "family": "Anton",
+     "weight": 400
+    },
     "from": "Spike, approved look",
     "notes": "Default. Core fonts only."
    },
@@ -412,6 +416,10 @@
     },
     "mono": {
      "family": "Space Mono",
+     "weight": 400
+    },
+    "heavy": {
+     "family": "Archivo Black",
      "weight": 400
     },
     "from": "Typewolf"
@@ -436,6 +444,10 @@
      "family": "DM Mono",
      "weight": 400
     },
+    "heavy": {
+     "family": "Anton",
+     "weight": 400
+    },
     "from": "Plan"
    },
    {
@@ -455,6 +467,10 @@
     },
     "mono": {
      "family": "JetBrains Mono",
+     "weight": 400
+    },
+    "heavy": {
+     "family": "Archivo Black",
      "weight": 400
     },
     "from": "Plan"
@@ -478,6 +494,10 @@
      "family": "IBM Plex Mono",
      "weight": 400
     },
+    "heavy": {
+     "family": "Anton",
+     "weight": 400
+    },
     "from": "Plan"
    },
    {
@@ -498,6 +518,10 @@
     },
     "mono": {
      "family": "Courier Prime",
+     "weight": 400
+    },
+    "heavy": {
+     "family": "Archivo Black",
      "weight": 400
     },
     "from": "Typewolf",
@@ -523,6 +547,10 @@
      "family": "Space Mono",
      "weight": 400
     },
+    "heavy": {
+     "family": "Anton",
+     "weight": 400
+    },
     "from": "Plan"
    },
    {
@@ -543,6 +571,10 @@
     },
     "mono": {
      "family": "DM Mono",
+     "weight": 400
+    },
+    "heavy": {
+     "family": "Archivo Black",
      "weight": 400
     },
     "from": "Plan"

@@ -61,7 +61,13 @@ type Pick = Partial<Spec['pick']>;
 /** One pick per value of pick.layout and pick.motif the style lists. */
 export function picksOf(style: StyleId): Pick[] {
   const st = STYLES[style];
-  return [...st.layouts.map((layout) => ({ layout })), ...st.motifs.map((motif) => ({ motif }))];
+  return [...st.layouts.map((layout) => ({ layout })), ...st.motifs.map((motif) => ({ motif })), ...(st.parts.layout.dialects ?? []).map((dialect) => ({ dialect }))];
+}
+
+/** Picks that make a style draw one of its library graphics: its motif if it is one, and whatever its parts ask (a dialect). */
+export function pickForGraphic(style: StyleId, name: string): Pick {
+  const st = STYLES[style];
+  return { motif: st.motifs.includes(name) ? name : null, ...st.parts.ground.pickFor?.(name), ...st.parts.graphics.pickFor?.(name) };
 }
 
 function palettePicks(style: StyleId, o: Opts, picks: Pick[]): Pick[] {
@@ -190,16 +196,18 @@ export const shuffleSeeds = (i: number): Spec['seeds'] => ({ layout: mix(0x5a17,
  * The variety tests of spec 8.0 for one style in one format: n shuffles (300) of the default text in light mode.
  * The pairing counted is the one the shuffle chose (the type seed), not the one drawn when its fonts are not loaded.
  */
-export function runVariety(m: Measure, style: StyleId, format: Format, n = 300, resolve?: Resolve): Variety {
+export function runVariety(m: Measure, style: StyleId, format: Format, n = 300, resolve?: Resolve, pick: Pick = {}): Variety {
   const rows: VarietyRow[] = [];
   for (let i = 0; i < n; i++) {
     const s = defaultSpec(shuffleSeeds(i));
-    s.style = style; s.format = format;
+    s.style = style; s.format = format; s.pick = { ...s.pick, ...pick };
     const sc = solve(s, m, resolve?.(s)).scene;
     rows.push({ frame: sc.frame, transform: sc.transform, graphics: sc.graphics, palette: sc.palette, pairing: choosePairing(s).id });
   }
-  const st = STYLES[style];
-  return varietyOf(rows, { layouts: st.layouts, graphics: st.parts.graphics.vocab, palettes: st.parts.palette.list.map((p) => p.id), pairings: PAIRINGS[style].map((p) => p.id) });
+  const st = STYLES[style], d = pick.dialect ?? null;
+  // with a dialect picked, the lists are that dialect's own (spec 8.2: each dialect alone meets the tests)
+  const layouts = (d && st.parts.layout.layoutsOf?.[d]) || st.layouts, vocab = (d && st.parts.graphics.vocabOf?.[d]) || st.parts.graphics.vocab;
+  return varietyOf(rows, { layouts, graphics: vocab, palettes: st.parts.palette.list.map((p) => p.id), pairings: PAIRINGS[style].map((p) => p.id) });
 }
 
 /**
@@ -231,6 +239,12 @@ export function coverOf(g: GraphicItem): number {
     case 'rules': { const th = Math.max(1, W * p('weight')); return tone(Math.min(1, th / (R.h / p('count'))) * (1 - p('stagger') / 2)); }
     case 'lines': case 'bars': case 'rings': return tone(p('weight') * (1 - p('prog') / 2));
     case 'waves': return tone(p('weight'));
+    // Postmodern's found graphics (R6): solid ones by their ink, marks by a little
+    case 'torn': return p('cover');
+    case 'redact': return Math.min(1, (p('count') * W * p('height') * R.w * p('length') * 0.75) / A);
+    case 'scribble': return tone(p('weight') * 6);
+    case 'tape': return Math.min(1, (p('count') * W * p('length') * W * p('width')) / A);
+    case 'xmarks': case 'register': return 0.1;
     case 'dots': return tone(0.785 / (1 + 2 * p('falloff')));
     case 'topo': return tone((p('levels') * W * 0.0019 * p('weight') * 3) / m);
     default: return 1;
@@ -262,11 +276,15 @@ export function clumsyOf(sc: Scene, spec: Spec): string[] {
     }
     return inside;
   };
-  const marks = sc.items.filter((i) => i.kind === 'text' || i.kind === 'graphic');
+  // a ground pattern or a surface pass is the ground, not cover (R6: Postmodern's pattern covers the whole canvas)
+  const marks = sc.items.filter((i) => i.kind === 'text' || (i.kind === 'graphic' && i.layer !== 'ground'));
   // in 9:16 the story zones are the app's, not the design's: only the band between them counts
   const y0 = sc.format === '9:16' ? 260 : 0, y1 = sc.format === '9:16' ? 1600 : H;
   const rows = (j: number) => { const y = ((j + 0.5) * H) / ny; return y >= y0 && y <= y1; };
   let firstArea = -1;
+  // a style drawn as many small pieces (Postmodern's shapes and found graphics, R6) has no first graphic that
+  // carries it: there the graphics are weighed together
+  const pieces = sc.style === 'pomo', gcover = new Float32Array(nx * ny);
   const gs = sc.items.filter((i) => i.kind === 'graphic' && i.layer !== 'ground');
   const firstG = gs.find((g) => g.kind === 'graphic' && g.lead) ?? gs[0];
   for (const it of marks) {
@@ -276,7 +294,7 @@ export function clumsyOf(sc: Scene, spec: Spec): string[] {
       const x = ((i + 0.5) * W) / nx, y = ((j + 0.5) * H) / ny;
       // text marks count with a margin of one cell: a line of type owns the space around it
       const hit = it.kind === 'text' ? [-1, 0, 1].some((d) => inQuad(it.quad, x, y + (d * H) / ny)) : inQuad(it.quad, x, y);
-      if (hit) { cover[j * nx + i] = Math.max(cover[j * nx + i], k); n++; }
+      if (hit) { cover[j * nx + i] = Math.max(cover[j * nx + i], k); n++; if (it.kind === 'graphic') gcover[j * nx + i] = Math.max(gcover[j * nx + i], k); }
     }
     if (it === firstG) firstArea = (n * k) / (nx * ny);
   }
@@ -284,6 +302,7 @@ export function clumsyOf(sc: Scene, spec: Spec): string[] {
   for (let j = 0; j < ny; j++) if (rows(j)) for (let i = 0; i < nx; i++) { cells++; covered += cover[j * nx + i]; }
   const empty = 1 - covered / cells;
   if (empty > (sc.frame === 'type-only' ? 0.6 : 0.55)) out.push(`empty ${Math.round(empty * 100)}%`);
+  if (pieces && firstG) firstArea = gcover.reduce((a, v) => a + v, 0) / (nx * ny);
   if (firstArea >= 0 && firstArea < 0.1) out.push(`small graphic ${Math.round(firstArea * 100)}%`);
   if (sc.layout === 'fallback') out.push('fallback');
   return out;

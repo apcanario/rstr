@@ -4,7 +4,7 @@ import { chooseParams, lerpRange, paramKey } from '../src/engine/graphics/params
 import { check } from '../src/engine/invariants';
 import { solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
-import { runVariety, specs, textVariants, varietyOf, type VarietyRow } from '../src/engine/proof';
+import { pickForGraphic, runVariety, specs, textVariants, varietyOf, type VarietyRow } from '../src/engine/proof';
 import { rng } from '../src/engine/rng';
 import type { GraphicItem } from '../src/engine/scene';
 import { STYLES } from '../src/engine/styles';
@@ -54,10 +54,10 @@ describe('9.2 with every graphic parameter at both ends of its range, per style'
       const missing: string[] = [];
       for (const name of usesOf(style)) for (const [k, R] of Object.entries(GRAPHICS[name].params)) for (const v of [R.min, R.max]) {
         ends++;
-        const motif = STYLES[style].motifs.includes(name) ? name : null;
+        const pick = pickForGraphic(style, name);
         let reached = 0, absent = 0, n = 0, fallbacks = 0;
         const fails: unknown[] = [];
-        for (const s of specs({ styles: [style], n: 2, start: 40, params: { [paramKey(name, k)]: v, 'graphics.cut': 2 }, pick: { motif } })) {
+        for (const s of specs({ styles: [style], n: 2, start: 40, params: { [paramKey(name, k)]: v, 'graphics.cut': 2 }, pick })) {
           n++;
           const sc = solve(s, stubMeasure).scene;
           if (sc.layout === 'fallback') fallbacks++;
@@ -108,8 +108,21 @@ describe('the variety tests of spec 8.0', () => {
       expect(v.pass, `swiss ${f}: ${JSON.stringify(v)}`).toEqual({ sixty: true, coverage: true, share: true });
     }
   }, 120000);
+  test('Postmodern passes all three in every format counting both dialects, and each dialect alone meets the 60-shuffle test (row R6)', () => {
+    for (const f of ['1:1', '3:4', '9:16'] as const) {
+      const v = runVariety(stubMeasure, 'pomo', f, 300);
+      console.log(`variety pomo ${f} (stub): repeats in 60 ${v.repeats60}; missing ${JSON.stringify(v.missing)}; top layout ${v.top.layout} ${(v.top.share * 100).toFixed(0)}%`);
+      expect(v.pass, `pomo ${f}: ${JSON.stringify(v)}`).toEqual({ sixty: true, coverage: true, share: true });
+      for (const dialect of ['icecream', 'photocopy'] as const) {
+        const d = runVariety(stubMeasure, 'pomo', f, 300, undefined, { dialect });
+        console.log(`variety pomo ${f} ${dialect} (stub): repeats in 60 ${d.repeats60}; missing ${JSON.stringify(d.missing)}; top layout ${d.top.layout} ${(d.top.share * 100).toFixed(0)}%`);
+        expect(d.pass.sixty, `pomo ${f} ${dialect}: ${d.repeats60} repeats`).toBe(true);
+        expect(d.missing, `pomo ${f} ${dialect}`).toEqual({ layouts: [], graphics: [], palettes: [], pairings: [] });
+      }
+    }
+  }, 240000);
   test('run for every other style on the stub measure and report (enforced from each style\'s own row)', () => {
-    for (const style of STYLE_IDS.filter((s) => s !== 'swiss')) {
+    for (const style of STYLE_IDS.filter((s) => s !== 'swiss' && s !== 'pomo')) {
       const v = runVariety(stubMeasure, style, '3:4', 300);
       expect(v.count).toBe(300);
       // reported only until each style's own row enforces it (review R13 M4: R5 asserts v.pass for Swiss here)

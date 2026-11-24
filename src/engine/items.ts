@@ -6,8 +6,8 @@ import type { Slot } from './spec';
 
 export interface TextIn {
   slot: Slot; part: string; font: FontRef; size: number; tracking?: number; runs: Run[]; xf?: Xf; clip?: Rect;
-  fill: Paint; stroke?: { paint: Paint; width: number }; echoes?: { dx: number; dy: number; paint: Paint }[];
-  ink: string[]; min: number;
+  fill: Paint; stroke?: { paint: Paint; width: number; halo?: boolean }; echoes?: { dx: number; dy: number; paint: Paint }[];
+  ink: string[]; min: number; group?: string; waive?: number[];
 }
 
 /** Local ink rect of one run. */
@@ -37,6 +37,7 @@ export function mkText(m: Measure, o: TextIn): TextItem {
   return {
     kind: 'text', slot: o.slot, part: o.part, font: o.font, size: o.size, tracking, runs: o.runs, xf: o.xf, clip: o.clip,
     fill: o.fill, stroke: o.stroke, echoes: o.echoes, quad: xfQuad(o.xf, rectQuad(local)), ink: o.ink,
+    ...(o.group ? { group: o.group } : {}), ...(o.waive ? { waive: o.waive } : {}),
     px: o.size * (Number.isFinite(scale) ? scale : 1), min: o.min,
   };
 }

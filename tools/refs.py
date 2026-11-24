@@ -41,7 +41,7 @@ def ref_specs():
     for r in data['refs']:
         s = r['s']
         seeds = {"layout": s * 7919 + 1, "colour": s * 104729 + 3, "graphic": s * 1299709 + 5, "type": 1}
-        pick = {"palette": None, "pairing": None, "motif": None, "layout": None}
+        pick = {"palette": None, "pairing": None, "motif": None, "layout": None, "dialect": None}
         pick.update(r['pick'])
         if r['style'] == 'brutal':
             pick['pairing'] = 'br-anton' if mulberry32(seeds['layout'])() < 0.5 else 'br-archivo-black'

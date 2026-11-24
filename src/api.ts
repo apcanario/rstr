@@ -10,7 +10,7 @@ import type { Scene } from './engine/scene';
 import { check } from './engine/invariants';
 import { solve, unloadedFaces } from './engine/layout';
 import { browserMeasure } from './engine';
-import { clumsyOf, picksOf, runIndependence, runInvariants, runTune, runVariety, type Opts } from './engine/proof';
+import { clumsyOf, pickForGraphic, picksOf, runIndependence, runInvariants, runTune, runVariety, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
 import { graphicLeak, knockLeak, pixelHash } from './engine/pixels';
@@ -74,7 +74,9 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       picks: (style: StyleId) => picksOf(style),
       independence: (o: Opts) => runIndependence(browserMeasure(), o, resolve),
       /** The three variety tests of spec 8.0 for one style in one format. */
-      variety: (style: StyleId, format: Format, n?: number) => runVariety(browserMeasure(), style, format, n, resolve),
+      variety: (style: StyleId, format: Format, n?: number, pick?: Partial<Spec['pick']>) => runVariety(browserMeasure(), style, format, n, resolve, pick),
+      /** The dialects a style has (Postmodern: ice cream, photocopy), for the per-dialect variety runs. */
+      dialects: (style: StyleId) => STYLES[style].parts.layout.dialects ?? [],
       /** The tuning pass (row R5): n shuffles across the formats and the ones flagged as likely clumsy. */
       tune: (style: StyleId, n?: number) => runTune(browserMeasure(), style, n, resolve),
       /** The tuning rules on one spec: what clumsyOf flags in it (empty if nothing). */
@@ -82,7 +84,7 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       /** Library graphics a style draws, with their parameter ranges: what the range-end checks walk. */
       graphics: (style: StyleId) => {
         const st = STYLES[style];
-        return [...st.parts.ground.uses, ...st.parts.graphics.uses].map((name) => ({ name, motif: st.motifs.includes(name), params: GRAPHICS[name].params }));
+        return [...st.parts.ground.uses, ...st.parts.graphics.uses].map((name) => ({ name, motif: st.motifs.includes(name), pick: pickForGraphic(style, name), params: GRAPHICS[name].params }));
       },
     },
     fonts: {

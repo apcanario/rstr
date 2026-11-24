@@ -173,7 +173,8 @@ def run(b, url, fail):
 
         # spec 10.1: page chips only when a tab does not fit; four rows fit on a tall screen (review R4 S5)
         if h >= 760:
-            for t in ['text', 'look']:
+            # Postmodern adds a fifth Look row (Dialect, R6), so it may page there
+            for t in (['text', 'look'] if spec(pg)['style'] != 'pomo' else ['text']):
                 pg.click(f'[data-tab="{t}"]')
                 if pg.query_selector_all('[data-chip]'):
                     fail(f'{at}: the {t.title()} tab has page chips where its four rows fit')
@@ -250,6 +251,61 @@ def run(b, url, fail):
                 fail(f'{at}: New {f} did not change only the {f} seed')
         if pg.query_selector('[data-chip="0"]'):
             pg.click('[data-chip="0"]')
+        # Postmodern's Dialect control (spec 8.2, 10.2; R6): on the Look tab for Postmodern only; Shuffle keeps it;
+        # in Advanced the Paper edge switch writes pomo.paperEdge
+        def find_on_look(sel):
+            pg.click('[data-tab="look"]')
+            chips = len(pg.query_selector_all('[data-chip]'))
+            for i in range(max(1, chips)):
+                if chips:
+                    pg.click(f'[data-chip="{i}"]')
+                if pg.query_selector(sel):
+                    return True
+            return False
+        if find_on_look('button[data-dialect]'):
+            fail(f'{at}: a Dialect control shows for {spec(pg)["style"]}')
+        if pg.query_selector('[data-chip="0"]'):
+            pg.click('[data-chip="0"]')
+        s0 = spec(pg)
+        pg.evaluate('(x) => window.__rstr.app.load({ ...x, style: "pomo" })', s0)
+        idle(pg)
+        if not find_on_look('button[data-dialect="photocopy"]'):
+            fail(f'{at}: no Dialect control for Postmodern')
+        else:
+            n += check_layout(pg, f'{at} pomo Dialect row', fail)
+            find_on_look('button[data-dialect="photocopy"]')
+            for d, want in [('photocopy', 'copy-'), ('icecream', None), ('either', None)]:
+                tap(pg, f'button[data-dialect="{d}"]')
+                got = spec(pg)['pick'].get('dialect')
+                if got != (None if d == 'either' else d):
+                    fail(f'{at}: Dialect {d} set pick.dialect {got}')
+                frame = pg.evaluate('(x) => window.__rstr.scene(x).frame', spec(pg))
+                if d == 'photocopy' and not frame.startswith('copy-') or d == 'icecream' and frame.startswith('copy-'):
+                    fail(f'{at}: Dialect {d} drew {frame}')
+                if d == 'photocopy':
+                    tap(pg, '[data-testid="shuffle"]')
+                    if spec(pg)['pick'].get('dialect') != 'photocopy':
+                        fail(f'{at}: Shuffle dropped the dialect')
+            if pg.query_selector('[data-testid="paper-edge"]'):
+                fail(f'{at}: the Paper edge switch shows in Simple')
+            pg.click('[data-testid="advanced"]')
+            if not find_on_look('[data-testid="paper-edge"]'):
+                fail(f'{at}: no Paper edge switch in Advanced')
+            else:
+                n += check_layout(pg, f'{at} pomo Paper edge row', fail)
+                find_on_look('[data-testid="paper-edge"]')
+                tap(pg, '[data-testid="paper-edge"]')
+                if spec(pg)['params'].get('pomo.paperEdge') is not False:
+                    fail(f'{at}: Paper edge off did not reach the spec')
+                tap(pg, '[data-testid="paper-edge"]')
+                if 'pomo.paperEdge' in spec(pg)['params']:
+                    fail(f'{at}: Paper edge on did not clear the value')
+            pg.click('[data-testid="advanced"]')
+        pg.click('[data-tab="look"]')
+        if pg.query_selector('[data-chip="0"]'):
+            pg.click('[data-chip="0"]')
+        pg.evaluate('(x) => window.__rstr.app.load(x)', s0)
+        idle(pg)
         pg.click('[data-tab="text"]')
         before = spec(pg)
         tap(pg, 'button[data-slot="title"]')

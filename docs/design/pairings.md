@@ -33,18 +33,18 @@ In a serif contrast the serif sets the subtitle only; title, info and caption st
 
 ## Postmodern
 
-Heavy display, an italic serif for the subtitle, a mono for info and caption.
+Heavy display, an italic serif for the subtitle, a mono for info and caption. Heavy: the third face of the photocopy dialect's title words (spec 8.2: display, serif and heavy), a bundled core face so it is always there (R6).
 
-| Id | Display | Subtitle | Mono | From |
-|---|---|---|---|---|
-| pm-bricolage | Bricolage Grotesque 800 | Instrument Serif italic | DM Mono 400 | Spike, approved look. Default |
-| pm-rubik-trirong | Rubik 800 | Trirong 400 italic | Space Mono 400 | Typewolf |
-| pm-syne-fraunces | Syne 800 | Fraunces 400 italic | DM Mono 400 | Plan |
-| pm-unbounded-young | Unbounded 700 | Young Serif 400 | JetBrains Mono 400 | Plan |
-| pm-familjen-gloock | Familjen Grotesk 700 | Gloock 400 | IBM Plex Mono 400 | Plan |
-| pm-eczar-gentium | Eczar 800 | Gentium Book Plus 400 italic | Courier Prime 400 | Typewolf (two serifs; their Gentium Basic is now Gentium Book Plus) |
-| pm-darker-playfair | Darker Grotesque 900 | Playfair Display 400 italic | Space Mono 400 | Plan |
-| pm-rubikmono-cormorant | Rubik Mono One 400 | Cormorant Garamond 500 italic | DM Mono 400 | Plan |
+| Id | Display | Subtitle | Mono | Heavy | From |
+|---|---|---|---|---|---|
+| pm-bricolage | Bricolage Grotesque 800 | Instrument Serif italic | DM Mono 400 | Anton 400 | Spike, approved look. Default |
+| pm-rubik-trirong | Rubik 800 | Trirong 400 italic | Space Mono 400 | Archivo Black 400 | Typewolf |
+| pm-syne-fraunces | Syne 800 | Fraunces 400 italic | DM Mono 400 | Anton 400 | Plan |
+| pm-unbounded-young | Unbounded 700 | Young Serif 400 | JetBrains Mono 400 | Archivo Black 400 | Plan |
+| pm-familjen-gloock | Familjen Grotesk 700 | Gloock 400 | IBM Plex Mono 400 | Anton 400 | Plan |
+| pm-eczar-gentium | Eczar 800 | Gentium Book Plus 400 italic | Courier Prime 400 | Archivo Black 400 | Typewolf (two serifs; their Gentium Basic is now Gentium Book Plus) |
+| pm-darker-playfair | Darker Grotesque 900 | Playfair Display 400 italic | Space Mono 400 | Anton 400 | Plan |
+| pm-rubikmono-cormorant | Rubik Mono One 400 | Cormorant Garamond 500 italic | DM Mono 400 | Archivo Black 400 | Plan |
 
 ## Brutalist
 

@@ -1,4 +1,4 @@
-/** The faint ground pattern (Postmodern ice cream): dots, grid or confetti. Colour: ink, at low alpha. Defaults are the spike's look. */
+/** The faint ground pattern (Postmodern): dots, grid, confetti, ruled lines or hatching (kinds 0 to 4). Colour: ink, at low alpha. Defaults are the spike's look. */
 import { TAU } from './clock';
 import { val } from './params';
 import type { Graphic } from './types';
@@ -20,6 +20,14 @@ export const pattern: Graphic = {
       for (let x = st; x < W; x += st) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
       for (let y = st; y < H; y += st) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
       ctx.stroke();
+    } else if (gp === 3) {
+      ctx.beginPath();
+      for (let y = st; y < H; y += st * 0.6) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+      ctx.stroke();
+    } else if (gp === 4) {
+      ctx.beginPath();
+      for (let x = -H; x < W; x += st * 0.7) { ctx.moveTo(x, H); ctx.lineTo(x + H, 0); }
+      ctx.stroke();
     } else {
       const n = val(g, G, 'count');
       for (let i = 0; i < n; i++) {
@@ -32,3 +40,5 @@ export const pattern: Graphic = {
 };
 /** How many draws the pattern takes from the graphic stream (after the kind draw), for a confetti count. */
 export const patternDraws = (kind: number, count: number) => (kind === 2 ? count * 3 : 0);
+/** How many kinds there are. */
+export const PATTERN_KINDS = 5;

@@ -56,7 +56,46 @@ export const SHAPES: Record<string, { choose: (r: Rng, P: Pal) => Params; draw: 
     choose: (r) => ({ c: pick(r, ['accent', 'accent2', 'ink']) }),
     draw(ctx, s, p, P, ov) { ctx.strokeStyle = ov || (P as any)[String(p.c)]; ctx.lineWidth = s * 0.13; ctx.beginPath(); ctx.arc(0, 0, s * 0.36, 0, TAU); ctx.stroke(); },
   },
+  checker: {
+    choose: (r) => ({ c: pick(r, ['accent', 'accent2', 'accent3']), n: 3 + Math.floor(r() * 3) }),
+    draw(ctx, s, p, P, ov) {
+      const n = Number(p.n), q = (s * 0.8) / n;
+      if (ov) { ctx.fillStyle = ov; ctx.fillRect(-s * 0.4, -s * 0.4, s * 0.8, s * 0.8); return; }
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { ctx.fillStyle = (i + j) % 2 ? P.ink : (P as any)[String(p.c)]; ctx.fillRect(-s * 0.4 + i * q, -s * 0.4 + j * q, q + 0.5, q + 0.5); }
+    },
+  },
+  arc: {
+    choose: (r) => ({ c: pick(r, ['accent', 'accent2', 'accent3']) }),
+    draw(ctx, s, p, P, ov) { ctx.strokeStyle = ov || (P as any)[String(p.c)]; ctx.lineWidth = s * 0.16; ctx.lineCap = 'butt'; ctx.beginPath(); ctx.arc(0, s * 0.2, s * 0.38, Math.PI, 0); ctx.stroke(); },
+  },
+  zigzag: {
+    choose: (r) => ({ c: pick(r, ['accent', 'accent2', 'accent3']), n: 4 + Math.floor(r() * 3) }),
+    draw(ctx, s, p, P, ov) {
+      const n = Number(p.n), w = s * 0.9, h = s * 0.16, a = s * 0.1;
+      ctx.fillStyle = ov || (P as any)[String(p.c)]; ctx.beginPath();
+      for (let i = 0; i <= n; i++) { const x = -w / 2 + (w * i) / n, y = (i % 2 ? -a : a) - h; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      for (let i = n; i >= 0; i--) ctx.lineTo(-w / 2 + (w * i) / n, (i % 2 ? -a : a) + h);
+      ctx.closePath(); ctx.fill();
+    },
+  },
+  pill: {
+    choose: (r) => ({ c: pick(r, ['accent', 'accent2', 'accent3']) }),
+    draw(ctx, s, p, P, ov) {
+      const L = s * 0.42, R = s * 0.17;
+      ctx.fillStyle = ov || (P as any)[String(p.c)]; ctx.beginPath();
+      ctx.arc(-L + R, 0, R, Math.PI / 2, (Math.PI * 3) / 2); ctx.arc(L - R, 0, R, -Math.PI / 2, Math.PI / 2); ctx.closePath(); ctx.fill();
+    },
+  },
+  cross: {
+    choose: (r) => ({ c: pick(r, ['accent', 'accent2', 'accent3', 'ink']) }),
+    draw(ctx, s, p, P, ov) { const a = s * 0.4, b = s * 0.12; ctx.fillStyle = ov || (P as any)[String(p.c)]; ctx.fillRect(-a, -b, a * 2, b * 2); ctx.fillRect(-b, -a, b * 2, a * 2); },
+  },
+  wedge: {
+    choose: (r) => ({ c: pick(r, ['accent', 'accent2', 'accent3']) }),
+    draw(ctx, s, p, P, ov) { ctx.fillStyle = ov || (P as any)[String(p.c)]; ctx.beginPath(); ctx.moveTo(-s * 0.35, s * 0.35); ctx.arc(-s * 0.35, s * 0.35, s * 0.75, -Math.PI / 2, 0); ctx.closePath(); ctx.fill(); },
+  },
 };
+/** The thirteen shapes of spec 8.2. */
 export const SHAPE_NAMES = Object.keys(SHAPES);
 
 /** One placed shape: g.xf places it, params carry its choices. Drawn twice: shadow in ink, then itself. Defaults are the spike's look. */

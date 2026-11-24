@@ -23,5 +23,7 @@ export function compose5(parts: Parts, c: PartCtx): { items: Item[]; plan: Plan 
   if (!text) return null;
   const items = [...below, ...text.map((i) => place(i, plan.xf))];
   parts.graphics.after?.(c, plan, items);
+  // the ground's surface pass goes over everything, type included (spec 8.2 copier pass); never transformed
+  items.push(...(parts.ground.pass?.(c, plan) ?? []));
   return { items, plan };
 }

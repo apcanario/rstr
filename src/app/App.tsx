@@ -30,6 +30,8 @@ const FACET_LABEL: Record<Facet, string> = { layout: 'Layout', colour: 'Colour',
 const REROLL_LABEL: Record<Facet, string> = { layout: 'New layout', colour: 'New colours', graphic: 'New graphic', type: 'New type' };
 const FINISHES: [Finish, string][] = [['clean', 'Clean'], ['grain', 'Grain'], ['grunge', 'Grunge'], ['vhs', 'VHS'], ['glitch', 'Glitch']];
 const MARKS: [Marks, string][] = [['off', 'Off'], ['light', 'Light'], ['full', 'Full']];
+/** Postmodern's Dialect control (spec 8.2, 10.2): Either lets the layout stream pick. */
+const DIALECT: [string, string][] = [['either', 'Either'], ['icecream', 'Ice cream'], ['photocopy', 'Photocopy']];
 const SLOT_LABEL: Record<Slot, string> = { title: 'Title', subtitle: 'Subtitle', info: 'Info', caption: 'Caption' };
 const KEPT_PAGE = 6;
 /** Finishes and marks that draw something arrive in R7; until then only Clean and Off can be chosen. */
@@ -109,7 +111,7 @@ function Panel({ pages, page, setPage }: { pages: ComponentChildren[]; page: num
     <div class="panel" data-testid="panel">
       <div class="page" data-page={p}>{pages[p]}</div>
       {pages.length > 1 && (
-        <div class="chips" role="group" aria-label="Pages">
+        <div class={pages.length > 2 ? 'chips many' : 'chips'} role="group" aria-label="Pages">
           {pages.map((_, i) => <button class={i === p ? 'chip on' : 'chip'} aria-pressed={i === p} aria-label={`Page ${i + 1}`} data-chip={i} onClick={() => setPage(i)}><L t={String(i + 1)} /></button>)}
         </div>
       )}
@@ -363,7 +365,18 @@ export function App({ ready }: { ready: Promise<void> }) {
     </div>
   );
   /** Rows two to a page, or all on one page where four 48 px rows fit (spec 10.1: page chips only when they do not fit). */
-  const paged = (rows: ComponentChildren[]) => (tall ? [rows] : [rows.slice(0, 2), rows.slice(2)]).map((r) => <div class="rows">{r}</div>);
+  const paged = (rows: ComponentChildren[]) => {
+    const per = tall ? 4 : 2, out: ComponentChildren[][] = [];
+    for (let i = 0; i < rows.length; i += per) out.push(rows.slice(i, i + per));
+    return out.map((r) => <div class="rows">{r}</div>);
+  };
+  const pomo = spec.style === 'pomo', edgeOn = spec.params['pomo.paperEdge'] !== false;
+  const setDialect = (d: string) => commit((s) => ({ ...s, pick: { ...s.pick, dialect: d === 'either' ? null : (d as Spec['pick']['dialect']) } }));
+  const toggleEdge = () => commit((s) => {
+    const params = { ...s.params };
+    if (params['pomo.paperEdge'] === false) delete params['pomo.paperEdge']; else params['pomo.paperEdge'] = false;
+    return { ...s, params };
+  });
   const textPages = paged((['title', 'subtitle', 'info', 'caption'] as Slot[]).map(textRow));
   const lookPages = paged([
     seg([['light', 'Light'], ['dark', 'Dark']], spec.mode, (m) => set({ mode: m }), 'data-mode'),
@@ -377,6 +390,12 @@ export function App({ ready }: { ready: Promise<void> }) {
         ))}
       </div>
     </div>,
+    // Postmodern only: the Dialect control (spec 8.2); in Advanced, the Paper edge switch of the photocopy dialect
+    ...(pomo ? [<div class="captioned"><L t="Dialect" c="cap" />{seg(DIALECT, spec.pick.dialect ?? 'either', setDialect, 'data-dialect')}</div>] : []),
+    ...(pomo && advanced ? [
+      <div class="slot edge"><L t="Paper edge" c="cap" /><L t={edgeOn ? 'On: title words hold over ink' : 'Off: rougher, waives contrast'} c="hint" />
+        <button class={edgeOn ? 'switch on' : 'switch'} role="switch" aria-checked={edgeOn} aria-label="Paper edge" data-testid="paper-edge" onClick={toggleEdge}><i /></button></div>,
+    ] : []),
   ]);
   const panel = { style: stylePages, text: textPages, look: lookPages }[tab];
 

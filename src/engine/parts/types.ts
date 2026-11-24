@@ -8,7 +8,7 @@ import type { Rect, Xf } from '../geom';
 import type { Measure } from '../measure';
 import type { Rng } from '../rng';
 import type { Item } from '../scene';
-import type { Slot, Spec } from '../spec';
+import type { Dialect, Slot, Spec } from '../spec';
 
 /** What every part is called with for one candidate. */
 export interface PartCtx {
@@ -110,6 +110,8 @@ export interface Plan {
   titleUp?: boolean;
   /** Where each text slot goes, from the style's own list of positions (spec 8.5); absent: the style's first. */
   pos?: Partial<Record<Slot, string>>;
+  /** The style's dialect where it has more than one (Postmodern: ice cream or photocopy, spec 8.2); absent: its first. */
+  dialect?: Dialect;
 }
 
 /** A plan with every shared value at its neutral setting, for a layout to fill in. */
@@ -121,8 +123,21 @@ export function basePlan(frame: string, page: Rect, margin: number): Plan {
   };
 }
 
-export interface GroundPart { id: string; /** library graphics it draws */ uses: string[]; ground(c: PartCtx, plan: Plan): Item[]; }
-export interface LayoutPart { id: string; layouts: string[]; /** at 1080 wide */ margin: number; plan(c: PartCtx): Plan | null; }
+/** Picks that make a part draw one of its library graphics (for the range-end proofs): absent, no pick is needed. */
+export type PickFor = (graphic: string) => Partial<Spec['pick']>;
+export interface GroundPart {
+  id: string; /** library graphics it draws */ uses: string[]; ground(c: PartCtx, plan: Plan): Item[];
+  /** A surface pass drawn over everything, type included (spec 8.7: the copier pass belongs to the ground). */
+  pass?(c: PartCtx, plan: Plan): Item[];
+  pickFor?: PickFor;
+}
+export interface LayoutPart {
+  id: string; layouts: string[]; /** at 1080 wide */ margin: number; plan(c: PartCtx): Plan | null;
+  /** The dialects it can lay out, where the style has more than one (spec 8.2). */
+  dialects?: Dialect[];
+  /** The layouts of each dialect. */
+  layoutsOf?: Partial<Record<Dialect, string[]>>;
+}
 export interface GraphicsPart {
   id: string;
   /** Library graphics it draws (their parameters are tested at both ends). */
@@ -135,6 +150,9 @@ export interface GraphicsPart {
   place(c: PartCtx, plan: Plan): Item[];
   /** After type: read the finished Scene (world) and adjust its own items (knock-outs). */
   after?(c: PartCtx, plan: Plan, items: Item[]): void;
+  pickFor?: PickFor;
+  /** What the variety tests count, per dialect, where the style has more than one. */
+  vocabOf?: Partial<Record<Dialect, string[]>>;
 }
 export interface TypePart {
   id: string;

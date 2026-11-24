@@ -28,7 +28,7 @@ CSS_HOST = 'https://fonts.googleapis.com'
 UA = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
 KEEP = {'latin', 'latin-ext', ''}
 LICENCE_DIRS = [('ofl', 'OFL.txt'), ('apache', 'LICENSE.txt'), ('ufl', 'UFL.txt')]
-ROLES = ['display', 'text', 'label', 'serif', 'mono', 'pixel']
+ROLES = ['display', 'text', 'label', 'serif', 'mono', 'pixel', 'heavy']
 
 
 def families(data):

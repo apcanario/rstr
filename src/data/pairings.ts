@@ -16,6 +16,7 @@ export interface Pairing {
   serif?: FontRef;      // a subtitle face where the style uses one
   mono: FontRef;
   pixel?: FontRef;
+  heavy?: FontRef;      // a heavy display face (Postmodern photocopy title words, spec 8.2)
   from: string;
   notes: string;
 }
@@ -34,7 +35,7 @@ export const PAIRINGS: Record<StyleId, Pairing[]> = Object.fromEntries(
 /** The style's default pairing: the first of its list. */
 export const defaultPairing = (style: StyleId): Pairing => PAIRINGS[style][0];
 
-export const ROLES = ['display', 'text', 'label', 'serif', 'mono', 'pixel'] as const;
+export const ROLES = ['display', 'text', 'label', 'serif', 'mono', 'pixel', 'heavy'] as const;
 
 /** Every face a pairing names, once each. */
 export function facesOf(p: Pairing): FontRef[] {

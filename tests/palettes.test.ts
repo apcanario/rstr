@@ -13,7 +13,9 @@ const onPlate = (P: Form, fill: string) => Math.max(contrast(P.ink, fill), contr
  */
 const NEEDS: Record<StyleId, (P: Form) => [string, number][]> = {
   swiss: (P) => [['ink on ground', contrast(P.ink, P.ground)]],
-  pomo: (P) => [['ink on ground', contrast(P.ink, P.ground)], ['type on accent', onPlate(P, P.accent)], ['type on accent2', onPlate(P, P.accent2!)], ['type on accent3', onPlate(P, P.accent3!)]],
+  pomo: (P) => [['ink on ground', contrast(P.ink, P.ground)], ['type on accent', onPlate(P, P.accent)], ['type on accent2', onPlate(P, P.accent2!)], ['type on accent3', onPlate(P, P.accent3!)],
+    // photocopy (R6): toner on paper, and type on a strip of the spot colour
+    ['toner on paper', contrast(P.toner!, P.paper!)], ['type on spot', Math.max(contrast(P.toner!, P.spot!), contrast(P.paper!, P.spot!))]],
   brutal: (P) => [['ink on ground', contrast(P.ink, P.ground)], ['type on accent', onPlate(P, P.accent)]],
   vapor: (P) => [
     ['window ink', contrast(P.windowInk!, P.window!)],

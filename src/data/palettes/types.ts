@@ -14,6 +14,10 @@ export interface Roles {
   window?: string;
   windowInk?: string;
   chrome?: string;
+  /** Postmodern photocopy (spec 8.2): the paper, the toner, and one spot colour (the toner itself where there is none). */
+  paper?: string;
+  toner?: string;
+  spot?: string;
 }
 export type Mode = 'light' | 'dark';
 export interface Palette {

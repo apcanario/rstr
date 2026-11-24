@@ -31,7 +31,7 @@ describe('Shuffle and locks (spec 10.1)', () => {
           const prev = s;
           s = shuffle(s, locks, seed);
           expect(s.seeds[f]).toBe(first.seeds[f]);
-          expect(s.pick).toEqual({ ...{ palette: null, pairing: null, motif: null, layout: null }, [PICK[f]]: first.pick[PICK[f]] });
+          expect(s.pick).toEqual({ ...{ palette: null, pairing: null, motif: null, layout: null, dialect: null }, [PICK[f]]: first.pick[PICK[f]] });
           if (f === 'colour') expect(choosePalette(s).id).toBe(palette);
           if (f === 'type') expect(choosePairing(s).id).toBe(pairing);
           for (const g of FACETS) if (s.seeds[g] !== prev.seeds[g]) changed.add(g);
@@ -52,26 +52,27 @@ describe('Shuffle and locks (spec 10.1)', () => {
       expect(layout(s, stubMeasure).palette).toBe(want);
     }
   });
-  test('Shuffle with nothing locked clears every pick; format, mode, finish and marks stay (spec 3)', () => {
-    const s: Spec = { ...defaultSpec(), format: '9:16', mode: 'dark', finish: 'grain', marks: 'full', pick: { palette: 'paper', pairing: 'x', motif: 'topo', layout: 'full-bleed' } };
+  test('Shuffle with nothing locked clears every pick but the dialect; format, mode, finish and marks stay (spec 3)', () => {
+    const s: Spec = { ...defaultSpec(), format: '9:16', mode: 'dark', finish: 'grain', marks: 'full', pick: { palette: 'paper', pairing: 'x', motif: 'topo', layout: 'full-bleed', dialect: 'photocopy' } };
     const n = shuffle(s, NO_LOCKS, counter());
-    expect(n.pick).toEqual({ palette: null, pairing: null, motif: null, layout: null });
+    // the Dialect control is a setting of the Look tab, like Light/Dark: Shuffle keeps it (R6 choice)
+    expect(n.pick).toEqual({ palette: null, pairing: null, motif: null, layout: null, dialect: 'photocopy' });
     expect([n.format, n.mode, n.finish, n.marks]).toEqual(['9:16', 'dark', 'grain', 'full']);
     for (const f of FACETS) expect(n.seeds[f]).not.toBe(s.seeds[f]);
   });
   test('a reroll changes one facet and clears its pick only', () => {
-    const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', pairing: 'p', motif: 'topo', layout: 'l' } };
+    const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', pairing: 'p', motif: 'topo', layout: 'l', dialect: null } };
     const n = reroll(s, 'colour', counter());
     expect(n.seeds.colour).not.toBe(s.seeds.colour);
     expect({ ...n.seeds, colour: 0 }).toEqual({ ...s.seeds, colour: 0 });
     expect(n.pick).toEqual({ ...s.pick, palette: null });
   });
   test('a style change keeps seeds and clears picks', () => {
-    const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', pairing: 'p', motif: 'topo', layout: 'l' } };
+    const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', pairing: 'p', motif: 'topo', layout: 'l', dialect: 'icecream' } };
     const n = withStyle(s, 'brutal');
     expect(n.style).toBe('brutal');
     expect(n.seeds).toEqual(s.seeds);
-    expect(n.pick).toEqual({ palette: null, pairing: null, motif: null, layout: null });
+    expect(n.pick).toEqual({ palette: null, pairing: null, motif: null, layout: null, dialect: null });
   });
 });
 

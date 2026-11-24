@@ -7,6 +7,9 @@ export type Mode = 'light' | 'dark';
 export type Finish = 'clean' | 'grain' | 'grunge' | 'vhs' | 'glitch';
 export type Marks = 'off' | 'light' | 'full';
 export type Slot = 'title' | 'subtitle' | 'info' | 'caption';
+/** Postmodern's two dialects (spec 8.2): the layout stream picks one unless pick.dialect is set. */
+export type Dialect = 'icecream' | 'photocopy';
+export const DIALECTS: Dialect[] = ['icecream', 'photocopy'];
 export const SLOTS: Slot[] = ['title', 'subtitle', 'info', 'caption'];
 export const STYLE_IDS: StyleId[] = ['swiss', 'pomo', 'brutal', 'vapor'];
 export const FACETS = ['layout', 'colour', 'graphic', 'type'] as const;
@@ -22,7 +25,7 @@ export interface Spec {
   finish: Finish;
   marks: Marks;
   seeds: Record<Facet, number>;
-  pick: { palette: string | null; pairing: string | null; motif: string | null; layout: string | null };
+  pick: { palette: string | null; pairing: string | null; motif: string | null; layout: string | null; dialect: Dialect | null };
   params: Record<string, number | string | boolean>;
   text: {
     title: TextSlot<string>;
@@ -53,7 +56,7 @@ export function defaultSpec(seeds?: Partial<Spec['seeds']>): Spec {
   return {
     v: 1, style: 'swiss', format: '3:4', mode: 'light', finish: 'clean', marks: 'off',
     seeds: { layout: 1, colour: 2, graphic: 3, type: 4, ...seeds },
-    pick: { palette: null, pairing: null, motif: null, layout: null },
+    pick: { palette: null, pairing: null, motif: null, layout: null, dialect: null },
     params: {},
     text: structuredClone(DEFAULT_TEXT),
   };
@@ -112,6 +115,7 @@ export function migrate(raw: unknown): Spec {
       pairing: strOrNull(pickRaw.pairing),
       motif: strOrNull(pickRaw.motif ?? (legacy ? r.motif : null)),
       layout: strOrNull(pickRaw.layout ?? (legacy ? r.layout : null)),
+      dialect: (DIALECTS as string[]).includes(pickRaw.dialect) ? pickRaw.dialect : null,
     },
     params: {},
     text: {

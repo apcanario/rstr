@@ -47,7 +47,7 @@ describe('spec schema', () => {
     const s = migrate({ style: 'swiss', format: '1:1', seeds: { layout: 5, colour: 6, motif: 7 }, motif: 'topo', palette: 4, layout: 1, text: { title: { on: true, v: 'Hi' } } });
     expect(s.v).toBe(1);
     expect(s.seeds).toEqual({ layout: 5, colour: 6, graphic: 7, type: 4 });
-    expect(s.pick).toEqual({ palette: '4', pairing: null, motif: 'topo', layout: '1' });
+    expect(s.pick).toEqual({ palette: '4', pairing: null, motif: 'topo', layout: '1', dialect: null });
     expect(s.text.title.v).toBe('Hi');
     expect(s.text.caption.on).toBe(true);
   });
@@ -141,7 +141,8 @@ describe('layout', () => {
     const { STYLES } = await import('../src/engine/styles');
     for (const style of ['swiss', 'pomo', 'brutal', 'vapor'] as const) {
       const seen = new Set<string>();
-      for (let i = 0; i < 40; i++) {
+      // 120 seeds: Postmodern's eleven layouts sit in two dialects (R6)
+      for (let i = 0; i < 120; i++) {
         const s = defaultSpec({ layout: 1000 + i, colour: 8, graphic: 7, type: 6 });
         s.style = style;
         const sc = layout(s, stubMeasure);

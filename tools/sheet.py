@@ -31,6 +31,19 @@ with served() as url, browser() as b:
                 rows.append(cells)
             strip(rows).save(os.path.join(OUT, f'sheet-{style}-{mode}.jpg'), quality=85)
             print('wrote', f'shots/sheet-{style}-{mode}.jpg')
+    # Postmodern per dialect (R6): 12 designs across the formats, light and dark alternating
+    for d in ['icecream', 'photocopy']:
+        rows = []
+        for row in range(2):
+            cells = []
+            for i in range(6):
+                n = row * 6 + i
+                spec = pg.evaluate('([d, n, f]) => { const x = window.__rstr.spec(); x.style = "pomo"; x.format = f; x.mode = n % 4 === 3 ? "dark" : "light"; x.seeds = {layout: 5100 + n * 7919, colour: 5200 + n * 104729, graphic: 5300 + n * 1299709, type: 5400 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null, dialect: d}; x.params = {}; return x; }', [d, n, FORMATS[n % 3]])
+                sc = pg.evaluate('(s) => { const c = window.__rstr.scene(s); return [c.frame, c.transform, c.palette, c.layout].join(" "); }', spec)
+                cells.append((img(pg, spec), sc))
+            rows.append(cells)
+        strip(rows).save(os.path.join(OUT, f'sheet-pomo-{d}.jpg'), quality=85)
+        print('wrote', f'shots/sheet-pomo-{d}.jpg')
     # per style: 24 shuffles at 3:4, labelled with what the variety tests count (row R13)
     for style in STYLES:
         rows = []
@@ -49,12 +62,14 @@ with served() as url, browser() as b:
     for style in STYLES:
         ids = pg.evaluate('(s) => window.__rstr.palettes(s)', style)
         rows = []
-        for mode in ['light', 'dark']:
-            cells = []
-            for pid in ids:
-                spec = pg.evaluate('([s, p, md]) => { const x = window.__rstr.spec(); x.style = s; x.format = "3:4"; x.mode = md; x.seeds = {layout: 4242, colour: 1, graphic: 5151, type: 6}; x.pick = {palette: p, pairing: null, motif: null, layout: s === "swiss" ? "graphic-above" : null}; return x; }', [style, pid, mode])
-                cells.append((img(pg, spec), f'{pid} {mode}'))
-            rows.append(cells)
+        # Postmodern: a pair of rows per dialect (R6), so the ice cream 3:4 of bundle 1 M1 stays on this sheet
+        for dialect in (['icecream', 'photocopy'] if style == 'pomo' else [None]):
+            for mode in ['light', 'dark']:
+                cells = []
+                for pid in ids:
+                    spec = pg.evaluate('([s, p, md, d]) => { const x = window.__rstr.spec(); x.style = s; x.format = "3:4"; x.mode = md; x.seeds = {layout: 4242, colour: 1, graphic: 5151, type: 6}; x.pick = {palette: p, pairing: null, motif: null, layout: s === "swiss" ? "graphic-above" : null, dialect: d}; x.params = {}; return x; }', [style, pid, mode, dialect])
+                    cells.append((img(pg, spec), f'{pid} {mode}' + (f' {dialect}' if dialect else '')))
+                rows.append(cells)
         strip(rows, h=420).save(os.path.join(OUT, f'palettes-{style}.jpg'), quality=85)
         print('wrote', f'shots/palettes-{style}.jpg')
     # per style: every pairing with the same other seeds (row R3). A pairing whose fonts could not be fetched

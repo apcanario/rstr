@@ -12,6 +12,13 @@ import { lattice } from './lattice';
 import { lines } from './lines';
 import { numeral } from './numeral';
 import { pattern } from './pattern';
+import { copier } from './copier';
+import { redact } from './redact';
+import { register } from './register';
+import { scribble } from './scribble';
+import { tape } from './tape';
+import { torn } from './torn';
+import { xmarks } from './xmarks';
 import { rings } from './rings';
 import { rules } from './rules';
 import { shape } from './shape';
@@ -23,6 +30,6 @@ import { waves } from './waves';
 import type { Graphic } from './types';
 
 export const GRAPHICS: Record<string, Graphic> = Object.fromEntries(
-  [topo, blocks, bars, dots, disc, lines, rules, numeral, crosshairs, lattice, rings, waves, barcode, slab, asterisks, pattern, shape, stars, sun, grid, horizon].map((g) => [g.name, g]),
+  [topo, blocks, bars, dots, disc, lines, rules, numeral, crosshairs, lattice, rings, waves, barcode, slab, asterisks, pattern, shape, stars, sun, grid, horizon, scribble, tape, xmarks, torn, register, redact, copier].map((g) => [g.name, g]),
 );
 export type { Graphic, Range } from './types';

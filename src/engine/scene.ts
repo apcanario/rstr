@@ -22,8 +22,16 @@ export interface TextItem {
   xf?: Xf;
   clip?: Rect;               // local
   fill: Paint;
-  stroke?: { paint: Paint; width: number };
+  /**
+   * An outline drawn under the fill. With halo: true it is an edge in the paper colour round every glyph
+   * (Postmodern photocopy, spec 8.2): the fill sits on it, so rule 4 checks the fill against the halo.
+   */
+  stroke?: { paint: Paint; width: number; halo?: boolean };
   echoes?: { dx: number; dy: number; paint: Paint }[];   // offset copies drawn under the text
+  /** Text items of one group may overlap each other (the photocopy title's colliding words, spec 8.2); never another item. */
+  group?: string;
+  /** Rules of 9.2 waived for this item, by number: only rule 4, only for photocopy title words with the paper edge off (spec 8.2). */
+  waive?: number[];
   quad: Quad;                // world ink bounds, including echoes and stroke
   ink: string[];             // the colours that carry legibility, checked for contrast
   px: number;                // effective size: size times the smallest run scale
@@ -65,6 +73,11 @@ export interface GraphicItem {
   lead?: boolean;
   /** What the variety tests count this graphic as, if not its name (a Postmodern shape counts as its shape). */
   tag?: string;
+  /**
+   * A surface pass over everything drawn before it, type included (the photocopy copier pass, spec 8.2): texture
+   * like a finish, so rule 3 does not count it as a graphic over text, and contrast is checked before it.
+   */
+  pass?: boolean;
   avoid?: Quad[];            // text quads the graphic keeps off: nothing of it lies directly behind their ink
   knock?: { glyphs: number[]; boxes: Quad[]; pad: number };  // what paint cuts out: big text by its glyphs (padded), small text by its box
 }
