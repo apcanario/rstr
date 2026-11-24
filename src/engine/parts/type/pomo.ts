@@ -13,7 +13,7 @@ import { firstInk, needRatio } from '../../colour';
 import type { Rect, Xf } from '../../geom';
 import { mkRect, mkText } from '../../items';
 import type { Item } from '../../scene';
-import { fit, fitLine, inkW } from '../../text';
+import { fit, fitLine, fitShort, inkW } from '../../text';
 import { boxOf, moveItems } from '../shared/block';
 import { fitLines, upper } from '../shared/text';
 import type { PartCtx, Plan, TypePart } from '../types';
@@ -82,8 +82,11 @@ function iceType(c: PartCtx, plan: Plan): Item[] | null {
 
   // subtitle: serif italic on a highlight plate, tilted the other way
   const subFont = T.serif ?? T.text;
+  // one line first, down to 0.75 of the start size; only then two, never with one word alone on the last (review
+  // bundle 3 S1)
+  const subStart = Math.round(W * 0.066 * Math.max(0.8, c.cap));
   const ss = tx.subtitle.on && tx.subtitle.v.trim()
-    ? fit(m, { text: tx.subtitle.v, font: subFont, maxW: gw - W * 0.1, maxH: W * 0.16, start: Math.round(W * 0.066 * Math.max(0.8, c.cap)), min: MIN.subtitle, lh: 1.15, maxLines: 2, force })
+    ? fitShort(m, { text: tx.subtitle.v, font: subFont, maxW: gw - W * 0.1, maxH: W * 0.16, start: subStart, floor: subStart * 0.75, min: MIN.subtitle, lh: 1.15, maxLines: 2, force })
     : null;
   if (tx.subtitle.on && tx.subtitle.v.trim() && !ss && !force) return null;
   let sub: Block | null = null;

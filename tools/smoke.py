@@ -129,6 +129,35 @@ with served() as url, browser() as b:
         fallback_check(f'9.2 pomo {fmt} paper edge off', r, 0)
         for f in r['failures'][:5]:
             fail(f'9.2 pomo {fmt} paper edge off: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    # review bundle 3 M5: the copier pass keeps photocopy title words legible, read on pixels. Each title word's
+    # fill, in cells, against its paper halo (or a boxed word's paper against its toner box), on the Clean render
+    # (pass included) and on the Scene drawn without the pass: no cell at needRatio without the pass may fall under
+    # it with the pass. Cells already under it without the pass are counted and reported (colliding words, Carried
+    # R12 from bundle 3). N seed sets per format, light and dark, every text variant in turn (the 9.2 photocopy
+    # designs at one text variant each, for time). A paper wash over the Clean render must fail it.
+    t1 = time.time()
+    for fmt in FORMATS:
+        nw = ncell = nd = nbefore = 0
+        for spec in pg.evaluate('(o) => window.__rstr.specs(o)', {'styles': ['pomo'], 'formats': [fmt], 'n': N, 'variants': 'cycle', 'pick': {'dialect': 'photocopy'}}):
+            r = pg.evaluate('(s) => window.__rstr.copierProof(s)', spec)
+            if r is None:
+                fail(f'copier {fmt}: no copier pass on a photocopy design', spec)
+                continue
+            nd += 1
+            nw += r['words']
+            ncell += r['cells']
+            nbefore += len(r['before'])
+            if r['low']:
+                fail(f'copier {fmt}: title words under their ratio after the copier pass: {r["low"][:3]}', spec)
+        print(f'copier pass {fmt:4}  {nd} photocopy designs, {nw} title words, {ncell} cells read with and without the pass; {nbefore} cells under their ratio before the pass (reported, Carried R12 from bundle 3)' + ('' if not fails else ' (failures above)'))
+    nwash = 0
+    for i in range(3):
+        spec = pg.evaluate('(i) => { const x = window.__rstr.spec(); x.style = "pomo"; x.format = "1:1"; x.pick.dialect = "photocopy"; x.seeds = {layout: 70 + i, colour: 71 + i, graphic: 72 + i, type: 73 + i}; return x; }', i)
+        r = pg.evaluate('(s) => window.__rstr.copierProof(s, 0.85)', spec)
+        nwash += bool(r and r['low'])
+        if not (r and r['low']):
+            fail('copier check: a paper wash over the render did not fail it', spec)
+    print(f'copier check, the test of the test: a paper wash at 0.85 fails {nwash} of 3; {time.time() - t1:.0f} s')
     # the fallback: text far too long for any candidate still draws a legal design
     long = ' '.join(['Antidisestablishmentarianism'] * 14)
     nfb = 0

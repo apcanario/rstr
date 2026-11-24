@@ -87,8 +87,9 @@ export function drawMark(ctx: Ctx, g: GraphicItem, r: Rng): void {
       ctx.beginPath();
       ctx.arc(cx, cy, 4, 0, Math.PI * 2);
       ctx.fill();
-      label(ctx, String(p.label ?? ''), x + 88, y + 32, c);
-      label(ctx, String(p.label2 ?? ''), x + 88, y + 56, c);
+      // a crosshair with no room for its readouts on one surface comes without them (review bundle 3 M2)
+      if (typeof p.label === 'string') label(ctx, p.label, x + 88, y + 32, c);
+      if (typeof p.label2 === 'string') label(ctx, p.label2, x + 88, y + 56, c);
       return;
     }
     case 'barcode': {

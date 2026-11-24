@@ -34,6 +34,8 @@ const LEAD = 0.78;
 export const GHOST = [0.1, 0.16];
 /** The most of a title word's ink box later title words may cover (review R6 S1; the refs collide by about a quarter). */
 export const COVER = 0.35;
+/** The most a title word may run past the page's side, in em, and past one side only (review bundle 3 M3). */
+export const OVER = 0.3;
 
 /** A word's ink box: x, y its baseline origin on the page, rot about it, l, r, a, d its ink extents. */
 export interface Ink { x: number; y: number; rot: number; l: number; r: number; a: number; d: number; }
@@ -238,9 +240,21 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
   const full = zone.x <= plan.margin + 1 && zone.x + zone.w >= pg.w - plan.margin - 1;
   const wcap = full ? pg.w * 1.03 : zone.w * 1.06;
   const mult = { small: 0.55, normal: 0.8, oversize: 1 }[plan.size] * c.cap;
+  // past the page a word overhangs one side only, by at most OVER em: its ink starts at the zone's far edge, so the
+  // widest it may be is the room from there to the page's other side plus OVER em (review bundle 3 M3: a word cut
+  // at both ends read as cropped)
+  const room = Math.max(zone.x + zone.w, pg.w - zone.x);
+  /** The ink's left x for a word wider than the zone: flush right (over the left side) or flush left (over the
+   *  right), the drawn side unless it would run past the page by more than OVER em there. */
+  const overSide = (w: number, sz: number, left: boolean) => {
+    const overL = w - (zone.x + zone.w), overR = zone.x + w - pg.w;
+    const useLeft = left ? overL <= OVER * sz + 0.5 || overL <= overR : !(overR <= OVER * sz + 0.5 || overR <= overL);
+    return useLeft ? zone.x + zone.w - w : zone.x;
+  };
   const sizeFor = (u: Unit, S: number) => {
     const w100 = Math.max(1, inkW(m(u.s, u.face, 100)));
-    return Math.max(1, Math.min(S * u.rel, (wcap / w100) * 100));
+    const cap = full ? (w100 / 100 > OVER ? room / (w100 / 100 - OVER) : Infinity) : (wcap / w100) * 100;
+    return Math.max(1, Math.min(S * u.rel, cap));
   };
   const pad = (sz: number) => sz * Math.max(HALO, 0.09);
   /** Every word's baseline and x at the given sizes: negative leading, then pushed down until no earlier word is
@@ -253,7 +267,8 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
       const e = ext(mt.left, mt.right, mt.ascent, mt.descent, pad(sz), rot, i === cut ? sz * 0.02 : 0);
       b = i === 0 ? -e.top : b + prevBot * 0.2 + -e.top * LEAD;
       const slack = zone.w - w;
-      const inkX = slack >= 0 ? zone.x + slack * (pos.title === 'right' ? 0.35 + 0.65 * xs[i] : 0.65 * xs[i]) : zone.x + slack / 2;
+      // wider than the zone: flush with one side of it and over the page's other side only (M3), the side by its draw
+      const inkX = slack >= 0 ? zone.x + slack * (pos.title === 'right' ? 0.35 + 0.65 * xs[i] : 0.65 * xs[i]) : full ? overSide(w, sz, xs[i] < 0.5) : zone.x + slack / 2;
       const ox = inkX + Math.max(0, mt.left);
       const ink = (y: number): Ink => ({ x: ox, y, rot, l: mt.left, r: mt.right + (i === cut ? sz * slice : 0), a: mt.ascent, d: mt.descent });
       if (i > 0) {

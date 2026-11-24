@@ -2,12 +2,13 @@
 import { describe, expect, test } from 'vitest';
 import { check } from '../src/engine/invariants';
 import { solve } from '../src/engine/layout';
-import { labelOf, labelsOf, LABEL_SOURCES, markOverlaps, MARKS_OF, sourceValues } from '../src/engine/marks';
+import { behindMark, labelFloor, labelOf, labelsOf, LABEL_SOURCES, markOverlaps, MARKS_OF, marksOnShapes, platesOf, sourceValues } from '../src/engine/marks';
 import { paint } from '../src/engine/paint';
 import type { Ctx } from '../src/engine/graphics/types';
 import { stubMeasure } from '../src/engine/measure';
 import { runIndependence, specs } from '../src/engine/proof';
 import type { GraphicItem, Scene } from '../src/engine/scene';
+import { bounds, overlaps, type Quad } from '../src/engine/geom';
 import { defaultSpec, seedCode, STYLE_IDS, type Spec } from '../src/engine/spec';
 
 const marksOf = (sc: Scene) => sc.items.filter((i): i is GraphicItem => i.kind === 'graphic' && i.layer === 'mark');
@@ -41,7 +42,7 @@ describe('marks (spec 7.2)', () => {
   for (const level of ['light', 'full'] as const) {
     for (const style of STYLE_IDS) {
       test(`${level}, ${style}: no mark on a text item over 200 seeds; 9.2 still passes; only the style's marks`, () => {
-        let n = 0, total = 0, few = 0;
+        let n = 0, total = 0, few = 0, onShape = 0;
         // 200 seed sets in each format, light and dark alternating with the seed (every text variant in turn)
         for (const s of specs({ styles: [style], n: 200, variants: 'cycle', marks: level, modes: ['light'] })) {
           if (n % 2) s.mode = 'dark';
@@ -50,6 +51,13 @@ describe('marks (spec 7.2)', () => {
           total += ms.length;
           const over = markOverlaps(sc);
           expect(over, show(s, over)).toEqual([]);
+          // every micro label reads at 3:1 on everything behind it (review bundle 3 M2)
+          const lowLabels = labelFloor(sc);
+          expect(lowLabels, show(s, lowLabels)).toEqual([]);
+          // a free mark sits on shape ink only where the bare spots gave fewer than three (review bundle 3 M1)
+          const sh = marksOnShapes(sc);
+          expect(sh.onShape, show(s, sh)).toBeLessThanOrEqual(Math.max(0, 3 - sh.bare));
+          onShape += sh.onShape;
           const f = check(sc);
           expect(f, show(s, f)).toEqual([]);
           for (const g of ms) {
@@ -70,7 +78,8 @@ describe('marks (spec 7.2)', () => {
         // per style (review R7 S1; Brutalist's ruled page is the tight one)
         expect(few / n, `${few} of ${n} designs got fewer than three marks`).toBeLessThanOrEqual(0.05);
         expect(total).toBeGreaterThan(n * 2.5);
-      }, 120000);
+        console.log(`marks ${level} ${style}: ${total} mark items in ${n} designs, ${few} with fewer than three free marks, ${onShape} free marks on shape ink`);
+      }, 240000);
     }
   }
 
@@ -120,7 +129,7 @@ describe('marks (spec 7.2)', () => {
       }
     }
     expect(strings).toBeGreaterThan(100);
-  });
+  }, 120000);
 
   test('the recording check finds a mark that draws its own words', () => {
     const s = { ...defaultSpec(), marks: 'full' as const }, sc = solve(s, stubMeasure).scene, rec = recorder(sc.w, sc.h);
@@ -151,6 +160,36 @@ describe('marks (spec 7.2)', () => {
     const g = marksOf(sc)[0];
     const moved: Scene = { ...sc, items: [...sc.items, { ...g, quad: t.quad }] };
     expect(markOverlaps(moved).length).toBeGreaterThan(0);
+  });
+
+  test('the overlap check finds a mark on the plate a text item is set on, clear of the text (review bundle 3 S2)', () => {
+    let tried = 0;
+    for (const s of specs({ styles: ['brutal', 'pomo', 'vapor'], n: 6, variants: 'cycle', marks: 'light', modes: ['light'] })) {
+      const sc = solve(s, stubMeasure).scene, g = marksOf(sc).find((x) => x.params.kind !== 'card');
+      if (!g) continue;
+      const texts = sc.items.filter((i) => i.kind === 'text');
+      for (const p of platesOf(sc.items, sc)) {
+        // a 4 x 4 mark on a corner of the plate that no text item touches
+        const B = bounds(p.quad), q: Quad = [[B.x, B.y], [B.x + 4, B.y], [B.x + 4, B.y + 4], [B.x, B.y + 4]];
+        if (!overlaps(p.quad, q) || texts.some((t) => overlaps(t.quad, q))) continue;
+        tried++;
+        const moved: Scene = { ...sc, items: [...sc.items, { ...g, box: { x: B.x, y: B.y, w: 4, h: 4 }, quad: q }] };
+        expect(markOverlaps(moved).some((x) => x.includes('plate')), show(s, p.quad)).toBe(true);
+      }
+    }
+    expect(tried).toBeGreaterThan(10);
+  });
+
+  test('the label floor finds a micro label in a colour that does not read on what is behind it (review bundle 3 M2)', () => {
+    let tried = 0;
+    for (const s of specs({ n: 8, variants: 'cycle', marks: 'full', modes: ['light'] })) {
+      const sc = solve(s, stubMeasure).scene, g = marksOf(sc).find((x) => x.params.kind === 'label');
+      if (!g) continue;
+      tried++;
+      const forged: Scene = { ...sc, items: sc.items.map((i) => (i === g ? { ...g, colours: { ...g.colours, c: behindMark(sc, g)[0] } } : i)) };
+      expect(labelFloor(forged).length, show(s, g.box)).toBeGreaterThan(0);
+    }
+    expect(tried).toBeGreaterThan(3);
   });
 
   test('9.3 with marks: the colour seed and the mode move no mark; the graphic seed no text box', () => {

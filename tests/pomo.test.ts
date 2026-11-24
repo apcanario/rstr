@@ -11,7 +11,8 @@ import { choosePalette, solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { COPY_LAYOUTS, ICE_LAYOUTS, POMO_POS } from '../src/engine/parts/layout/pomo';
 import { copier } from '../src/engine/graphics/copier';
-import { coverOf, GHOST, unitsOf, type Ink } from '../src/engine/parts/type/pomo-copy';
+import { coverOf, GHOST, OVER, unitsOf, type Ink } from '../src/engine/parts/type/pomo-copy';
+import { fit, fitShort, inkW } from '../src/engine/text';
 import { blendDist } from '../src/engine/pixels';
 import { rng } from '../src/engine/rng';
 import { seedSet, shuffleSeeds, specs } from '../src/engine/proof';
@@ -93,6 +94,44 @@ describe('ice cream (spec 8.2)', () => {
       if (check(sc, [3]).length) bad.push({ spec: s, f: check(sc, [3]) });
     }
     expect(bad, show(bad)).toEqual([]);
+  });
+  test('the subtitle: one line where it fits at 0.75 of its start size; on two lines never one word alone on the last (review bundle 3 S1)', () => {
+    let one = 0, two = 0;
+    for (const s of specs({ styles: ['pomo'], n: 200, variants: 'cycle', pick: { dialect: 'icecream' } })) {
+      const subs = texts(solve(s, stubMeasure).scene).filter((t) => t.slot === 'subtitle');
+      if (!subs.length) continue;
+      if (subs.length === 1) { one++; continue; }
+      two++;
+      if (s.text.subtitle.v.trim().split(/\s+/).length >= 3) expect(subs[subs.length - 1].runs[0].s.trim().split(/\s+/).length, JSON.stringify(s)).toBeGreaterThanOrEqual(2);
+    }
+    console.log(`ice cream subtitle: ${one} on one line, ${two} on two`);
+    expect(one).toBeGreaterThan(two);
+    // the case the greedy wrap gets wrong: "system" alone on the second line
+    const font = { family: 'Gentium Book Plus', weight: 400, italic: true }, w = (x: string, px: number) => inkW(stubMeasure(x, font, px));
+    const text = 'A modular identity system', maxW = w('A modular identity', 100) + 1;
+    expect(w(text, 75)).toBeGreaterThan(maxW);
+    const greedy = fit(stubMeasure, { text, font, maxW, maxH: 1000, start: 100, min: 20, lh: 1.15, maxLines: 2 })!;
+    expect(greedy.lines).toEqual(['A modular identity', 'system']);
+    const short = fitShort(stubMeasure, { text, font, maxW, maxH: 1000, start: 100, floor: 75, min: 20, lh: 1.15, maxLines: 2 })!;
+    expect(short.lines).toEqual(['A modular', 'identity system']);
+    expect(short.size).toBe(100);
+    // and one line when it fits at 0.75 of the start
+    expect(fitShort(stubMeasure, { text, font, maxW: w(text, 80), maxH: 1000, start: 100, floor: 75, min: 20, lh: 1.15, maxLines: 2 })!.lines).toEqual([text]);
+  });
+  test('the shapes keep off the caption by one shadow offset (review bundle 3 M4)', () => {
+    let caps = 0;
+    for (const s of specs({ styles: ['pomo'], n: 60, variants: 'cycle', pick: { dialect: 'icecream' } })) {
+      const sc = solve(s, stubMeasure).scene, cap = texts(sc).find((t) => t.slot === 'caption');
+      if (!cap) continue;
+      caps++;
+      const C = bounds(cap.quad), d = sc.w * 0.013;
+      for (const g of sc.items) {
+        if (g.kind !== 'graphic' || g.layer === 'ground' || g.pass) continue;
+        const ok = (g.avoid ?? []).some((q) => { const A = bounds(q); return A.x <= C.x - d + 0.5 && A.y <= C.y - d + 0.5 && A.x + A.w >= C.x + C.w + d - 0.5 && A.y + A.h >= C.y + C.h + d - 0.5; });
+        expect(ok, JSON.stringify({ spec: s, g: g.name })).toBe(true);
+      }
+    }
+    expect(caps).toBeGreaterThan(20);
   });
   test('3:4 shapes reach the lower 40% of the page (bundle 1 M1, carried to R6)', () => {
     let low = 0;
@@ -199,6 +238,25 @@ describe('photocopy (spec 8.2)', () => {
       });
     }
     expect(bad, show(bad)).toEqual([]);
+  });
+  test('a title word runs past the page on one side only, by at most 0.3 em (review bundle 3 M3)', () => {
+    let words = 0, over = 0;
+    for (const s of specs({ styles: ['pomo'], n: 100, variants: 'cycle', pick: { dialect: 'photocopy' } })) {
+      const sc = solve(s, stubMeasure).scene;
+      for (const t of texts(sc).filter((x) => x.slot === 'title' && /^word\d+$/.test(x.part))) {
+        words++;
+        // the two ends of the word's baseline ink, on the canvas (the page may be turned): how far each lies outside it
+        const r = t.runs[0], mt = stubMeasure(r.s, t.font, t.size), xf = t.xf!, cs = Math.cos(xf.rot), sn = Math.sin(xf.rot);
+        const end = (u: number) => { const X = xf.x + (r.x + u) * cs, Y = xf.y + (r.x + u) * sn; return Math.max(-X, X - sc.w, -Y, Y - sc.h, 0); };
+        const L = end(-mt.left), R = end(mt.right), slop = t.size * 0.06 + 1;
+        expect(L > slop && R > slop, JSON.stringify({ spec: s, part: t.part, L, R })).toBe(false);
+        const o = Math.max(L, R);
+        if (o > 1) over++;
+        expect(o, JSON.stringify({ spec: s, part: t.part, L, R })).toBeLessThanOrEqual(OVER * t.size + slop);
+      }
+    }
+    console.log(`photocopy title words: ${words}, ${over} run past the page`);
+    expect(over).toBeGreaterThan(0);
   });
   test('the copier pass: its dark edges keep off every text item (review R6 S3)', () => {
     for (let i = 0; i < 60; i++) {

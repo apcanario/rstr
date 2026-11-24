@@ -64,6 +64,8 @@ export const pomoGraphics: GraphicsPart = {
     return plan.dialect === 'photocopy' ? copyGraphics(c, plan) : iceGraphics(c, plan);
   },
   after(c, plan, items) {
-    if (plan.dialect === 'photocopy') copyAfter(c, plan, items);
+    // ice cream: the shapes keep off the caption too, by one shadow offset, so the small mono never reads in pieces
+    // across a striped shape (review bundle 3 M4)
+    copyAfter(c, plan, items, plan.dialect === 'photocopy' ? c.W * 0.008 : c.W * 0.013);
   },
 };

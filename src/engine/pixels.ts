@@ -5,7 +5,8 @@ import { bounds, contains, overlaps } from './geom';
 import type { Ctx } from './graphics/types';
 import { behind } from './invariants';
 import { knockText, paint, paintText } from './paint';
-import { RING, paintFinished, textContrast, tooLow } from './finish';
+import { CELL, CELL_MIN, CELL_PX, RING, paintFinished, textContrast, tooLow } from './finish';
+import { contrast, needRatio, toHex } from './colour';
 import { browserMeasure, scene as sceneOf } from './index';
 import type { Use } from './layout';
 import type { Scene, TextItem } from './scene';
@@ -223,6 +224,67 @@ export function finishProof(spec: Spec, use: Use = {}): { items: number; inkPx: 
     if (cb) low.push({ part, ...cb });
   }
   return { items, inkPx, inkDiff, maxDelta, ringDiff, ringMax, byPart, rawLow, low, restored: rep.restored };
+}
+
+/**
+ * The copier pass keeps photocopy title words legible (review bundle 3 M5): each title word's fill read in cells
+ * (as the finish guard reads them) against its paper halo, or a boxed word's paper against the toner box round it
+ * (a ring of 3 px), on the Clean render (which includes the pass) and on the same Scene drawn without the pass.
+ * `low`: cells at `needRatio` of the word's size or more without the pass and under it with the pass (the copier
+ * took them under: must be empty). `before`: cells under it already without the pass (not the copier's doing:
+ * colliding words, reported). Pixels any later text item paints over are left out. Words with rule 4 waived
+ * (paper edge off) are not read. `wash` (a test of the check): the paper colour over the Clean render at that alpha.
+ */
+export function copierProof(spec: Spec, use: Use = {}, wash = 0): { words: number; cells: number; low: { part: string; cell: number; ratio: number; need: number }[]; before: { part: string; cell: number; ratio: number; need: number }[] } | null {
+  const [W, H] = FORMATS[spec.format];
+  const sc = sceneOf(spec, browserMeasure(), use);
+  if (!sc.items.some((i) => i.kind === 'graphic' && i.pass)) return null;
+  const a = canvas(W, H), z = canvas(W, H);
+  paint(a, sc);
+  paint(z, sc, null, { only: (i) => !(i.kind === 'graphic' && i.pass) });
+  if (wash > 0) { a.globalAlpha = wash; a.fillStyle = sc.ground; a.fillRect(0, 0, W, H); a.globalAlpha = 1; }
+  const fm = canvas(W, H), sm = canvas(W, H), om = canvas(W, H);
+  const texts = sc.items.filter((i): i is TextItem => i.kind === 'text');
+  const low: { part: string; cell: number; ratio: number; need: number }[] = [], before: typeof low = [];
+  let words = 0, cells = 0;
+  texts.forEach((it, k) => {
+    if (it.slot !== 'title' || it.waive?.includes(4)) return;
+    words++;
+    const B = bounds(it.quad), x0 = Math.max(0, Math.floor(B.x) - 6), y0 = Math.max(0, Math.floor(B.y) - 6);
+    const x1 = Math.min(W, Math.ceil(B.x + B.w) + 6), y1 = Math.min(H, Math.ceil(B.y + B.h) + 6), w = x1 - x0, h = y1 - y0;
+    if (w <= 0 || h <= 0) return;
+    for (const m of [fm, sm, om]) { m.setTransform(1, 0, 0, 1, 0, 0); m.clearRect(0, 0, W, H); }
+    paintText(fm, { ...it, fill: MASK, stroke: undefined, echoes: undefined });
+    if (it.stroke?.halo) paintText(sm, { ...it, fill: MASK, stroke: { ...it.stroke, paint: MASK }, echoes: undefined });
+    else knockText(sm, { ...it, echoes: undefined }, 3);
+    for (const o of texts.slice(k + 1)) paintText(om, { ...o, fill: MASK, stroke: o.stroke && { ...o.stroke, paint: MASK }, echoes: o.echoes?.map((e) => ({ ...e, paint: MASK, halo: e.halo && MASK })) });
+    const F = fm.getImageData(x0, y0, w, h).data, S = sm.getImageData(x0, y0, w, h).data, O = om.getImageData(x0, y0, w, h).data;
+    const c = Math.max(CELL_MIN, Math.round(CELL * it.px)), cw = Math.ceil(w / c), n = cw * Math.ceil(h / c);
+    const read = (C: Uint8ClampedArray) => {
+      const T = new Float64Array(n * 8);
+      for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i += 4) {
+        if (O[i + 3]) continue;
+        const o = (Math.floor(y / c) * cw + Math.floor(x / c)) * 8;
+        if (F[i + 3] === 255) { T[o] += C[i]; T[o + 1] += C[i + 1]; T[o + 2] += C[i + 2]; T[o + 3]++; }
+        else if (F[i + 3] === 0 && S[i + 3] === 255) { T[o + 4] += C[i]; T[o + 5] += C[i + 1]; T[o + 6] += C[i + 2]; T[o + 7]++; }
+      }
+      return Array.from({ length: n }, (_, j) => {
+        const o = j * 8;
+        if (T[o + 3] < CELL_PX || T[o + 7] < CELL_PX) return null;
+        return contrast(toHex([T[o] / T[o + 3], T[o + 1] / T[o + 3], T[o + 2] / T[o + 3]]), toHex([T[o + 4] / T[o + 7], T[o + 5] / T[o + 7], T[o + 6] / T[o + 7]]));
+      });
+    };
+    const withPass = read(a.getImageData(x0, y0, w, h).data), without = read(z.getImageData(x0, y0, w, h).data), need = needRatio(it.px);
+    for (let j = 0; j < n; j++) {
+      const r = withPass[j], r0 = without[j];
+      if (r == null || r0 == null) continue;
+      cells++;
+      const at = { part: it.part, cell: j, ratio: Math.round(r * 100) / 100, need };
+      if (r0 < need - 1e-6) before.push({ ...at, ratio: Math.round(r0 * 100) / 100 });
+      else if (r < need - 1e-6) low.push(at);
+    }
+  });
+  return { words, cells, low, before };
 }
 
 /** Time one render of a spec, by stage (row R7: export timing), and the JPEG encode of it. ms. */

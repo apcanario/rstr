@@ -100,6 +100,29 @@ export function fit(m: Measure, o: FitIn): Fit | null {
   return b;
 }
 
+/**
+ * A short line of text set on one line where it fits from `start` down to `floor`, else on at most two lines with
+ * the break chosen so the last line holds at least two words where the text has three or more, and the two lines
+ * are as even as the width allows (review bundle 3 S1: a one-word last line reads as a mistake). A typed line
+ * break is kept as it is.
+ */
+export function fitShort(m: Measure, o: FitIn & { floor: number }): Fit | null {
+  if (o.text.includes('\n')) return fit(m, o);
+  const one = fit(m, { ...o, min: Math.max(o.min, Math.round(o.floor)), maxLines: 1, force: false });
+  if (one) return one;
+  const f = fit(m, o);
+  if (!f || f.lines.length !== 2 || f.shortened) return f;
+  const words = o.text.trim().split(/\s+/), tr = (o.track ?? 0) * f.size;
+  if (words.length < 3) return f;
+  let best: Fit | null = null;
+  for (let k = 1; k <= words.length - 2; k++) {
+    const lines = [words.slice(0, k).join(' '), words.slice(k).join(' ')];
+    const b = measureBlock(m, lines, o.font, f.size, tr, o.lh);
+    if (b.width <= o.maxW && b.height <= o.maxH && (!best || b.width < best.width)) best = b;
+  }
+  return best ?? f;
+}
+
 /** One line, shrink to fit a width (no wrapping). */
 export function fitLine(m: Measure, text: string, font: FontRef, start: number, min: number, maxW: number, track = 0, force = false, maxH = Infinity): Fit | null {
   return fit(m, { text: text.replace(/\s*\n\s*/g, ' '), font, maxW, maxH, start, min, lh: 1, maxLines: 1, track, step: 1, force });

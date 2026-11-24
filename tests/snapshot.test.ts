@@ -3,7 +3,7 @@
  * R13 S5), stay as they are. For each style, a
  * hash of every Scene item (kind, quad, fills, name, params, runs: the whole item, numbers rounded to 1e-3) over
  * 40 seed sets x 3 formats x 2 modes on the stub measure. A row that changes one of these styles on purpose
- * updates its hash here and says so in the changelog. Bundle 3 touches shared code: a Swiss change shows here. Swiss hash updated for the bundle 2 viewer fixes (S2, M1-M4). Postmodern hash updated for R6 (both dialects built).
+ * updates its hash here and says so in the changelog. Bundle 3 touches shared code: a Swiss change shows here. Swiss hash updated for the bundle 2 viewer fixes (S2, M1-M4). Postmodern hash updated for R6 (both dialects built), then for the bundle 3 viewer fixes (S1, M3, M4).
  */
 import { describe, expect, test } from 'vitest';
 import { solve } from '../src/engine/layout';
@@ -13,7 +13,7 @@ import type { StyleId } from '../src/engine/spec';
 
 const SNAPSHOT: Partial<Record<StyleId, string>> = {
   swiss: '3d2d70e8',
-  pomo: 'abd31e48',
+  pomo: 'a7d0858f',
   brutal: '8480f767',
   vapor: '839d6639',
 };

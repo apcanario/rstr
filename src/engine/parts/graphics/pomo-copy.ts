@@ -85,13 +85,14 @@ export function copyGraphics(c: PartCtx, plan: Plan): Item[] {
   return out;
 }
 
-/** Every graphic keeps off the caption's copies: they fade towards the paper and sit on nothing else. */
-export function copyAfter(c: PartCtx, _plan: Plan, items: Item[]) {
+/** Every graphic keeps off the caption by padPx: in photocopy its fading copies sit on bare paper; in ice cream the
+ *  small mono never reads in pieces across a shape (review bundle 3 M4). */
+export function copyAfter(c: PartCtx, _plan: Plan, items: Item[], padPx = c.W * 0.008) {
   const caps = items.filter((i) => i.kind === 'text' && i.slot === 'caption').map((i) => xfQuad(undefined, i.quad));
   if (!caps.length) return;
   const padded = caps.map((q) => {
     const xs = q.map((p) => p[0]), ys = q.map((p) => p[1]), x = Math.min(...xs), y = Math.min(...ys);
-    return rectQuad(pad({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y }, c.W * 0.008));
+    return rectQuad(pad({ x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y }, padPx));
   });
   for (const it of items) {
     if (it.kind !== 'graphic' || it.pass || it.layer === 'ground') continue;

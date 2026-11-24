@@ -10,10 +10,10 @@ import type { Scene } from './engine/scene';
 import { check } from './engine/invariants';
 import { solve, unloadedFaces } from './engine/layout';
 import { browserMeasure } from './engine';
-import { clumsyOf, pickForGraphic, picksOf, runIndependence, runInvariants, runTune, runVariety, type Opts } from './engine/proof';
+import { clumsyOf, pickForGraphic, picksOf, runIndependence, runInvariants, runTune, runVariety, specs, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
-import { bench, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
+import { bench, copierProof, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
 import { labelsOf, markOverlaps } from './engine/marks';
 import { thumb } from './engine';
 import { withStyle } from './app/state';
@@ -71,6 +71,10 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     ghostShows: (raw: unknown) => { const s = migrate(raw); return ghostShows(s, useOf(s)); },
     /** Row R7: a finish against Clean, text ink and contrast (spec 7.1). */
     finishProof: (raw: unknown) => { const s = migrate(raw); return finishProof(s, useOf(s)); },
+    /** Review bundle 3 M5: photocopy title words read in cells on the Clean render, copier pass included. */
+    copierProof: (raw: unknown, wash = 0) => { const s = migrate(raw); return copierProof(s, useOf(s), wash); },
+    /** The specs a proof run walks, for the pixel checks the tools run spec by spec. */
+    specs: (o: Opts) => [...specs(o)],
     /** Row R7: marks on text, and micro labels that say more than the spec holds (spec 7.2). Both must be empty. */
     marks: (raw: unknown) => { const s = migrate(raw); const sc = scene(s, browserMeasure(), useOf(s)); return { overlaps: markOverlaps(sc), badLabels: labelsOf(sc, s).filter((l) => !l.ok), labels: labelsOf(sc, s).length, marks: sc.items.filter((i) => i.kind === 'graphic' && i.layer === 'mark').length }; },
     /** Row R7: one render timed by stage, plus its JPEG encode (ms). */
