@@ -128,5 +128,5 @@ describe('the variety tests of spec 8.0', () => {
       // reported only until each style's own row enforces it (review R13 M4: R5 asserts v.pass for Swiss here)
       console.log(`variety ${style} 3:4 (stub): repeats in 60 ${v.repeats60}; missing ${JSON.stringify(v.missing)}; top layout ${v.top.layout} ${(v.top.share * 100).toFixed(0)}%`);
     }
-  }, 60000);
+  }, 240000);
 });

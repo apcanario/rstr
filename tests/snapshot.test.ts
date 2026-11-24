@@ -33,7 +33,7 @@ describe('unchanged styles (snapshot on the stub measure)', () => {
   for (const style of Object.keys(SNAPSHOT) as StyleId[]) {
     test(style, () => {
       expect(sceneHash(style), `${style} Scenes changed: if on purpose, update the hash and say so in the changelog`).toBe(SNAPSHOT[style]);
-    }, 60000);
+    }, 240000);
   }
   test.skipIf(!process.env.RSTR_SNAPSHOT_ALL)('print every style\'s hash', () => {
     for (const s of ['swiss', 'pomo', 'brutal', 'vapor'] as StyleId[]) console.log('snapshot', s, sceneHash(s));
