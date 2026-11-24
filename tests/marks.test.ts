@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest';
 import { check } from '../src/engine/invariants';
 import { solve } from '../src/engine/layout';
 import { labelOf, labelsOf, LABEL_SOURCES, markOverlaps, MARKS_OF, sourceValues } from '../src/engine/marks';
+import { paint } from '../src/engine/paint';
+import type { Ctx } from '../src/engine/graphics/types';
 import { stubMeasure } from '../src/engine/measure';
 import { runIndependence, specs } from '../src/engine/proof';
 import type { GraphicItem, Scene } from '../src/engine/scene';
@@ -10,6 +12,26 @@ import { defaultSpec, seedCode, STYLE_IDS, type Spec } from '../src/engine/spec'
 
 const marksOf = (sc: Scene) => sc.items.filter((i): i is GraphicItem => i.kind === 'graphic' && i.layer === 'mark');
 const show = (s: Spec, why: unknown) => JSON.stringify({ why, spec: s });
+/** The free marks of a Scene (not the containers), by kind: a bracket is four items of one mark. */
+const freeKinds = (sc: Scene) => marksOf(sc).map((g) => g.params.mark).filter((k): k is string => typeof k === 'string');
+
+/** A context that draws nothing and records every string written with fillText or strokeText (review R7 M2). */
+function recorder(w: number, h: number): { ctx: Ctx; texts: string[] } {
+  const texts: string[] = [], store: Record<string | symbol, unknown> = { canvas: { width: w, height: h } };
+  const noop = () => undefined;
+  const ctx = new Proxy(store, {
+    get(o, k) {
+      if (k === 'fillText' || k === 'strokeText') return (s: string) => { texts.push(String(s)); };
+      if (k === 'measureText') return () => ({ width: 0, actualBoundingBoxLeft: 0, actualBoundingBoxRight: 0, actualBoundingBoxAscent: 0, actualBoundingBoxDescent: 0 });
+      if (k === 'createLinearGradient' || k === 'createRadialGradient' || k === 'createPattern') return () => ({ addColorStop: noop });
+      if (k === 'getImageData') return () => ({ data: new Uint8ClampedArray(4) });
+      if (k in o) return o[k];
+      return noop;
+    },
+    set(o, k, v) { o[k] = v; return true; },
+  }) as unknown as Ctx;
+  return { ctx, texts };
+}
 
 describe('marks (spec 7.2)', () => {
   test('off adds nothing: the Scene is the one drawn before marks existed', () => {
@@ -36,11 +58,17 @@ describe('marks (spec 7.2)', () => {
             // inside the canvas, never on text: the box is the mark's whole extent
             expect(g.box.x >= 0 && g.box.y >= 0 && g.box.x + g.box.w <= sc.w && g.box.y + g.box.h <= sc.h, show(s, g.box)).toBe(true);
           }
-          if (ms.length < 3) few++;
+          // three or four free marks (spec 7.2), each kind at most once (review R7 S2)
+          const kinds = freeKinds(sc), distinct = new Set(kinds);
+          expect(distinct.size, show(s, 'no mark at all')).toBeGreaterThan(0);
+          for (const k of distinct) expect(marksOf(sc).filter((g) => g.params.mark === k && g.params.kind !== 'bar').length, show(s, `${k} twice`)).toBeLessThanOrEqual(1);
+          expect(distinct.size).toBeLessThanOrEqual(4);
+          if (distinct.size < 3) few++;
         }
         expect(n).toBe(600);
-        // three or four marks where there is room: most designs find room for three
-        expect(few / n, `${few} of ${n} designs got fewer than three marks`).toBeLessThan(0.35);
+        // light is three or four marks (spec 7.2): fewer only where the page has no room, in at most 5% of designs
+        // per style (review R7 S1; Brutalist's ruled page is the tight one)
+        expect(few / n, `${few} of ${n} designs got fewer than three marks`).toBeLessThanOrEqual(0.05);
         expect(total).toBeGreaterThan(n * 2.5);
       }, 120000);
     }
@@ -78,6 +106,29 @@ describe('marks (spec 7.2)', () => {
       }
     }
     expect(labels).toBeGreaterThan(100);
+  });
+
+  test('what the marks draw as text is only labels of allowed sources (a recording context, review R7 M2)', () => {
+    let strings = 0;
+    for (const level of ['light', 'full'] as const) for (const s of specs({ n: 30, variants: 'cycle', marks: level })) {
+      const sc = solve(s, stubMeasure).scene, rec = recorder(sc.w, sc.h);
+      paint(rec.ctx, sc, null, { only: (i) => i.kind === 'graphic' && i.layer === 'mark', noGround: true });
+      const parts = new Set(LABEL_SOURCES.map((src) => labelOf([src], s, sc.palette)));
+      for (const t of rec.texts) {
+        strings++;
+        for (const p of t.split(' · ')) expect(parts.has(p), show(s, { drawn: t, part: p })).toBe(true);
+      }
+    }
+    expect(strings).toBeGreaterThan(100);
+  });
+
+  test('the recording check finds a mark that draws its own words', () => {
+    const s = { ...defaultSpec(), marks: 'full' as const }, sc = solve(s, stubMeasure).scene, rec = recorder(sc.w, sc.h);
+    const g = marksOf(sc).find((x) => typeof x.params.label === 'string')!;
+    const forged: Scene = { ...sc, items: sc.items.map((i) => (i === g ? { ...g, params: { ...g.params, label: 'LISBOA 38.7N' } } : i)) };
+    paint(rec.ctx, forged, null, { only: (i) => i.kind === 'graphic' && i.layer === 'mark', noGround: true });
+    const parts = new Set(LABEL_SOURCES.map((src) => labelOf([src], s, sc.palette)));
+    expect(rec.texts.some((t) => t.split(' · ').some((p) => !parts.has(p)))).toBe(true);
   });
 
   test('the label check rejects what the spec does not hold', () => {

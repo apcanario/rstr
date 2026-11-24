@@ -1,5 +1,5 @@
 /** layout(spec, measure) -> Scene. A solver: candidates from the layout stream, the first that passes 9.2 wins. */
-import { defaultPairing, faceKey, PAIRINGS, type Pairing } from '../data/pairings';
+import { defaultPairing, faceKey, PAIRINGS, ROLES, type Pairing } from '../data/pairings';
 import { formOf, type Form, type Mode } from '../data/palettes';
 import { FORMATS } from './formats';
 import { check, type Failure } from './invariants';
@@ -87,18 +87,31 @@ export function unloadedFaces(sc: Scene, isLoaded: (key: string) => boolean): st
 
 export interface Solved { scene: Scene; tried: number; failures: Failure[]; }
 
+/** Every weight the pairings list for a family (upright or italic): the faces fonts.ts can load for it. */
+export function weightsOf(family: string, italic = false): number[] {
+  const out = new Set<number>();
+  for (const list of Object.values(PAIRINGS)) for (const p of list) for (const k of ROLES) {
+    const f = p[k];
+    if (f && f.family === family && !!f.italic === italic) out.add(f.weight);
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
 /**
- * Spec 7.1: with a finish other than Clean, text set in a light weight (under 400) steps up one weight. Every
- * pairing of the list sets its text at 400 or more today, so this changes nothing yet; it is here for the
- * pairing that does not. The stepped face must be one the pairing's family has (fonts.ts loads by face).
+ * Spec 7.1: with a finish other than Clean, text set in a light weight (under 400) steps up one weight: to the next
+ * weight the pairings list for its family, so the stepped face is one that exists (fonts.ts loads by face; review
+ * R7 M7). With none listed above it, the weight stays. Every pairing of the list sets its text at 400 or more
+ * today, so this changes nothing yet.
  */
-export function stepLight(T: Pairing, finish: Spec['finish']): Pairing {
+export function stepLight(T: Pairing, finish: Spec['finish'], weights: (family: string, italic?: boolean) => number[] = weightsOf): Pairing {
   if (finish === 'clean') return T;
   let changed = false;
   const out: Pairing = { ...T };
-  for (const k of ['display', 'text', 'label', 'serif', 'mono', 'pixel', 'heavy'] as const) {
+  for (const k of ROLES) {
     const f = T[k];
-    if (f && f.weight < 400) { out[k] = { ...f, weight: f.weight + 100 } as never; changed = true; }
+    if (!f || f.weight >= 400) continue;
+    const up = weights(f.family, !!f.italic).find((w) => w > f.weight);
+    if (up != null) { out[k] = { ...f, weight: up } as never; changed = true; }
   }
   return changed ? out : T;
 }

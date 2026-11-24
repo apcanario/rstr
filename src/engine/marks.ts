@@ -71,14 +71,23 @@ function busy(c: Ctx, b: Rect): number {
   return n;
 }
 /** The least busy free spot among the candidates (they come in a seeded order, so ties go to the stream). */
-function choose(c: Ctx, cands: Rect[]): Rect | null {
+function choose(c: Ctx, cands: Rect[], scan = true): Rect | null {
   let best: Rect | null = null, score = Infinity;
   for (const b of cands) {
     if (!free(c, b)) continue;
     const s = busy(c, b);
     if (s < score - 1e-9) { score = s; best = b; }
   }
-  return best;
+  return best ?? (scan && cands.length ? choose(c, sweep(c, cands[0].w, cands[0].h), false) : null);
+}
+/** Where the margins and edges hold no room (Brutalist's ruled page fills them), every band of the page in turn:
+ *  y in steps of 4 px from FLUSH to the bottom, at a few x, FLUSH px from the canvas edge at least, in a fixed
+ *  order (no draw from the stream, so nothing after it moves). Review R7 S1. */
+const FLUSH = 12;
+function sweep(c: Ctx, w: number, h: number): Rect[] {
+  const out: Rect[] = [], xs = [FLUSH, M, Math.round((c.W - w) / 4), Math.round((c.W - w) / 2), Math.round(((c.W - w) * 3) / 4), c.W - w - M, c.W - w - FLUSH];
+  for (let y = FLUSH; y + h <= c.H - FLUSH; y += 4) for (const x of xs) if (x >= 0) out.push({ x, y, w, h });
+  return out;
 }
 
 /** The palette roles a mark may be drawn in. */
@@ -156,8 +165,14 @@ function place(c: Ctx, kind: MarkKind): GraphicItem[] {
       return b ? [item(c, 'grid', b, { cell: 54 })] : [];
     }
     case 'slashes': {
-      const h = Math.round(between(r, 90, 130)), w = Math.round(h / Math.tan(Math.PI / 3) + 64 + 44 + 5 + 1.5 + 3 * 14);
-      const b = choose(c, spots(c, w, h, 'corner', true));
+      const h = Math.round(between(r, 90, 130)), wOf = (hh: number) => Math.round(hh / Math.tan(Math.PI / 3) + 64 + 44 + 5 + 1.5 + 3 * 14);
+      // a corner first; where none is free, smaller, from either side edge in any band of the page (review R7 S1)
+      let b = choose(c, spots(c, wOf(h), h, 'corner', true), false);
+      for (const hh of [64, 40]) {
+        if (b) break;
+        const w = wOf(hh);
+        b = choose(c, sweep(c, w, hh).filter((q) => q.x === FLUSH || q.x === c.W - w - FLUSH).map((q) => ({ ...q, x: q.x === FLUSH ? 0 : c.W - w })), false);
+      }
       // the medium slash runs in from the canvas edge, partly off it: which side that is
       return b ? [item(c, 'slashes', b, { from: b.x <= 0 ? 'left' : 'right' })] : [];
     }
@@ -172,8 +187,12 @@ function place(c: Ctx, kind: MarkKind): GraphicItem[] {
       return b ? [item(c, 'crosshair', b, { label: a, label2: z, src: src[0].join(','), src2: src[1].join(',') })] : [];
     }
     case 'barcode': {
-      const id = labelOf(['seed'], c.spec, c.sc.palette), w = Math.max(Math.round(between(r, 180, 260)), labelW(c, ['seed'])), b = choose(c, spots(c, w, 58, 'any'));
-      return b ? [item(c, 'barcode', b, { label: id, src: 'seed' })] : [];
+      const id = labelOf(['seed'], c.spec, c.sc.palette), bw = Math.round(between(r, 180, 260)), w = Math.max(bw, labelW(c, ['seed']));
+      const b = choose(c, spots(c, w, 58, 'any'));
+      if (b) return [item(c, 'barcode', b, { label: id, src: 'seed' })];
+      // no room for the strip over its label: a short strip with the label beside it, 24 px tall (review R7 S1)
+      const sw = Math.round(bw / 2), b2 = choose(c, sweep(c, sw + 12 + labelW(c, ['seed']), 24), false);
+      return b2 ? [item(c, 'barcode', b2, { label: id, src: 'seed', beside: sw })] : [];
     }
     case 'status': {
       const n = 6 + Math.floor(r() * 5), on = 1 + Math.floor(r() * (n - 1)), src: LabelSrc[] = r() < 0.5 ? ['counter'] : ['format'];
@@ -262,14 +281,16 @@ export function addMarks(sc: Scene, spec: Spec, m: Measure, P: Form): Scene {
   const rules = items.filter((i) => i.kind === 'rect' && Math.min(bounds(i.quad).w, bounds(i.quad).h) <= 16);
   const c: Ctx = { W: sc.w, H: sc.h, story: sc.format === '9:16', r: rng(mix(spec.seeds.layout, SALT)), m, spec, sc, texts, placed: [], busy: busyItems, rules, P, insertAt };
   const kinds = shuffle(c.r, [...MARKS_OF[spec.style]]);
-  const n = 3 + (c.r() < 0.5 ? 1 : 0);
+  // three or four, each kind at most once (review R7 S2: the same barcode twice reads as a mistake)
+  const n = Math.min(kinds.length, 3 + (c.r() < 0.5 ? 1 : 0));
   const out: GraphicItem[] = [];
   let card: GraphicItem | null = null;
   // the containers first at full: they have one place each, the free marks have many
   if (spec.marks === 'full') { const k = containers(c); card = k.card; out.push(...k.rest); }
-  for (let i = 0, got = 0; i < kinds.length * 2 && got < n; i++) {
-    const g = place(c, kinds[i % kinds.length]);
-    if (g.length) { out.push(...g); got++; }
+  for (let i = 0, got = 0; i < kinds.length && got < n; i++) {
+    const g = place(c, kinds[i]);
+    // each item says which free mark it belongs to (a bracket is four items), for the tests
+    if (g.length) { out.push(...g.map((x) => ({ ...x, params: { ...x.params, mark: kinds[i] } }))); got++; }
   }
   const next = [...items.slice(0, insertAt), ...out, ...items.slice(insertAt)];
   if (card) {

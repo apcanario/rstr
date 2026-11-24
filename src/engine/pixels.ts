@@ -4,8 +4,8 @@ import { FORMATS } from './formats';
 import { bounds, contains, overlaps } from './geom';
 import type { Ctx } from './graphics/types';
 import { behind } from './invariants';
-import { paint, paintText } from './paint';
-import { FINISH_MIN_RATIO, paintFinished, textContrast } from './finish';
+import { knockText, paint, paintText } from './paint';
+import { RING, paintFinished, textContrast, tooLow } from './finish';
 import { browserMeasure, scene as sceneOf } from './index';
 import type { Use } from './layout';
 import type { Scene, TextItem } from './scene';
@@ -172,48 +172,57 @@ export function ghostShows(spec: Spec, use: Use = {}): { share: number; shown: n
 }
 
 /**
- * The finish proofs of spec 7.1 (row R7), on one spec with a finish other than Clean. The Scene is drawn twice, as
- * Clean and with the finish, and every text item is read off both:
- * - `inkDiff`: pixels fully inside a text item's ink (fill, outline, echoes) that differ from Clean. VHS and Glitch
- *   must have none: the effect never touches text (the two-pass rule). Grain and Grunge cover text on purpose.
- *   A channel off by 1 or 2 is compositing rounding (seen: 1/255 on one or two pixels of a gradient or haloed
- *   title, where the order of draws differs), not a change; `maxDelta` reports the largest difference seen.
- * - `low`: text items the finish took under 3:1 (mean ink against the mean of a ring round it, `textContrast`)
- *   where Clean had them at 3:1 or more.
+ * The finish proofs of spec 7.1 (row R7), on one spec with a finish other than Clean. The Scene is drawn as Clean,
+ * with the finish but no guard, and with the finish and its guard; every text item is read off them:
+ * - `inkDiff`: pixels the text item's fill alone covers fully that differ from Clean at all, after the finish
+ *   (review R7 M1: no allowance). VHS and Glitch must have none: the effect never touches text (two-pass rule).
+ *   Grain and Grunge cover text on purpose. `maxDelta` is the largest channel difference over the whole ink (fill,
+ *   outline, echoes), for the record. `ringDiff`: pixels of the ring round the ink (RING px) that differ from
+ *   Clean: VHS and Glitch hold them, so none either (review R7 E1, M5).
+ * - `rawLow`: text items the finish took too low before the guard ran (`tooLow`, read in cells): VHS and Glitch
+ *   must have none, so the guard is a net and not the fix. `low`: the same after the guard: none for any finish.
  */
-export function finishProof(spec: Spec, use: Use = {}): { items: number; inkPx: number; inkDiff: number; maxDelta: number; byPart: Record<string, number>; low: { part: string; clean: number; fin: number }[]; restored: number } {
+export function finishProof(spec: Spec, use: Use = {}): { items: number; inkPx: number; inkDiff: number; maxDelta: number; ringDiff: number; ringMax: number; byPart: Record<string, number>; rawLow: { part: string; cell: number; clean: number; fin: number }[]; low: { part: string; cell: number; clean: number; fin: number }[]; restored: number } {
   const [W, H] = FORMATS[spec.format];
   const sc = sceneOf(spec, browserMeasure(), use);
-  const a = canvas(W, H), b = canvas(W, H), mask = canvas(W, H);
+  const a = canvas(W, H), raw = canvas(W, H), b = canvas(W, H), mask = canvas(W, H), fillMask = canvas(W, H), ring = canvas(W, H);
   paint(a, sc);
+  paintFinished(raw, sc, spec, null, { guard: false });
   const rep = paintFinished(b, sc, spec);
   const A = a.getImageData(0, 0, W, H).data, B = b.getImageData(0, 0, W, H).data;
-  let items = 0, inkPx = 0, inkDiff = 0;
+  let items = 0, inkPx = 0, inkDiff = 0, ringDiff = 0, ringMax = 0;
   const byPart: Record<string, number> = {};
   let maxDelta = 0;
-  const low: { part: string; clean: number; fin: number }[] = [];
+  const low: { part: string; cell: number; clean: number; fin: number }[] = [], rawLow: typeof low = [];
   for (const it of sc.items) {
     if (it.kind !== 'text') continue;
     items++;
+    const part = it.slot + '.' + it.part;
     mask.clearRect(0, 0, W, H);
     paintText(mask, { ...it, fill: MASK, stroke: it.stroke && { ...it.stroke, paint: MASK }, echoes: it.echoes?.map((e) => ({ ...e, paint: MASK, halo: e.halo && MASK })) });
-    const r = bounds(it.quad), x0 = Math.max(0, Math.floor(r.x) - 2), y0 = Math.max(0, Math.floor(r.y) - 2);
-    const x1 = Math.min(W, Math.ceil(r.x + r.w) + 2), y1 = Math.min(H, Math.ceil(r.y + r.h) + 2);
+    fillMask.clearRect(0, 0, W, H);
+    paintText(fillMask, { ...it, fill: MASK, stroke: undefined, echoes: undefined });
+    ring.clearRect(0, 0, W, H);
+    knockText(ring, it, RING);
+    const r = bounds(it.quad), x0 = Math.max(0, Math.floor(r.x) - RING - 2), y0 = Math.max(0, Math.floor(r.y) - RING - 2);
+    const x1 = Math.min(W, Math.ceil(r.x + r.w) + RING + 2), y1 = Math.min(H, Math.ceil(r.y + r.h) + RING + 2);
     if (x1 > x0 && y1 > y0) {
-      const m = mask.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+      const m = mask.getImageData(x0, y0, x1 - x0, y1 - y0).data, fm = fillMask.getImageData(x0, y0, x1 - x0, y1 - y0).data, rm = ring.getImageData(x0, y0, x1 - x0, y1 - y0).data;
       for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-        if (m[((y - y0) * (x1 - x0) + (x - x0)) * 4 + 3] !== 255) continue;
-        inkPx++;
-        const o = (y * W + x) * 4;
+        const q = ((y - y0) * (x1 - x0) + (x - x0)) * 4 + 3, o = (y * W + x) * 4;
         const dd = Math.max(Math.abs(A[o] - B[o]), Math.abs(A[o + 1] - B[o + 1]), Math.abs(A[o + 2] - B[o + 2]));
-        if (dd > maxDelta) maxDelta = dd;
-        if (dd > 2) { inkDiff++; byPart[it.slot + '.' + it.part] = (byPart[it.slot + '.' + it.part] ?? 0) + 1; }
+        if (m[q] === 255) {
+          inkPx++;
+          if (dd > maxDelta) maxDelta = dd;
+          if (fm[q] === 255 && dd > 0) { inkDiff++; byPart[part] = (byPart[part] ?? 0) + 1; }
+        } else if (m[q] === 0 && rm[q] >= 128 && dd > 0) { ringDiff++; if (dd > ringMax) ringMax = dd; }
       }
     }
-    const ca = textContrast(a, mask, it), cb = textContrast(b, mask, it);
-    if (ca && cb && ca.ratio >= FINISH_MIN_RATIO && cb.ratio < FINISH_MIN_RATIO - 1e-6) low.push({ part: it.slot + '.' + it.part, clean: ca.ratio, fin: cb.ratio });
+    const ca = textContrast(a, mask, it), cr = tooLow(ca, textContrast(raw, mask, it)), cb = tooLow(ca, textContrast(b, mask, it));
+    if (cr) rawLow.push({ part, ...cr });
+    if (cb) low.push({ part, ...cb });
   }
-  return { items, inkPx, inkDiff, maxDelta, byPart, low, restored: rep.restored };
+  return { items, inkPx, inkDiff, maxDelta, ringDiff, ringMax, byPart, rawLow, low, restored: rep.restored };
 }
 
 /** Time one render of a spec, by stage (row R7: export timing), and the JPEG encode of it. ms. */

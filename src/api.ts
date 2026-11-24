@@ -79,7 +79,8 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     tiles(raw: unknown, w = 160): number[] {
       const s = migrate(raw), out: number[] = [];
       for (const id of ['swiss', 'pomo', 'brutal', 'vapor'] as StyleId[]) {
-        const x = withStyle(s, id), c = document.createElement('canvas'), t0 = performance.now();
+        // as the app draws them: Clean, whatever the finish (review R7 S3)
+        const x = { ...withStyle(s, id), finish: 'clean' as const }, c = document.createElement('canvas'), t0 = performance.now();
         thumb(c, x, w, useOf(x));
         out.push(performance.now() - t0);
       }

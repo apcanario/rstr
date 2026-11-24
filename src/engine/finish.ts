@@ -6,10 +6,14 @@
  * - Grain, Grunge: cover everything, type included; Grunge also spreads the ink of type a little first. Then the
  *   title is stamped again at part strength so its edges hold, in register (no colour ghost).
  * - VHS, Glitch: two passes. Ground and graphics (and marks), then the effect, then every text item on top, then
- *   any surface pass that belongs to the style (the photocopy copier pass). The effects never touch text.
+ *   any surface pass that belongs to the style (the photocopy copier pass). The effects never touch text: under
+ *   every glyph and HOLD px round it, pass one's pixels are held as they were, so a plate stays under its text and
+ *   no displaced pixel (a mark's included) lands on or round a letter (review R7 E1, M5).
  * - Every finish ends with the guard: contrast (spec 5) is checked on the Scene before the finish, and a finish never
- *   takes a text item under 3:1. The guard reads each text item's ink and a ring round it off the canvas; where the
- *   two means fall under 3:1, that item and its ring are put back as Clean drew them.
+ *   takes a text item under 3:1. The guard reads each text item off the canvas in cells about a cap height across
+ *   (ink against a ring round it, per cell), so a few lost letters count (review R7 E1). An item is put back as
+ *   Clean drew it, with its ring, where any cell falls under 3:1 that Clean had at 3:1 or more, or where an item
+ *   Clean reads under 3:1 as a whole loses more than 5% of it (review R7 E2).
  *
  * The pixel kernels are pure functions on RGBA arrays, so they are unit-tested without a canvas.
  */
@@ -29,7 +33,15 @@ const SALT = 0xf1a15e;
 export const FINISH_MIN_RATIO = 3;
 /** The ring round a text item's ink that the guard and its proof read, px at 1080 wide. */
 export const RING = 4;
-/** How strongly the title is stamped again over Grain and Grunge. */
+/** How far round each glyph VHS and Glitch hold pass one's pixels: the guard's ring and 2 px (review R7 E1). */
+export const HOLD = RING + 2;
+/** An item Clean reads under 3:1 as a whole may lose at most this share of its ratio to a finish (review R7 E2). */
+export const LOW_KEEP = 0.95;
+/** The cell the guard reads a text item in: this share of its size, at least CELL_MIN px. */
+export const CELL = 0.7, CELL_MIN = 8;
+/** A cell is read only with at least this many ink pixels and this many ring pixels in it. */
+export const CELL_PX = 12;
+/** How strongly the title is stamped again over Grain and Grunge: Clean's pixels of the title, masked to its ink. */
 export const RESTAMP: Partial<Record<Finish, number>> = { grain: 0.5, grunge: 0.55 };
 /** Grunge's ink spread on type, px at 1080 wide. */
 export const SPREAD = 1.1;
@@ -125,6 +137,22 @@ export function grungeKernel(d: Uint8ClampedArray, W: number, H: number, seed: n
 
 const row = (d: Uint8ClampedArray, W: number, y: number) => d.subarray(y * W * 4, (y + 1) * W * 4);
 const wrap = (x: number, W: number) => ((x % W) + W) % W;
+const edge = (x: number, W: number) => (x < 0 ? 0 : x >= W ? W - 1 : x);
+
+/**
+ * Hold: where the mask `m` (one byte a pixel) is full, put back the pixels `keep` had (pass one before the effect);
+ * where it is partial, blend by it. Pure, so it is unit-tested: whatever an effect does, nothing changes under a
+ * full mask (review R7 E1).
+ */
+export function holdMask(d: Uint8ClampedArray, keep: Uint8ClampedArray, m: Uint8Array): void {
+  for (let i = 0; i < d.length; i += 4) {
+    const a = m[i >> 2];
+    if (!a) continue;
+    if (a === 255) { d[i] = keep[i]; d[i + 1] = keep[i + 1]; d[i + 2] = keep[i + 2]; d[i + 3] = keep[i + 3]; continue; }
+    const t = a / 255;
+    for (let c = 0; c < 4; c++) d[i + c] = keep[i + c] * t + d[i + c] * (1 - t);
+  }
+}
 
 /** VHS: chroma bleed, scanlines, streak grain, a tracking band, head-switching noise at the bottom. */
 export function vhsKernel(d: Uint8ClampedArray, W: number, H: number, seed: number, k: number): void {
@@ -180,10 +208,11 @@ export function glitchKernel(d: Uint8ClampedArray, W: number, H: number, seed: n
   for (let s = 0; s < count; s++) {
     const y0 = Math.floor(r() * H), h = Math.round((3 + 47 * r()) * u), shift = Math.round((10 + 80 * r()) * u) * (r() < 0.5 ? -1 : 1), rs = Math.round((3 + 7 * r()) * u);
     for (let y = y0; y < Math.min(H, y0 + h); y++) for (let x = 0; x < W; x++) {
-      const i = (y * W + x) * 4, sx = wrap(x - shift, W), b = y * W;
-      d[i] = src[(b + wrap(sx - rs, W)) * 4];
+      // shifted, not wrapped: past the edge the edge pixel is repeated (elements.md: "shifted", review R7 M3)
+      const i = (y * W + x) * 4, sx = edge(x - shift, W), b = y * W;
+      d[i] = src[(b + edge(sx - rs, W)) * 4];
       d[i + 1] = src[(b + sx) * 4 + 1];
-      d[i + 2] = src[(b + wrap(sx + rs, W)) * 4 + 2];
+      d[i + 2] = src[(b + edge(sx + rs, W)) * 4 + 2];
     }
   }
   const scan = 1 - 0.1 * Math.min(1, k), step = Math.max(1, Math.round(u));
@@ -252,10 +281,17 @@ function smearOf(sc: Scene, r: Rng): Smear | null {
   return null;
 }
 
-/** Glitch's corruption bars: about 16 short ticks in the accents at 35 to 85%, where no text is. */
+/** Glitch's corruption bars: about 16 short ticks in the accents at 35 to 85%, in empty areas: off text (padded),
+ *  graphics, plates and rects (elements.md, review R7 M4). A bar with no free spot in 6 tries is left out. */
+export function corruptionAvoid(sc: Scene) {
+  return [
+    ...textBoxes(sc).map((b) => rectQuad(pad(b, HOLD * sc.w / 1080))),
+    ...sc.items.filter((i) => (i.kind === 'graphic' && i.layer !== 'ground' && !i.pass) || i.kind === 'rect').map((i) => i.quad),
+  ];
+}
 function corruption(ctx: Ctx, sc: Scene, spec: Spec, r: Rng, k: number) {
   const P = choosePalette(spec), u = sc.w / 1080, cols = [P.accent, P.accent2, P.accent3].filter((c): c is string => !!c);
-  const bs = textBoxes(sc).map((b) => rectQuad(pad(b, 6)));
+  const bs = corruptionAvoid(sc);
   const n = Math.round(16 * k);
   for (let i = 0; i < n; i++) {
     const h = Math.round((2 + 6 * r()) * u), w = Math.round((30 + 190 * r()) * u), col = cols[Math.floor(r() * cols.length)], a = 0.35 + 0.5 * r();
@@ -279,12 +315,16 @@ function pixels(ctx: Ctx, sc: Scene, f: (d: Uint8ClampedArray) => void) {
 
 const maskOf = (it: TextItem): TextItem => ({ ...it, fill: MASK, stroke: it.stroke && { ...it.stroke, paint: MASK }, echoes: it.echoes?.map((e) => ({ ...e, paint: MASK, halo: e.halo && MASK })) });
 
+/** A text item's reading: the whole ink against the whole ring, and the same per cell (null: too few pixels). */
+export interface Reading { ratio: number; ink: number; ringPx: number; cells: (number | null)[]; }
+
 /**
  * A text item's contrast as painted: the mean colour of its full ink pixels against the mean colour of a ring
- * `ring` px wide round its ink, read off ctx. Null when the item has no full ink pixel on the canvas.
- * `mask` is a scratch canvas the size of ctx's.
+ * `ring` px wide round its ink, read off ctx, for the whole item and per cell of a grid laid over it (cells about
+ * a cap height across: CELL of its size). The grid depends only on the item, so two canvases read cell for cell.
+ * Null when the item has no full ink pixel on the canvas. `mask` is a scratch canvas the size of ctx's.
  */
-export function textContrast(ctx: Ctx, mask: Ctx, it: TextItem, ring = RING): { ratio: number; ink: number; ringPx: number } | null {
+export function textContrast(ctx: Ctx, mask: Ctx, it: TextItem, ring = RING): Reading | null {
   const W = ctx.canvas.width, H = ctx.canvas.height, B = bounds(it.quad);
   const x0 = Math.max(0, Math.floor(B.x) - ring - 2), y0 = Math.max(0, Math.floor(B.y) - ring - 2);
   const x1 = Math.min(W, Math.ceil(B.x + B.w) + ring + 2), y1 = Math.min(H, Math.ceil(B.y + B.h) + ring + 2);
@@ -297,50 +337,84 @@ export function textContrast(ctx: Ctx, mask: Ctx, it: TextItem, ring = RING): { 
   mask.clearRect(x0, y0, w, h);
   knockText(mask, it, ring);
   const R = mask.getImageData(x0, y0, w, h).data, C = ctx.getImageData(x0, y0, w, h).data;
-  const ink = [0, 0, 0], rg = [0, 0, 0];
-  let ni = 0, nr = 0;
-  for (let i = 0; i < A.length; i += 4) {
-    if (A[i + 3] === 255) { ink[0] += C[i]; ink[1] += C[i + 1]; ink[2] += C[i + 2]; ni++; }
-    else if (A[i + 3] === 0 && R[i + 3] >= 128) { rg[0] += C[i]; rg[1] += C[i + 1]; rg[2] += C[i + 2]; nr++; }
+  const c = Math.max(CELL_MIN, Math.round(CELL * it.px)), cw = Math.ceil(w / c), ch = Math.ceil(h / c), n = cw * ch;
+  // per cell: ink r, g, b, count, ring r, g, b, count
+  const S = new Float64Array(n * 8);
+  for (let y = 0, i = 0; y < h; y++) {
+    const cy = Math.floor(y / c) * cw;
+    for (let x = 0; x < w; x++, i += 4) {
+      const o = (cy + Math.floor(x / c)) * 8;
+      if (A[i + 3] === 255) { S[o] += C[i]; S[o + 1] += C[i + 1]; S[o + 2] += C[i + 2]; S[o + 3]++; }
+      else if (A[i + 3] === 0 && R[i + 3] >= 128) { S[o + 4] += C[i]; S[o + 5] += C[i + 1]; S[o + 6] += C[i + 2]; S[o + 7]++; }
+    }
   }
-  if (!ni || !nr) return null;
-  const hex = (s: number[], n: number) => toHex([s[0] / n, s[1] / n, s[2] / n]);
-  return { ratio: contrast(hex(ink, ni), hex(rg, nr)), ink: ni, ringPx: nr };
+  const hex = (r: number, g: number, b: number, k: number) => toHex([r / k, g / k, b / k]);
+  const T = [0, 0, 0, 0, 0, 0, 0, 0], cells: (number | null)[] = [];
+  for (let j = 0; j < n; j++) {
+    const o = j * 8;
+    for (let q = 0; q < 8; q++) T[q] += S[o + q];
+    cells.push(S[o + 3] >= CELL_PX && S[o + 7] >= CELL_PX ? contrast(hex(S[o], S[o + 1], S[o + 2], S[o + 3]), hex(S[o + 4], S[o + 5], S[o + 6], S[o + 7])) : null);
+  }
+  if (!T[3] || !T[7]) return null;
+  return { ratio: contrast(hex(T[0], T[1], T[2], T[3]), hex(T[4], T[5], T[6], T[7])), ink: T[3], ringPx: T[7], cells };
 }
 
-/** Put a text item and its ring back as Clean drew it. */
-function restore(ctx: Ctx, clean: Ctx, it: TextItem, ring: number) {
-  // the mask on a layer of its own first: destination-in per glyph draw would keep only the last run
-  const W = ctx.canvas.width, H = ctx.canvas.height, M = surface(W, H), L = surface(W, H);
-  knockText(M, it, ring + 2);
+/**
+ * Whether a finish took a text item too low, from its reading on Clean and on the finished canvas: a cell under
+ * 3:1 that Clean has at 3:1 or more (local loss, review R7 E1), or an item Clean reads under 3:1 that lost more
+ * than LOW_KEEP of its ratio (review R7 E2). Pure: the guard and the proof both use it.
+ */
+export function tooLow(clean: Reading | null, fin: Reading | null): { cell: number; clean: number; fin: number } | null {
+  if (!clean || !fin) return null;
+  for (let j = 0; j < clean.cells.length; j++) {
+    const a = clean.cells[j], b = fin.cells[j];
+    if (a != null && b != null && a >= FINISH_MIN_RATIO && b < FINISH_MIN_RATIO - 1e-6) return { cell: j, clean: a, fin: b };
+  }
+  if (clean.ratio < FINISH_MIN_RATIO && fin.ratio < clean.ratio * LOW_KEEP - 1e-6) return { cell: -1, clean: clean.ratio, fin: fin.ratio };
+  return null;
+}
+
+/** Clean's pixels, masked to a layer of its own: ink and a pad round it of each item (the mask on a layer of its
+ *  own first: destination-in per glyph draw would keep only the last run). */
+function cleanLayer(clean: Ctx, items: TextItem[], padPx: number | null): Ctx {
+  const W = clean.canvas.width, H = clean.canvas.height, M = surface(W, H), L = surface(W, H);
+  for (const it of items) { if (padPx == null) paintText(M, maskOf(it)); else knockText(M, it, padPx); }
   L.drawImage(clean.canvas as CanvasImageSource, 0, 0);
   L.globalCompositeOperation = 'destination-in';
   L.drawImage(M.canvas as CanvasImageSource, 0, 0);
+  return L;
+}
+
+/** Draw a layer over ctx at alpha a. */
+function over(ctx: Ctx, L: Ctx, a: number) {
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = a;
   ctx.globalCompositeOperation = 'source-over';
   ctx.drawImage(L.canvas as CanvasImageSource, 0, 0);
   ctx.restore();
 }
 
+/** Put a text item and its ring back as Clean drew it. */
+function restore(ctx: Ctx, clean: Ctx, it: TextItem, ring: number) {
+  over(ctx, cleanLayer(clean, [it], ring + 2), 1);
+}
+
 /**
- * The guard of spec 7.1: no finish takes a text item under 3:1. An item read under 3:1 after the finish is read
- * again on a Clean render; only if Clean had it at 3:1 or more is it put back (an item Clean already reads under
- * 3:1 by this measure, such as the colliding photocopy title words, was not taken there by the finish).
+ * The guard of spec 7.1: no finish takes a text item under 3:1. Every text item is read in cells on the finished
+ * canvas; where any cell is under 3:1, or the whole item is, it is read again on Clean, and put back as Clean drew
+ * it if `tooLow` says the finish took it there. `clean` is a Clean render if the caller has one.
  * Returns how many items it put back.
  */
-function guard(ctx: Ctx, sc: Scene, t: Time | null): number {
+export function guard(ctx: Ctx, sc: Scene, t: Time | null, clean: Ctx | null = null): number {
   const mask = surface(sc.w, sc.h), done = new Set<TextItem>(), restored = new Set<TextItem>();
-  let clean: Ctx | null = null;
   for (let round = 0; round < 4; round++) {
     const bad = texts(sc).filter((it) => {
       if (done.has(it)) return false;
       const m = textContrast(ctx, mask, it);
-      if (!m || m.ratio >= FINISH_MIN_RATIO) return false;
+      if (!m || (m.ratio >= FINISH_MIN_RATIO && m.cells.every((v) => v == null || v >= FINISH_MIN_RATIO))) return false;
       if (!clean) { clean = surface(sc.w, sc.h); paint(clean, sc, t); }
-      const c = textContrast(clean, mask, it);
-      if (!c || c.ratio < FINISH_MIN_RATIO) { done.add(it); return false; }
+      if (!tooLow(textContrast(clean, mask, it), m)) { done.add(it); return false; }
       return true;
     });
     if (!bad.length) break;
@@ -348,6 +422,36 @@ function guard(ctx: Ctx, sc: Scene, t: Time | null): number {
   }
   return restored.size;
 }
+/** Grow a one-byte-a-pixel mask by r px (a square max filter, rows then columns). Pure. */
+export function dilate(a: Uint8Array, W: number, H: number, r: number): Uint8Array {
+  if (r <= 0) return a;
+  const t = new Uint8Array(a.length), o = new Uint8Array(a.length);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let m = 0;
+    for (let j = Math.max(0, x - r); j <= Math.min(W - 1, x + r) && m < 255; j++) m = Math.max(m, a[y * W + j]);
+    t[y * W + x] = m;
+  }
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let m = 0;
+    for (let j = Math.max(0, y - r); j <= Math.min(H - 1, y + r) && m < 255; j++) m = Math.max(m, t[j * W + x]);
+    o[y * W + x] = m;
+  }
+  return o;
+}
+
+/**
+ * What VHS and Glitch hold: every text item's glyphs and echoes with the guard's ring (knockText at RING, the mask
+ * the guard and the proof read), grown by HOLD - RING px. Grown in pixels, not by a wider stroke: Chrome's text
+ * stroke leaves holes in small glyphs when it is much wider than they are (seen at 8 px round a full stop).
+ */
+export function heldMask(sc: Scene): Uint8Array {
+  const M = surface(sc.w, sc.h), u = sc.w / 1080;
+  for (const it of texts(sc)) knockText(M, it, RING);
+  const d = M.getImageData(0, 0, sc.w, sc.h).data, a = new Uint8Array(sc.w * sc.h);
+  for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
+  return dilate(a, sc.w, sc.h, Math.round((HOLD - RING) * u));
+}
+
 /** What paintFinished did, for the tools: ms per stage and how many text items the guard put back. */
 export interface FinishReport { paint: number; effect: number; text: number; guard: number; restored: number; }
 
@@ -355,40 +459,43 @@ export interface FinishReport { paint: number; effect: number; text: number; gua
  * Paint a Scene with the spec's finish (spec 4 stage 3, spec 7.1). Clean is paint alone. The two-pass rule for VHS
  * and Glitch; cover and restamp for Grain and Grunge; the guard after every finish.
  */
-export function paintFinished(ctx: Ctx, sc: Scene, spec: Spec, t: Time | null = null): FinishReport {
+export function paintFinished(ctx: Ctx, sc: Scene, spec: Spec, t: Time | null = null, o: { guard?: boolean } = {}): FinishReport {
   const now = () => (typeof performance !== 'undefined' ? performance.now() : 0);
   const rep: FinishReport = { paint: 0, effect: 0, text: 0, guard: 0, restored: 0 };
   let t0 = now();
   const f = spec.finish, k = strength(spec), seed = finishSeed(spec), u = sc.w / 1080;
   if (f === 'clean') { paint(ctx, sc, t); rep.paint = now() - t0; return rep; }
+  let clean: Ctx | null = null;
   if (f === 'grain' || f === 'grunge') {
     paint(ctx, sc, t, f === 'grunge' ? { spread: SPREAD * u * k } : {});
     rep.paint = now() - t0; t0 = now();
     pixels(ctx, sc, (d) => (f === 'grain' ? grainKernel(d, sc.w, sc.h, seed, k) : grungeKernel(d, sc.w, sc.h, seed, k, keepOf(sc))));
     rep.effect = now() - t0; t0 = now();
-    // the title again at part strength, in register, so its edges hold
-    ctx.save();
-    ctx.globalAlpha = (RESTAMP[f] ?? 0.5) * Math.min(1, k);
-    for (const it of texts(sc)) if (it.slot === 'title') paintText(ctx, it);
-    ctx.restore();
+    // the title again at part strength, so its edges hold: Clean's own pixels of the title's ink (fill, outline,
+    // echoes), so it is in register and in Clean's colours, any surface pass included (review R7 E2)
+    clean = surface(sc.w, sc.h);
+    paint(clean, sc, t);
+    over(ctx, cleanLayer(clean, texts(sc).filter((it) => it.slot === 'title'), null), (RESTAMP[f] ?? 0.5) * Math.min(1, k));
     rep.text = now() - t0;
   } else {
     // pass one: everything under the text; the effect; pass two: the text, then any surface pass of the style
     paint(ctx, sc, t, { only: (i) => i.kind !== 'text' && !isPass(i) });
     rep.paint = now() - t0; t0 = now();
-    const r = rng(mix(seed, 2));
-    if (f === 'vhs') pixels(ctx, sc, (d) => vhsKernel(d, sc.w, sc.h, seed, k));
+    const r = rng(mix(seed, 2)), held = heldMask(sc);
+    // the effect, then pass one's pixels held under and round every glyph: plates stay under their text (review R7 E1)
+    if (f === 'vhs') pixels(ctx, sc, (d) => { const keep = d.slice(); vhsKernel(d, sc.w, sc.h, seed, k); holdMask(d, keep, held); });
     else {
       const sm = smearOf(sc, r);
-      pixels(ctx, sc, (d) => glitchKernel(d, sc.w, sc.h, seed, k, sm));
+      pixels(ctx, sc, (d) => { const keep = d.slice(); glitchKernel(d, sc.w, sc.h, seed, k, sm); holdMask(d, keep, held); });
       corruption(ctx, sc, spec, r, k);
     }
     rep.effect = now() - t0; t0 = now();
     paint(ctx, sc, t, { only: (i) => i.kind === 'text' || isPass(i), noGround: true });
     rep.text = now() - t0;
   }
+  if (o.guard === false) return rep;
   t0 = now();
-  rep.restored = guard(ctx, sc, t);
+  rep.restored = guard(ctx, sc, t, clean);
   rep.guard = now() - t0;
   return rep;
 }

@@ -4,11 +4,11 @@
  */
 import { describe, expect, test } from 'vitest';
 import { PAIRINGS } from '../src/data/pairings';
-import { finishSeed, grainKernel, grungeKernel, keepOf, strength, strengthKey, valueNoise, vhsKernel, glitchKernel } from '../src/engine/finish';
-import { solve, stepLight } from '../src/engine/layout';
+import { corruptionAvoid, dilate, finishSeed, FINISH_MIN_RATIO, grainKernel, grungeKernel, holdMask, keepOf, LOW_KEEP, strength, strengthKey, tooLow, valueNoise, vhsKernel, glitchKernel, type Reading } from '../src/engine/finish';
+import { solve, stepLight, weightsOf } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { rng } from '../src/engine/rng';
-import { bounds } from '../src/engine/geom';
+import { bounds, overlaps } from '../src/engine/geom';
 import { defaultSpec, type Finish } from '../src/engine/spec';
 
 const W = 120, H = 90;
@@ -49,6 +49,36 @@ describe('finish kernels (spec 7.1)', () => {
     expect(corner(b)).toBeLessThan(80);
     expect(corner(a)).toBeGreaterThan(100);
   });
+  test('glitch shifts slices, it does not wrap them: the left column only ever shows itself or its right', () => {
+    // a picture whose right half is white and left half black: a wrapped slice would bring white to x = 0
+    const d = new Uint8ClampedArray(W * H * 4);
+    for (let i = 0; i < d.length; i += 4) { const v = (i / 4) % W >= W / 2 ? 255 : 0; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+    for (let seed = 1; seed < 30; seed++) {
+      const a = d.slice();
+      glitchKernel(a, W, H, seed, 1, null);
+      for (let y = 0; y < H; y++) expect(a[y * W * 4 + 1], `seed ${seed} row ${y}`).toBe(0);
+    }
+  });
+  test('the hold (review R7 E1): under a full mask nothing an effect does is left; partial blends; none untouched', () => {
+    for (const [name, f] of Object.entries(KERNELS)) {
+      const keep = image(), d = keep.slice(), m = new Uint8Array(W * H);
+      for (let y = 20; y < 40; y++) for (let x = 30; x < 70; x++) m[y * W + x] = 255;
+      m[10 * W + 10] = 128;
+      f(d, 7, 1);
+      const moved = d.slice();
+      holdMask(d, keep, m);
+      for (let y = 20; y < 40; y++) for (let x = 30; x < 70; x++) for (let c = 0; c < 4; c++) expect(d[(y * W + x) * 4 + c], name).toBe(keep[(y * W + x) * 4 + c]);
+      const i = (10 * W + 10) * 4;
+      expect(Math.abs(d[i] - (keep[i] * 128 / 255 + moved[i] * 127 / 255)), name).toBeLessThanOrEqual(1);
+      expect(d[(5 * W + 100) * 4], name).toBe(moved[(5 * W + 100) * 4]);
+    }
+  });
+  test('dilate grows a mask by r px in every direction and no further', () => {
+    const a = new Uint8Array(W * H);
+    a[40 * W + 60] = 255;
+    const b = dilate(a, W, H, 2);
+    for (let y = 30; y < 50; y++) for (let x = 50; x < 70; x++) expect(b[y * W + x], `${x},${y}`).toBe(Math.abs(x - 60) <= 2 && Math.abs(y - 40) <= 2 ? 255 : 0);
+  });
   test('valueNoise stays in [0, 1] and is smooth', () => {
     const v = valueNoise(rng(5), 500, 20);
     for (let i = 0; i < v.length; i++) { expect(v[i]).toBeGreaterThanOrEqual(0); expect(v[i]).toBeLessThanOrEqual(1); }
@@ -85,11 +115,35 @@ describe('finish settings', () => {
     expect(k.t).toBeLessThanOrEqual(Math.min(...bs.map((b) => b.y)));
     for (const c of k.corners) expect(c).toBeGreaterThanOrEqual(0);
   });
-  test('a light weight steps up one weight under a finish (spec 7.1); Clean leaves it', () => {
+  test('the guard reads in cells (review R7 E1, E2): one lost cell fails; a low item may not lose more than 5%', () => {
+    const R = (ratio: number, cells: (number | null)[]): Reading => ({ ratio, ink: 100, ringPx: 100, cells });
+    // the whole item still reads 8:1, but one cell (a letter slid off its plate) is at 1.1: too low
+    expect(tooLow(R(9, [12, 12, 12, null]), R(8, [12, 1.1, 12, null]))).toEqual({ cell: 1, clean: 12, fin: 1.1 });
+    // a cell Clean already had under 3:1 is not the finish's doing; a dip that stays at 3:1 or more is allowed
+    expect(tooLow(R(9, [2, 12]), R(9, [1.5, 3.2]))).toBeNull();
+    // an item Clean reads under 3:1 (a colliding photocopy word) may not be taken lower by more than 5%
+    expect(tooLow(R(1.46, [2, 2]), R(1.14, [2, 2]))?.cell).toBe(-1);
+    expect(tooLow(R(1.46, [2, 2]), R(1.46 * LOW_KEEP + 0.001, [2, 2]))).toBeNull();
+    expect(FINISH_MIN_RATIO).toBe(3);
+  });
+  test('corruption bars keep off text (padded), graphics, plates and rects (review R7 M4)', () => {
+    for (const style of ['swiss', 'pomo', 'brutal', 'vapor'] as const) {
+      const sc = solve({ ...defaultSpec(), style, finish: 'glitch' }, stubMeasure).scene, av = corruptionAvoid(sc);
+      for (const it of sc.items) {
+        if (it.kind === 'text' || it.kind === 'rect' || (it.kind === 'graphic' && it.layer !== 'ground' && !it.pass)) expect(av.some((q) => overlaps(q, it.quad)), `${style} ${it.kind}`).toBe(true);
+      }
+    }
+  });
+  test('a light weight steps up to the next weight its family lists under a finish (spec 7.1, review R7 M7); Clean leaves it', () => {
     const p = PAIRINGS.swiss[0], light = { ...p, text: { ...p.text, weight: 300 } };
     expect(stepLight(light, 'clean').text.weight).toBe(300);
-    expect(stepLight(light, 'grain').text.weight).toBe(400);
+    const next = weightsOf(p.text.family).find((w) => w > 300)!;
+    expect(stepLight(light, 'grain').text.weight).toBe(next);
+    expect(weightsOf(p.text.family)).toContain(stepLight(light, 'grain').text.weight);
     expect(stepLight(light, 'grain').display).toEqual(p.display);
+    // the family's own list decides: a family that has 300 and 600 steps to 600; one with nothing above stays
+    expect(stepLight(light, 'vhs', () => [300, 600]).text.weight).toBe(600);
+    expect(stepLight(light, 'vhs', () => [300])).toBe(light);
     // every pairing of the list sets its text at 400 or more: nothing steps today
     for (const list of Object.values(PAIRINGS)) for (const q of list) expect(stepLight(q, 'vhs')).toBe(q);
   });

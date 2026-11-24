@@ -307,15 +307,17 @@ export function App({ ready }: { ready: Promise<void> }) {
       if (stop || !id) return;
       const c = tiles.current[id];
       if (c?.parentElement) {
-        const s = id === spec.style ? spec : withStyle(spec, id);
+        // a tile shows the style, not the finish: drawn Clean, so a tile never blocks the phone for a finish's
+        // effect and guard (review R7 S3: Grunge tiles 0.6 to 1.1 s each under a 4x CPU throttle)
+        const s = { ...(id === spec.style ? spec : withStyle(spec, id)), finish: 'clean' as const };
         const box = c.parentElement.getBoundingClientRect(), [W, H] = FORMATS[s.format];
         const w = Math.min(box.width, (box.height * W) / H) * devicePixelRatio;
         if (w > 1) thumb(c, s, w, resolvePairing(s, available));
       }
       setTimeout(next, 0);
     };
-    // after 150 ms (Carried R7): with a finish on, a tile costs 100 to 270 ms on desktop Chrome, more on a phone,
-    // so tiles wait until a run of Shuffle taps pauses; the stop flag drops tiles of a design already left
+    // after 150 ms (Carried R7): tiles wait until a run of Shuffle taps pauses; the stop flag drops tiles of a
+    // design already left
     const t = setTimeout(next, 150);
     return () => { stop = true; clearTimeout(t); };
   }, [spec, loaded, tab, sheet]);

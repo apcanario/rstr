@@ -173,28 +173,44 @@ with served() as url, browser() as b:
                 for f in r['failures'][:5]:
                     fail(f'marks {level} {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
     # row R7, finishes (spec 7.1), every style x format x finish, light and dark, Postmodern in both dialects, marks
-    # on for half: the same spec gives the same pixels; with VHS and Glitch the pixels of every text item's ink are
-    # Clean's; no finish takes a text item under 3:1 where Clean had it at 3:1 or more
-    nf, nrest, worst = 0, 0, 0
+    # on for half, and the designs review R7 found broken (E1: Glitch slid the info window from under its text;
+    # E2: Grain and Grunge greyed the photocopy title words): the same spec gives the same pixels; with VHS and
+    # Glitch every pixel of every text item's fill and of the ring round its ink is Clean's, and no item is taken
+    # too low even before the guard (so the guard is a net, not the fix); after the guard no finish takes any cell
+    # of a text item under 3:1 that Clean has at 3:1 or more, nor an item Clean reads under 3:1 lower by over 5%
+    cases = []
     for style in STYLES:
         for fmt in FORMATS:
             for fin in ['grain', 'grunge', 'vhs', 'glitch']:
                 for i in range(4):
-                    spec = pg.evaluate('([s, f, i, fin]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i % 2 ? "dark" : "light"; x.finish = fin; x.marks = i < 2 ? "off" : "full"; x.seeds = {layout: 51 + i, colour: 52 + i, graphic: 53 + i, type: 54 + i}; if (s === "pomo") x.pick.dialect = i % 2 ? "photocopy" : "icecream"; return x; }', [style, fmt, i, fin])
-                    a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
-                    c = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
-                    if a != c:
-                        fail(f'finish {fin} {style} {fmt}: the same spec drew different pixels', spec)
-                    r = pg.evaluate('(s) => window.__rstr.finishProof(s)', spec)
-                    nf += 1
-                    nrest += r['restored']
-                    if fin in ['vhs', 'glitch']:
-                        worst = max(worst, r['maxDelta'])
-                        if r['inkDiff']:
-                            fail(f'finish {fin} {style} {fmt}: {r["inkDiff"]} pixels of text ink differ from Clean ({r["byPart"]})', spec)
-                    if r['low']:
-                        fail(f'finish {fin} {style} {fmt}: under 3:1 after the finish: {r["low"][:3]}', spec)
-    print(f'finishes: {nf} designs, same pixels twice; VHS and Glitch leave text ink as Clean (largest channel difference {worst}/255, 2 allowed for rounding); no text taken under 3:1; the guard put back {nrest} items')
+                    cases.append(('([s, f, i, fin]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i % 2 ? "dark" : "light"; x.finish = fin; x.marks = i < 2 ? "off" : "full"; x.seeds = {layout: 51 + i, colour: 52 + i, graphic: 53 + i, type: 54 + i}; if (s === "pomo") x.pick.dialect = i % 2 ? "photocopy" : "icecream"; return x; }', [style, fmt, i, fin]))
+    found = [('vapor', '9:16', 'dark', 'off', None, {'layout': 1000 + 11 * 7919, 'colour': 2000 + 11 * 104729, 'graphic': 3000 + 11 * 1299709, 'type': 4000 + 11 * 31}),
+             ('pomo', '3:4', 'dark', 'light', 'photocopy', {'layout': 8932, 'colour': 106729, 'graphic': 1302709, 'type': 4031})]
+    for fin in ['grain', 'grunge', 'vhs', 'glitch']:
+        for st, fm, md, mk, d, seeds in found:
+            cases.append(('([s, f, md, mk, d, seeds, fin]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = md; x.marks = mk; x.finish = fin; x.seeds = seeds; x.pick = {palette: null, pairing: null, motif: null, layout: null, dialect: d}; x.params = {}; return x; }', [st, fm, md, mk, d, seeds, fin]))
+    nf, nrest, worst = 0, 0, 0
+    for js, args in cases:
+        spec = pg.evaluate(js, args)
+        fin, style, fmt = spec['finish'], spec['style'], spec['format']
+        a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
+        c = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
+        if a != c:
+            fail(f'finish {fin} {style} {fmt}: the same spec drew different pixels', spec)
+        r = pg.evaluate('(s) => window.__rstr.finishProof(s)', spec)
+        nf += 1
+        nrest += r['restored']
+        if fin in ['vhs', 'glitch']:
+            worst = max(worst, r['maxDelta'])
+            if r['inkDiff']:
+                fail(f'finish {fin} {style} {fmt}: {r["inkDiff"]} pixels of text fill differ from Clean ({r["byPart"]})', spec)
+            if r['ringDiff']:
+                fail(f'finish {fin} {style} {fmt}: {r["ringDiff"]} pixels of the ring round text differ from Clean', spec)
+            if r['rawLow']:
+                fail(f'finish {fin} {style} {fmt}: the effect took text too low before the guard: {r["rawLow"][:3]}', spec)
+        if r['low']:
+            fail(f'finish {fin} {style} {fmt}: too low after the finish: {r["low"][:3]}', spec)
+    print(f'finishes: {nf} designs, same pixels twice; VHS and Glitch leave every text fill pixel and every ring pixel as Clean (largest channel difference over the whole ink {worst}/255, none allowed on the fill) and take no item too low before the guard; no text taken too low (read in cells); the guard put back {nrest} items')
     # row R7: export time for the largest format (9:16, 1080 x 1920) by stage, Grunge and Glitch, every style, and
     # Postmodern photocopy with the copier pass timed on its own (Carried R7 from R6); the Style tab's four tiles
     for fin in ['clean', 'grunge', 'glitch']:
@@ -209,7 +225,18 @@ with served() as url, browser() as b:
         spec = pg.evaluate('(fin) => { const x = window.__rstr.spec(); x.format = "3:4"; x.finish = fin; x.seeds = {layout: 7, colour: 8, graphic: 9, type: 10}; return x; }', fin)
         ts = [pg.evaluate('(s) => window.__rstr.tiles(s)', spec) for _ in range(3)][1:]
         best = [min(a, b) for a, b in zip(*ts)]
-        print(f'style tiles 3:4 {fin:6}  ' + ', '.join(f'{s} {v:.0f}' for s, v in zip(STYLES, best)) + f' ms; four in {sum(best):.0f} ms')
+        print(f'style tiles 3:4 {fin:6}  ' + ', '.join(f'{s} {v:.0f}' for s, v in zip(STYLES, best)) + f' ms; four in {sum(best):.0f} ms (tiles draw Clean)')
+    # the same under a 4x CPU throttle, closer to a phone (review R7 S3), and one stage render with Grunge and Clean
+    cdp = pg.context.new_cdp_session(pg)
+    cdp.send('Emulation.setCPUThrottlingRate', {'rate': 4})
+    try:
+        for fin in ['clean', 'grunge']:
+            spec = pg.evaluate('(fin) => { const x = window.__rstr.spec(); x.format = "3:4"; x.finish = fin; x.seeds = {layout: 7, colour: 8, graphic: 9, type: 10}; return x; }', fin)
+            ts = pg.evaluate('(s) => window.__rstr.tiles(s)', spec)
+            b3 = pg.evaluate('(s) => window.__rstr.bench(s)', spec)
+            print(f'4x throttle 3:4 {fin:6}  four tiles in {sum(ts):.0f} ms (largest {max(ts):.0f}); one render {b3["total"]:.0f} ms')
+    finally:
+        cdp.send('Emulation.setCPUThrottlingRate', {'rate': 1})
     # 9.2 rule 6: exports are JPEG or PNG of exactly the format's pixels
     for style in STYLES:
         for fmt in FORMATS:

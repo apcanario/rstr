@@ -92,15 +92,17 @@ export function drawMark(ctx: Ctx, g: GraphicItem, r: Rng): void {
       return;
     }
     case 'barcode': {
-      // bars of varied width with the seed under them
+      // bars of varied width with the seed under them, or (beside: the strip's width) beside them
       ctx.fillStyle = c;
+      const side = Number(p.beside) || 0, end = side ? x + side : x + w;
       let bx = x;
-      while (bx < x + w) {
+      while (bx < end) {
         const bw = 1 + Math.floor(r() * 4) * 2;
-        ctx.fillRect(bx, y, Math.min(bw, x + w - bx), 38);
+        ctx.fillRect(bx, y, Math.min(bw, end - bx), side ? h : 38);
         bx += bw + 2 + Math.floor(r() * 3) * 2;
       }
-      label(ctx, String(p.label ?? ''), x, y + h - 3, c);
+      if (side) label(ctx, String(p.label ?? ''), x + side + 12, y + h - 5, c);
+      else label(ctx, String(p.label ?? ''), x, y + h - 3, c);
       return;
     }
     case 'status': {
