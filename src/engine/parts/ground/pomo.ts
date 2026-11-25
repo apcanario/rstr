@@ -3,11 +3,10 @@
  * or hatching), the first thing on the graphic stream. Photocopy: the paper, and the copier pass over everything
  * once the type is set (spec 8.7: a pass that belongs to the surface is the ground's).
  */
-import { mixHex } from '../../colour';
 import { bounds } from '../../geom';
 import { GRAPHICS } from '../../graphics';
 import { chooseParams } from '../../graphics/params';
-import { PATTERN_KINDS, patternDraws } from '../../graphics/pattern';
+import { PATTERN_KINDS, patternDraws, patternFill } from '../../graphics/pattern';
 import { mkGraphic, mkRect } from '../../items';
 import { mix } from '../../rng';
 import type { GroundPart } from '../types';
@@ -34,7 +33,7 @@ export const pomoGround: GroundPart = {
     const set = spec.params['g.pattern.kind'];
     if (typeof set === 'number' && Number.isInteger(set) && set >= 0 && set < PATTERN_KINDS) kind = set;
     const pr = chooseParams(G, spec.params);
-    const g = mkGraphic('pattern', { x: 0, y: 0, w: W, h: H }, spec.seeds.graphic, 1, { ink: P.ink }, [mixHex(P.ground, P.ink, pr.alpha ?? G.params.alpha.def)], { kind, ...pr });
+    const g = mkGraphic('pattern', { x: 0, y: 0, w: W, h: H }, spec.seeds.graphic, 1, { ink: P.ink }, [patternFill(P.ground, P.ink, pr)], { kind, ...pr });
     g.layer = 'ground';
     for (let i = 0; i < patternDraws(kind, pr.count ?? G.params.count.def); i++) rg();
     return [g];

@@ -1,4 +1,5 @@
 /** The faint ground pattern (Postmodern): dots, grid, confetti, ruled lines or hatching (kinds 0 to 4). Colour: ink, at low alpha. Defaults are the spike's look. */
+import { mixHex } from '../colour';
 import { TAU } from './clock';
 import { val } from './params';
 import type { Graphic } from './types';
@@ -42,3 +43,7 @@ export const pattern: Graphic = {
 export const patternDraws = (kind: number, count: number) => (kind === 2 ? count * 3 : 0);
 /** How many kinds there are. */
 export const PATTERN_KINDS = 5;
+
+/** The colour the faint pattern shows: its ink at its alpha over the ground (recolour.ts mixes it again after an edit, review R10 M1). */
+export const patternFill = (ground: string, ink: string, params: Record<string, unknown>) =>
+  mixHex(ground, ink, typeof params.alpha === 'number' ? params.alpha : pattern.params.alpha.def);

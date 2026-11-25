@@ -5,11 +5,13 @@
  * for another of the design's colours, else puts a plate of one of them under it; where nothing passes, the text keeps
  * the best plate and the Scene lists it in `colourWarn` (the Colour tab warns). The edit is never refused.
  *
- * Colours the styles mix from roles (a faint pattern, photocopy contours and tape) keep the palette's mix: only role
- * colours are edited. Pure and deterministic: no randomness.
+ * The faint pattern's recorded fill is mixed again from the edited ground and ink, as it is drawn (review R10 M1);
+ * other colours the styles mix from roles (photocopy contours and tape) keep the palette's mix (Carried). Pure and
+ * deterministic: no randomness.
  */
 import type { Form } from '../data/palettes';
 import { contrast, needRatio } from './colour';
+import { patternFill } from './graphics/pattern';
 import { designRoles, editedForm } from './controls';
 import { bounds, pad, unapply, type Quad } from './geom';
 import { coloursOf, haloOf, lowContrast, OUTLINE_MIN } from './invariants';
@@ -30,7 +32,7 @@ export function editMap(P: Form, s: Spec): Map<string, string> {
 function mapPaint(p: Paint, f: (c: string) => string): Paint {
   return typeof p === 'string' ? f(p) : { ...p, stops: p.stops.map(([t, c]) => [t, f(c)] as [number, string]) };
 }
-function mapItem(it: Item, f: (c: string) => string): Item {
+function mapItem(it: Item, f: (c: string) => string, ground: string): Item {
   if (it.kind === 'text') {
     return {
       ...it, fill: mapPaint(it.fill, f), ink: it.ink.map(f),
@@ -41,7 +43,11 @@ function mapItem(it: Item, f: (c: string) => string): Item {
   if (it.kind === 'rect') {
     return { ...it, fill: mapPaint(it.fill, f), ...(it.shadow ? { shadow: { ...it.shadow, fill: f(it.shadow.fill) } } : {}), ...(it.stroke ? { stroke: { ...it.stroke, colour: f(it.stroke.colour) } } : {}) };
   }
-  return { ...it, colours: Object.fromEntries(Object.entries(it.colours).map(([k, v]) => [k, f(v)])), fills: it.fills.map(f), ...(it.plate ? { plate: f(it.plate) } : {}) };
+  const colours = Object.fromEntries(Object.entries(it.colours).map(([k, v]) => [k, f(v)]));
+  // the faint pattern is drawn as the edited ink over the edited ground: its recorded fill is mixed again from them,
+  // so rule 4 reads the colour drawn (review R10 M1)
+  const fills = it.name === 'pattern' && it.layer === 'ground' ? [patternFill(f(ground), colours.ink, it.params)] : it.fills.map(f);
+  return { ...it, colours, fills, ...(it.plate ? { plate: f(it.plate) } : {}) };
 }
 
 /** The text item with c as the colour that carries it (its fill, or its outline where the outline carries it). */
@@ -76,7 +82,7 @@ export function applyColourEdits(sc0: Scene, P: Form, s: Spec): Scene {
   const map = editMap(P, s);
   if (!map.size) return sc;
   const f = (c: string) => map.get(c.toLowerCase()) ?? c;
-  const items = sc.items.map((it) => mapItem(it, f));
+  const items = sc.items.map((it) => mapItem(it, f, sc.ground));
   const out: Scene = { ...sc, ground: f(sc.ground), items };
   // the design's own colours as edited, its ink and ground first: the only colours a repair may use
   const E = editedForm(P, s), order = (g: string[]) => (g.includes('ink') || g.includes('toner') ? 0 : g.includes('ground') || g.includes('paper') ? 1 : 2);
