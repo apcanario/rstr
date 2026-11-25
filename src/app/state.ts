@@ -71,9 +71,14 @@ export function reroll(s: Spec, f: Facet, seed: () => number = newSeed): Spec {
   return { ...d, seeds: { ...s.seeds, [f]: seed() }, pick: { ...d.pick, [PICK_OF[f]]: null } };
 }
 
-/** A style change: picks name things of one style (an edited colour set is one style's palette), so they all go; seeds stay. */
+/**
+ * A style change: picks name things of one style (an edited colour set is one style's palette), so they all go, and
+ * so do the values set by hand of the four facets (spec 3: params are per style; review R10 M3). The finish
+ * strengths and the marks allowed are settings outside the facets and stay, as the finish and marks do. Seeds stay.
+ */
 export function withStyle(s: Spec, style: Spec['style']): Spec {
-  return { ...s, style, pick: { palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null } };
+  const params = Object.fromEntries(Object.entries(s.params).filter(([k]) => facetOfParam(k) === null));
+  return { ...s, style, params, pick: { palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null } };
 }
 
 /** Push the design before a change onto Back, keeping the newest BACK_STEPS. */

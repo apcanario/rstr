@@ -2,7 +2,7 @@
  * The frame of spec 10.1 and Simple mode of 10.2: header, stage, format, locks, panel, action row, tab bar,
  * the Kept and Export sheets. State logic is pure and lives in ./state; drawing lives in the engine.
  */
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { installApi } from '../api';
 import { choosePairing, render, scene as sceneOf, thumb, type Use } from '../engine';
@@ -20,7 +20,7 @@ import { fitAll } from './fit';
 import { Icon } from './icons';
 import { addKept, infoText, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withStyle, type Locks, type Saved } from './state';
 import { advancedOf, type Advanced } from '../engine/advanced';
-import { apply, read, setColour, type Control, type DesignColour, type Value } from '../engine/controls';
+import { apply, human, read, setColour, type Control, type DesignColour, type Value } from '../engine/controls';
 
 /** What the stage drew: the pairing asked for, the one used, and the note (spec 6). */
 export interface Drawn { wanted: string; pairing: string; note: string; }
@@ -45,13 +45,15 @@ const TALL = '(min-height: 760px)';
 
 /** A choice with this many options or fewer is a row of segments; more is a stepper (spec 10.1: 48 px each). */
 const SEG_MAX = 4;
-/** At most this many switches or swatches share a row (each at least 48 px beside the page chips at 360 wide). */
-const PER_ROW = 4;
+/** At most this many switches share a row: three, so none is shortened at 360 wide and nine fill three rows (review R10 M8). */
+const PER_ROW = 3;
+/** At most this many swatches share a row: five, so a design's colours stay on one page (5 x 48 + 4 x 6 px fits at 360 wide; review R10 M7). */
+const SWATCH_ROW = 5;
 const chunk = <T,>(l: T[], n: number): T[][] => Array.from({ length: Math.ceil(l.length / n) }, (_, i) => l.slice(i * n, i * n + n));
-/** A range value as the row shows it: a whole number, or two decimals. */
-const num = (v: number, step: number) => (step >= 1 ? String(Math.round(v)) : v.toFixed(2).replace(/0$/, ''));
-
-const human = (id: string) => (id ? id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' ') : '');
+/** A range value as the row shows it: a whole number, or three significant figures (review R10 M2: 0.025 read 0.03). */
+const num = (v: number, step: number) => (step >= 1 ? String(Math.round(v)) : String(Number(v.toPrecision(3))));
+/** A log range's slider runs over these many steps in log space (review R10 M2). */
+const LOG_STEPS = 1000;
 const same = (a: Spec, b: Spec) => JSON.stringify(a) === JSON.stringify(b);
 export const fileName = (s: Spec, f: Format, k: Kind) => `rstr-${seedCode(s.seeds)}-${f.replace(':', 'x')}.${k === 'jpeg' ? 'jpg' : 'png'}`;
 
@@ -425,7 +427,9 @@ export function App({ ready }: { ready: Promise<void> }) {
   ]);
 
   // Advanced (spec 10.3): the controls the parts list for the design on screen, drawn by kind
-  const adv: Advanced | null = advanced && scene ? advancedOf(spec, scene) : null;
+  // a control whose effect hangs on how the text fits is tried with the fonts in use (review R10 S1): a few solves, so
+  // only when the design or the stage changes
+  const adv: Advanced | null = useMemo(() => (advanced && scene ? advancedOf(spec, scene, (s) => sceneOf(s, undefined, { pairing: scene.pairing })) : null), [advanced, spec, scene]);
   const setCtl = (c: Control, v: Value, merge = false) => commit((s) => apply(s, c, v), merge ? 'ctl:' + c.id : null);
   const ctlRow = (c: Control): ComponentChildren => {
     const cur = read(spec, c.where);
@@ -439,8 +443,10 @@ export function App({ ready }: { ready: Promise<void> }) {
       );
     }
     if (c.kind === 'choice') {
-      // a stepper through Auto and every option: one thumb, nothing to scroll
-      const i = Math.max(0, c.options.findIndex((o) => o.v === cur)), n = c.options.length;
+      // a stepper through Auto and every option: one thumb, nothing to scroll; unset, it shows what the design draws
+      // (muted) and steps from there (review R10 M6)
+      const at = cur === null && c.drawn !== undefined ? c.drawn : cur;
+      const i = Math.max(0, c.options.findIndex((o) => o.v === at)), n = c.options.length;
       return (
         <div class="captioned stepper" data-row={c.id}><L t={c.label} c="cap" />
           <button class="step" aria-label={`${c.label}: previous`} data-ctl-prev={c.id} onClick={() => setCtl(c, c.options[(i + n - 1) % n].v)}><Icon n="prev" /></button>
@@ -451,10 +457,14 @@ export function App({ ready }: { ready: Promise<void> }) {
     }
     if (c.kind === 'range') {
       const v = typeof cur === 'number' ? cur : c.shown ?? c.min;
+      // a scale-like range moves in log space: equal thumb travel, equal ratio (review R10 M2)
+      const lg = !!c.log && c.min > 0, span = Math.log(c.max / c.min);
+      const toT = (x: number) => Math.round((LOG_STEPS * Math.log(Math.max(c.min, Math.min(c.max, x)) / c.min)) / span);
+      const fromT = (t: number) => Number((c.min * Math.exp((span * t) / LOG_STEPS)).toPrecision(4));
       return (
         <div class="captioned ranged" data-row={c.id}><L t={c.label} c="cap" />
-          <input type="range" class="range" min={c.min} max={c.max} step={c.step} value={v} aria-label={c.label} data-ctl={c.id}
-            onInput={(e) => setCtl(c, Number((e.target as HTMLInputElement).value), true)} />
+          <input type="range" class="range" min={lg ? 0 : c.min} max={lg ? LOG_STEPS : c.max} step={lg ? 1 : c.step} value={lg ? toT(v) : v} aria-label={c.label} data-ctl={c.id}
+            onInput={(e) => { const x = Number((e.target as HTMLInputElement).value); setCtl(c, lg ? fromT(x) : x, true); }} />
           <L t={num(v, c.step)} c={cur === null ? 'value unset' : 'value'} />
           <button class={cur === null ? 'auto on' : 'auto'} aria-pressed={cur === null} aria-label={`${c.label}: auto`} data-ctl-auto={c.id} onClick={() => setCtl(c, null)}><L t="Auto" /></button>
         </div>
@@ -523,7 +533,7 @@ export function App({ ready }: { ready: Promise<void> }) {
     type: paged([...tabRows('type').map(ctlRow), newRow('type')]),
     colour: paged([
       ...(adv?.tabs.colour ?? []).map(ctlRow),
-      ...chunk(colours, PER_ROW).map((part, k) => <div class="swatches" data-row={'colours-' + k}>{part.map((d, j) => swatch(d, k * PER_ROW + j))}</div>),
+      ...chunk(colours, SWATCH_ROW).map((part, k) => <div class="swatches" data-row={'colours-' + k}>{part.map((d, j) => swatch(d, k * SWATCH_ROW + j))}</div>),
       <div class="captioned" data-row="colour-reset">
         <button class="reset" data-testid="colour-reset" disabled={!edited} onClick={() => commit(resetColours)}><L t="Reset" /></button>
         <L t={warn ? 'Low contrast: text kept on a plate' : edited ? 'For this design only' : 'Tap a colour to change it'} c={warn ? 'hint warn' : 'hint'} />
