@@ -49,6 +49,7 @@ After the last row is pushed, one more fresh agent, the **viewer**, checks the b
 
 ## 4c. Keeping quality across a long chat
 
+- While an agent or a script runs, the main chat stays inside its turn and waits with a `sleep` loop of at most 590 s per Bash call; it does not end the turn to wait. In bundle 4 the container was recycled whenever the main turn ended and every background job died with it (seen at 01:57, 04:28, 10:36 to 11:22 on 25 Nov 2026; the cause is inferred from the timing, not confirmed). Long scripts run detached with a log that ends in `exit N`; `check` can be run as a resumable chain per test file if restarts keep killing it.
 - The main chat stays thin so a bundle of up to four rows fits.
 - The reviewer checks that every Done-when line marked "(tested)" has a test that would fail if the line were false.
 - If the chat is running out of room, it stops after closing the current row (never mid-row) and gives the reply. The same starter resumes at the next row.

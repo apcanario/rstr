@@ -7,7 +7,7 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 | 1 | R1, R2, R3, R4 | The real engine, palettes with light and dark, 42 font pairings fetched online, the app frame and Simple mode, live on Pages |
 | 2 | R13, R5 | Styles rebuilt as parts with the variety rules; Swiss finished. Pedro looks at Swiss before bundle 3. Closed 24 Nov 2026 |
 | 3 | R6, R7 | Both Postmodern dialects finished Closed 24 Nov 2026; five finishes; marks |
-| 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit |
+| 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit. Closed 25 Nov 2026 |
 | 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print |
 | 6 | R17, R12 | Text layers with hierarchy; retouch from notes |
 | 7 | R18 | Mix: crosses of two styles (experimental, Advanced) |
@@ -122,6 +122,7 @@ Read spec 7.1 and `docs/design/elements.md`; look at `docs/design/refs/v2-grunge
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **Bundle 4 viewer check.** 25 Nov 2026. Fix: 1 error, 4 should-fix, 8 minor; 11 applied by the fixer, E1 and M1 (README) by the main chat, M2 and M8 to Carried, S4 applied in part and the rest to Carried, 0 rejected. `docs/reviews/bundle-4.md`.
 - **R10. Advanced mode.** 25 Nov 2026, 1 chat (bundle 4; builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R10 applied (fix: 2 errors, 5 should-fix, 8 minor; all 15 applied by the fixer, none rejected, two narrowed: the graphic share range and the Turn options); Carried R10, R10 (from R4), (from R6), (from R7) and (from R9) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R10.md`.
 - **R9. Vaporwave, finished.** 25 Nov 2026, 1 chat (bundle 4; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R9 applied (fix: 0 errors, 5 should-fix, 9 minor; S1 to S5 and M1 to M8 by the fixer, M9 by the main chat at close, none rejected); Carried R9, R9 (from R13) and the R1 refs line cleared; see `docs/CHANGELOG.md` and `docs/reviews/R9.md`.
 - **R8. Brutalist, finished.** 24 Nov 2026, 1 chat (bundle 4). Review R8 applied (fix: 1 error, 5 should-fix, 8 minor; 12 of 14 applied, M2 and M8 left to the main chat and done at close, none rejected); Carried R8, R8 (from R13) and R8 (from R7) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R8.md`.
