@@ -18,6 +18,7 @@ import type { Rect } from '../../geom';
 import { bleed, frameFor } from '../frame';
 import { breaksFrom, brutalHeightAt, brutalLines, brutalMetrics, brutalMinHeight, blockInk, KY_MAX, KY_MIN } from '../shared/brutal';
 import { basePlan, SIZE_CLASSES, TRANSFORMS, type LayoutPart, type SizeClass, type Transform } from '../types';
+import { layoutPicker, sizeControl, transformControl } from '../../controls';
 
 export const BRUTAL_LAYOUTS = ['title-top', 'title-bottom', 'table-first', 'split', 'boxed', 'title-up', 'screen', 'slab'];
 /** The layouts where every title line spans the full inner width (all but the fallback; title-up spans the strip's height). */
@@ -30,6 +31,8 @@ type Force = { name: string; transform: Transform } | null;
 
 export const brutalLayout: LayoutPart = {
   id: 'brutal', layouts: BRUTAL_LAYOUTS, margin: 49,
+  // spec 10.3 Layout: the layout, the transform, the title size class (the screen and slab layouts set their own)
+  controls: ({ scene }) => [layoutPicker(BRUTAL_LAYOUTS), transformControl(), ...(['screen', 'slab'].includes(scene.frame) ? [] : [sizeControl()])],
   plan(c) {
     // a picked motif needs a band; where the rolled layout and transform leave none (the band never takes the
     // title's own lines, review R8 E1), the plan is made again as the title at the top, untilted, from the same

@@ -33,7 +33,7 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
   "finish": "clean",             // clean | grain | grunge | vhs | glitch
   "marks": "off",                // off | light | full
   "seeds": { "layout": 1, "colour": 2, "graphic": 3, "type": 4 },
-  "pick": { "palette": null, "colours": null, "pairing": null, "motif": null, "layout": null, "dialect": null },   // null = the seed decides
+  "pick": { "palette": null, "colours": null, "pairing": null, "motif": null, "layout": null, "dialect": null },   // null = the seed decides; colours: { "light": { "ink": "#rrggbb", ... } } (5)
   "photo": null,                 // null, or { "id": "...", "treatment": null, "place": null } (8.9)
   "params": { },                 // Advanced values, per style; absent = the seed decides
   "text": { "title":    { "on": true, "v": "Signal and noise", "pos": null },
@@ -93,6 +93,7 @@ A **palette** is roles, not colours in fixed places:
 - **Palettes are a fixed list.** Nothing is added, saved or deleted by the user.
 - **Edit for this design (Advanced):** the three to five colours of the design on screen can be changed one by one. The edit is stored in that design's spec as `pick.colours` and nowhere else. Shuffle clears it unless Colour is locked. Kept designs keep theirs.
 - An edited colour set must still pass contrast: the engine may swap a text item between ink and ground, or put a plate under it, to get there. If nothing passes, the text keeps its plate and the control shows a small warning; the edit is not refused.
+- Built at R10: `pick.colours` holds the edits per mode (`{ "light": { "<role>": "#rrggbb" } }`), because each palette's light and dark forms are written by hand; Light/Dark shows the other form's own edits or none. The design's colours are the palette roles its Scene paints with before any edit (roles of one colour together), the five most used. The layout is solved with the palette's own colours, so an edit never moves a box; then every role colour is swapped for its edit. A repair uses only the design's own colours. Colours a style mixes from two roles (a faint pattern, photocopy contours and tape) keep the palette's mix.
 
 ## 6. Type
 
@@ -382,6 +383,7 @@ Everything Simple has, plus the parameters. Seven tabs: Style, Layout, Graphic, 
 
 - Every Advanced control writes a `pick` or a `params` value. A value set by hand survives Shuffle only if its facet is locked; otherwise Shuffle clears it.
 - A style shows only the controls it has. Controls are generated from the parts' parameter lists, not written per style.
+- Built at R10. Keys: `layout.transform`, `layout.size`, Swiss `layout.axis` and `layout.flag` (where the layout reads them), Postmodern's dialect; `pick.motif` (the first graphic), Vaporwave `vapor.first`, `vapor.second`, `vapor.extras`, `graphics.cut`, and `g.<graphic>.<param>` for each graphic the design draws (a Tune stepper picks whose); `pick.pairing` by full name, `type.case` (Swiss), `type.cap` (0.6 to 1, every style whose type reads the size cap: not Brutalist), the Paper edge (photocopy); `pick.palette` and `pick.colours`; `text.<slot>.pos` (Swiss, Postmodern); `finish.<name>.strength` and `marks.no.<kind>` (which marks are allowed). Facets: `layout.*` and the positions are Layout's, `g.*`, `graphics.*` and `vapor.*` Graphic's, `type.*` and the Paper edge Type's, the colours Colour's. The finish strength and the marks allowed belong to no facet: Shuffle keeps them, as it keeps the finish and the marks (spec 3). A choice of up to four options is a row of segments with Auto first; a longer one is a stepper. Not built, because no part reads such a value yet: margin, graphic share and horizon (Layout), title weight and tracking (Type); a title case for the styles that set their own case.
 
 ## 11. Later, outline only
 

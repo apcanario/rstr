@@ -145,19 +145,30 @@ with served() as url, browser() as b:
                 pg.wait_for_timeout(150)
                 pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-{t}-{i + 1}.png'))
             appcheck.goto(pg, 0)
-        # the Postmodern Look tab, Simple and Advanced: the style with the most Look rows (review R6 M5)
+        # the Postmodern Look tab in Simple (review R6 M5), then every Advanced tab and page (R10) for a photocopy
+        # design (the most Type and Graphic rows) and a Vaporwave one, marks and a finish on so their controls show
         cur = pg.evaluate('() => JSON.stringify(window.__rstr.spec())')
         pg.evaluate('(s) => { const x = JSON.parse(s); x.style = "pomo"; window.__rstr.app.load(x); }', cur)
         idle(pg)
-        for mode in ['simple', 'advanced']:
-            if mode == 'advanced':
-                pg.click('[data-testid="advanced"]')
-            pg.click('[data-tab="look"]')
-            for i in range(appcheck.npages(pg)):
-                appcheck.goto(pg, i)
-                pg.wait_for_timeout(150)
-                pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-look-pomo-{mode}-{i + 1}.png'))
-            appcheck.goto(pg, 0)
+        pg.click('[data-tab="look"]')
+        for i in range(appcheck.npages(pg)):
+            appcheck.goto(pg, i)
+            pg.wait_for_timeout(150)
+            pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-look-pomo-simple-{i + 1}.png'))
+        appcheck.goto(pg, 0)
+        pg.click('[data-tab="style"]')
+        pg.click('[data-testid="advanced"]')
+        for name, pk in [('pomo', '{"dialect": "photocopy"}'), ('vapor', '{"layout": "title-sky"}')]:
+            pg.evaluate('([s, st, pk]) => { const x = JSON.parse(s); x.style = st; x.marks = "light"; x.finish = "grain"; x.pick = { ...x.pick, ...JSON.parse(pk) }; window.__rstr.app.load(x); }', [cur, name, pk])
+            idle(pg)
+            for t in appcheck.ADV_TABS:
+                pg.click(f'[data-tab="{t}"]')
+                for i in range(appcheck.npages(pg)):
+                    appcheck.goto(pg, i)
+                    pg.wait_for_timeout(150)
+                    pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-adv-{name}-{t}-{i + 1}.png'))
+                appcheck.goto(pg, 0)
+        pg.click('[data-tab="style"]')
         pg.click('[data-testid="advanced"]')
         pg.evaluate('(s) => window.__rstr.app.load(JSON.parse(s))', cur)
         idle(pg)

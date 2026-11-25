@@ -27,6 +27,7 @@ import { knockText, paint, paintText } from './paint';
 import { mix, rng, type Rng } from './rng';
 import type { GraphicItem, Item, Scene, TextItem } from './scene';
 import type { Finish, Spec } from './spec';
+import { editedForm, type Ranged } from './controls';
 
 const SALT = 0xf1a15e;
 /** Below this, a finished text item is put back as Clean drew it (spec 7.1). */
@@ -51,6 +52,13 @@ export const strengthKey = (f: Finish) => `finish.${f}.strength`;
 export function strength(spec: Spec): number {
   const v = spec.params[strengthKey(spec.finish)];
   return typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1.5, v)) : 1;
+}
+
+/** Advanced, Style tab (spec 7.1, 10.3): the strength dial of the finish in use; Clean has none. Not a facet: Shuffle keeps it. */
+export function finishControls(spec: Spec): Ranged[] {
+  if (spec.finish === 'clean') return [];
+  const key = strengthKey(spec.finish);
+  return [{ kind: 'range', id: key, label: 'Strength', where: { at: 'params', key }, facet: null, min: 0, max: 1.5, step: 0.05, shown: 1 }];
 }
 
 /** A finish's own stream: off the graphic seed, salted by the finish, so it never shifts the graphics. */
@@ -290,7 +298,7 @@ export function corruptionAvoid(sc: Scene) {
   ];
 }
 function corruption(ctx: Ctx, sc: Scene, spec: Spec, r: Rng, k: number) {
-  const P = choosePalette(spec), u = sc.w / 1080, cols = [P.accent, P.accent2, P.accent3].filter((c): c is string => !!c);
+  const P = editedForm(choosePalette(spec), spec), u = sc.w / 1080, cols = [P.accent, P.accent2, P.accent3].filter((c): c is string => !!c);
   const bs = corruptionAvoid(sc);
   const n = Math.round(16 * k);
   for (let i = 0; i < n; i++) {

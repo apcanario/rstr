@@ -12,6 +12,7 @@ import { SHAPE_NAMES, SHAPES } from '../../graphics/shape';
 import { mkGraphic } from '../../items';
 import { shuffle } from '../../rng';
 import type { GraphicsPart, PartCtx, Plan } from '../types';
+import { libraryControls, motifPicker } from '../../controls';
 import { copyAfter, copyGraphics } from './pomo-copy';
 
 function iceGraphics(c: PartCtx, plan: Plan) {
@@ -59,6 +60,8 @@ export const pomoGraphics: GraphicsPart = {
   vocab: [...SHAPE_NAMES, ...FOUND],
   vocabOf: { icecream: SHAPE_NAMES, photocopy: FOUND },
   motifs: [...FOUND, ...SHAPE_NAMES],
+  // spec 10.3 Graphic: the first shape or found graphic (it names its dialect), the parameters of each graphic drawn
+  controls: (q) => [motifPicker([...SHAPE_NAMES, ...FOUND], 'First'), ...libraryControls(q, pomoGraphics.uses)],
   pickFor: (g) => (g === 'shape' ? { dialect: 'icecream' } : FOUND.includes(g) ? { dialect: 'photocopy', motif: g } : {}),
   place(c, plan) {
     return plan.dialect === 'photocopy' ? copyGraphics(c, plan) : iceGraphics(c, plan);

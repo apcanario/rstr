@@ -9,6 +9,7 @@
  * In `stairs` the strips step across the whole page; in `title-side` the title and subtitle read up the left side.
  * Every piece of text sits on its own plate: shapes may sit behind the plates, never on the text (spec 8.2).
  */
+import { capControl, type Switch } from '../../controls';
 import { firstInk, needRatio } from '../../colour';
 import type { Rect, Xf } from '../../geom';
 import { mkRect, mkText } from '../../items';
@@ -226,8 +227,12 @@ function tileTitle(c: PartCtx, text: string, maxW: number, maxH: number, start: 
   return null;
 }
 
+const paperEdge = (): Switch => ({ kind: 'switch', id: 'pomo.paperEdge', label: 'Paper edge', where: { at: 'params', key: 'pomo.paperEdge' }, facet: 'type', off: false, onLabel: 'Holds over ink', offLabel: 'Rough, no check' });
+
 export const pomoType: TypePart = {
   id: 'pomo', min: MIN,
+  // the size cap; in photocopy the Paper edge switch (spec 8.2: off waives rule 4 for the title words)
+  controls: ({ scene }) => [capControl(), ...(scene.frame.startsWith('copy-') ? [paperEdge()] : [])],
   set(c, plan) {
     return plan.dialect === 'photocopy' ? copyType(c, plan) : iceType(c, plan);
   },

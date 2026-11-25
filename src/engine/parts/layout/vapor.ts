@@ -15,6 +15,7 @@
 import type { Rect } from '../../geom';
 import { frameFor } from '../frame';
 import { basePlan, SIZE_CLASSES, TRANSFORMS, type LayoutPart, type SizeClass, type Transform } from '../types';
+import { layoutPicker, sizeControl, transformControl } from '../../controls';
 
 export const VAPOR_LAYOUTS = ['title-sky', 'title-floor', 'title-window', 'title-band', 'windows', 'tunnel', 'sun-huge', 'orb'];
 /** The layouts with a horizon: the sky gradient above it, the floor below. */
@@ -26,6 +27,8 @@ export const SKY_TEXT = 0.47;
 
 export const vaporLayout: LayoutPart = {
   id: 'vapor', layouts: VAPOR_LAYOUTS, margin: 72,
+  // spec 10.3 Layout: the layout, the transform (only a layout without a horizon takes one, spec 8.4), the title size class
+  controls: ({ scene }) => [layoutPicker(VAPOR_LAYOUTS), ...(HORIZON.includes(scene.frame) ? [] : [transformControl()]), sizeControl()],
   plan(c) {
     const { W, H, spec, story } = c, tx = spec.text, prm = spec.params;
     // the layout stream, in a fixed order: layout, transform, tilt angle, size class, horizon, sun x, sun radius,

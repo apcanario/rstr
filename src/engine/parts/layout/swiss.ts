@@ -14,16 +14,30 @@ import { bleed, frameFor } from '../frame';
 import { SIZE_CLASSES, TRANSFORMS, type LayoutPart, type Plan, type SizeClass, type Transform } from '../types';
 import type { Rect } from '../../geom';
 import { SLOTS, type Slot } from '../../spec';
+import { layoutPicker, paramChoice, sizeControl, transformControl } from '../../controls';
 
 export const SWISS_LAYOUTS = ['graphic-above', 'graphic-below', 'full-bleed', 'column', 'type-only', 'vertical', 'centred-low', 'split'];
 /** The positions of each text slot (spec 8.5), the first the default; weights by repetition. */
 export const SWISS_POS: Record<Slot, string[]> = { title: ['top', 'low'], subtitle: ['under', 'over'], info: ['foot', 'head'], caption: ['foot', 'head'] };
 const POS_ODDS: Record<Slot, string[]> = { title: ['top', 'top', 'low'], subtitle: ['under', 'under', 'under', 'over'], info: ['foot', 'foot', 'head'], caption: ['foot', 'foot', 'head'] };
 
+/** What `layout.flag` means in each layout that reads it: the control's caption, then its labels for 0 and 1. */
+const FLAG_OF: Record<string, [string, string, string]> = {
+  'graphic-above': ['Graphic', 'Inset', 'Bleed'], 'graphic-below': ['Graphic', 'Inset', 'Bleed'], 'centred-low': ['Graphic', 'Inset', 'Bleed'],
+  'full-bleed': ['Panel', 'Low', 'Top'], column: ['Column', 'Right', 'Left'], split: ['Field', 'Low', 'Top'],
+};
+
 const snap = (v: number, mod: number) => Math.max(mod, Math.round(v / mod) * mod);
 
 export const swissLayout: LayoutPart = {
-  id: 'swiss', layouts: SWISS_LAYOUTS, margin: 72,
+  id: 'swiss', layouts: SWISS_LAYOUTS, margin: 72, positions: SWISS_POS,
+  // spec 10.3 Layout: the layout, the transform, the title size class, the axis column, and whether an inset graphic bleeds
+  // (the axis only where the layout sets text on it, the flag only where the layout reads it)
+  controls: ({ scene }) => [
+    layoutPicker(SWISS_LAYOUTS), transformControl(), sizeControl(),
+    ...(['graphic-above', 'graphic-below'].includes(scene.frame) ? [paramChoice('layout.axis', 'Axis', [0, 1, 2], (v) => `Col ${Number(v) + 1}`)] : []),
+    ...(FLAG_OF[scene.frame] ? [paramChoice('layout.flag', FLAG_OF[scene.frame][0], [0, 1], (v) => FLAG_OF[scene.frame][v ? 2 : 1])] : []),
+  ],
   plan(c) {
     const { W, H, spec, story } = c, prm = spec.params;
     // the layout stream, in a fixed order: layout, axis, flag, transform, tilt angle, size class, band, positions

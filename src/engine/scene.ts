@@ -104,4 +104,8 @@ export interface Scene {
   items: Item[];
   fonts: string[];           // families the layout measured with or drew
   faces: string[];           // faces (faceKey) the layout measured with or drew: what the font check tests
+  /** Text that could not reach the contrast of spec 5 with this design's edited colours: it keeps its plate (Advanced warns). */
+  colourWarn?: string[];
+  /** The design's colours as palette roles (spec 5), read before any edit: `designRoles` in controls.ts. */
+  designRoles?: ('ground' | 'ink' | 'accent' | 'accent2' | 'accent3' | 'paper' | 'toner' | 'spot' | 'window' | 'windowInk' | 'chrome')[][];
 }

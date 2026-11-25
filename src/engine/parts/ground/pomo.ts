@@ -11,9 +11,17 @@ import { PATTERN_KINDS, patternDraws } from '../../graphics/pattern';
 import { mkGraphic, mkRect } from '../../items';
 import { mix } from '../../rng';
 import type { GroundPart } from '../types';
+import { libraryControls, paramChoice } from '../../controls';
+
+const PATTERN_NAMES = ['Dots', 'Grid', 'Confetti', 'Lines', 'Hatch'];
 
 export const pomoGround: GroundPart = {
   id: 'pomo', uses: ['pattern', 'copier'],
+  // the ice cream pattern's kind and its parameters; the copier pass's (photocopy)
+  controls: (q) => [
+    ...(q.scene.items.some((i) => i.kind === 'graphic' && i.name === 'pattern') ? [paramChoice('g.pattern.kind', 'Pattern', [0, 1, 2, 3, 4], (v) => PATTERN_NAMES[Number(v)] ?? String(v))] : []),
+    ...libraryControls(q, ['pattern', 'copier']),
+  ],
   pickFor: (g) => (g === 'pattern' ? { dialect: 'icecream' } : g === 'copier' ? { dialect: 'photocopy' } : {}),
   ground(c, plan) {
     const { P, W, H, spec, rg } = c;

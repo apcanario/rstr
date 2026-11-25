@@ -16,6 +16,7 @@ import type { FontRef, GraphicItem, Item, RectItem, Scene, TextItem } from './sc
 import { seedCode, type Spec, type StyleId } from './spec';
 import { STYLES } from './styles';
 import type { Form } from '../data/palettes/types';
+import type { Switch } from './controls';
 
 export type MarkKind = 'grid' | 'slashes' | 'brackets' | 'ruler' | 'crosshair' | 'barcode' | 'status' | 'label' | 'dots';
 export const MARK_KINDS: MarkKind[] = ['grid', 'slashes', 'brackets', 'ruler', 'crosshair', 'barcode', 'status', 'label', 'dots'];
@@ -26,6 +27,16 @@ export const MARKS_OF: Record<StyleId, MarkKind[]> = {
   pomo: MARK_KINDS,
   vapor: MARK_KINDS,
 };
+
+/** The params key that takes one free mark out of the design (spec 10.3, Advanced: which marks are allowed). */
+export const markOffKey = (k: MarkKind) => `marks.no.${k}`;
+/** The free marks this design may place: the style's list less those turned off by hand. */
+export const marksAllowed = (spec: Spec): MarkKind[] => MARKS_OF[spec.style].filter((k) => spec.params[markOffKey(k)] !== true);
+const MARK_LABEL: Record<MarkKind, string> = { grid: 'Grid', slashes: 'Slashes', brackets: 'Brackets', ruler: 'Ruler', crosshair: 'Cross', barcode: 'Barcode', status: 'Status', label: 'Label', dots: 'Dots' };
+/** Advanced, Style tab: a switch per free mark of the style (on: allowed). Not a facet: Shuffle keeps them, as it keeps marks. */
+export function marksControls(spec: Spec): Switch[] {
+  return MARKS_OF[spec.style].map((k) => ({ kind: 'switch', id: markOffKey(k), label: MARK_LABEL[k], where: { at: 'params', key: markOffKey(k) }, facet: null, off: true, onLabel: MARK_LABEL[k], offLabel: MARK_LABEL[k] }));
+}
 
 /** The one face marks are set in: bundled with the app, so a mark never waits for a font. */
 export const MARK_FONT: FontRef = { family: 'DM Mono', weight: 400 };
@@ -373,7 +384,7 @@ export function addMarks(sc: Scene, spec: Spec, m: Measure, P: Form): Scene {
   const rules = items.filter((i) => i.kind === 'rect' && Math.min(bounds(i.quad).w, bounds(i.quad).h) <= 16);
   const plates = platesOf(items.slice(0, insertAt), sc);
   const c: Ctx = { W: sc.w, H: sc.h, story: sc.format === '9:16', r: rng(mix(spec.seeds.layout, SALT)), m, spec, sc, texts, placed: [], busy: busyItems, rules, P, insertAt, plates, bare: true };
-  const kinds = shuffle(c.r, [...MARKS_OF[spec.style]]);
+  const kinds = shuffle(c.r, marksAllowed(spec));
   // three or four, each kind at most once (review R7 S2: the same barcode twice reads as a mistake)
   const n = Math.min(kinds.length, 3 + (c.r() < 0.5 ? 1 : 0));
   const out: GraphicItem[] = [];

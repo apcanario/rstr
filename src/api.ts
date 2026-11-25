@@ -18,6 +18,8 @@ import { labelsOf, markOverlaps } from './engine/marks';
 import { thumb } from './engine';
 import { withStyle } from './app/state';
 import { migrate, type Spec, type StyleId } from './engine/spec';
+import { advancedOf } from './engine/advanced';
+import type { Control } from './engine/controls';
 
 /** Every tool call lays out the way the app does: with the wanted pairing only if its fonts are loaded (spec 6). */
 const useOf = (spec: Spec) => resolvePairing(spec, available);
@@ -89,6 +91,12 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
         out.push(performance.now() - t0);
       }
       return out;
+    },
+    /** Row R10: the Advanced controls of a design, by tab, as the app draws them (spec 10.3), its colours and its warning. */
+    advanced: (raw: unknown) => {
+      const s = migrate(raw), sc = scene(s, browserMeasure(), useOf(s)), a = advancedOf(s, sc);
+      const plain = (c: Control) => ({ id: c.id, kind: c.kind, label: c.label, facet: c.facet, where: c.where, options: c.kind === 'choice' ? c.options : undefined, min: c.kind === 'range' ? c.min : undefined, max: c.kind === 'range' ? c.max : undefined });
+      return { tabs: Object.fromEntries(Object.entries(a.tabs).map(([t, l]) => [t, l.map(plain)])), colours: a.colours, warn: sc.colourWarn ?? [] };
     },
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),

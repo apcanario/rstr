@@ -23,6 +23,7 @@ import { mix, pick } from '../../rng';
 import type { Item } from '../../scene';
 import { fieldColour } from '../shared/field';
 import type { GraphicsPart, PartCtx, Plan } from '../types';
+import { cutControl, libraryControls, motifPicker } from '../../controls';
 
 export const SWISS_GRAPHICS = ['topo', 'blocks', 'bars', 'dots', 'disc', 'lines', 'rules', 'numeral', 'crosshairs', 'lattice', 'rings', 'waves'];
 /** Graphics that read as a field, so they may be drawn reversed out of a plate (shapes are, beside a panel). */
@@ -148,6 +149,8 @@ export function swissDraw(c: PartCtx, plan: Plan): SwissDraw | null {
 
 export const swissGraphics: GraphicsPart = {
   id: 'swiss', uses: SWISS_GRAPHICS, vocab: SWISS_GRAPHICS, motifs: SWISS_GRAPHICS,
+  // spec 10.3 Graphic: the first graphic, how many cut into it, and the parameters of each graphic drawn
+  controls: (q) => [motifPicker(SWISS_GRAPHICS, 'Graphic'), cutControl(), ...libraryControls(q, SWISS_GRAPHICS)],
   place(c, plan) {
     const { spec, P, W } = c, mod = plan.module;
     const out: Item[] = [];

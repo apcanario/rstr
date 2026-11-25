@@ -32,7 +32,7 @@ describe('Shuffle and locks (spec 10.1)', () => {
           const prev = s;
           s = shuffle(s, locks, seed);
           expect(s.seeds[f]).toBe(first.seeds[f]);
-          expect(s.pick).toEqual({ ...{ palette: null, pairing: null, motif: null, layout: null, dialect: null }, [PICK[f]]: first.pick[PICK[f]] });
+          expect(s.pick).toEqual({ ...{ palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null }, [PICK[f]]: first.pick[PICK[f]] });
           if (f === 'colour') expect(choosePalette(s).id).toBe(palette);
           if (f === 'type') expect(choosePairing(s).id).toBe(pairing);
           for (const g of FACETS) if (s.seeds[g] !== prev.seeds[g]) changed.add(g);
@@ -54,34 +54,34 @@ describe('Shuffle and locks (spec 10.1)', () => {
     }
   });
   test('Shuffle with nothing locked clears every pick but the dialect; format, mode, finish and marks stay (spec 3)', () => {
-    const s: Spec = { ...defaultSpec(), format: '9:16', mode: 'dark', finish: 'grain', marks: 'full', pick: { palette: 'paper', pairing: 'x', motif: 'topo', layout: 'full-bleed', dialect: 'photocopy' } };
+    const s: Spec = { ...defaultSpec(), format: '9:16', mode: 'dark', finish: 'grain', marks: 'full', pick: { palette: 'paper', colours: null, pairing: 'x', motif: 'topo', layout: 'full-bleed', dialect: 'photocopy' } };
     const n = shuffle(s, NO_LOCKS, counter());
     // the Dialect control is a setting of the Look tab, like Light/Dark: Shuffle keeps it (R6 choice)
-    expect(n.pick).toEqual({ palette: null, pairing: null, motif: null, layout: null, dialect: 'photocopy' });
+    expect(n.pick).toEqual({ palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: 'photocopy' });
     expect([n.format, n.mode, n.finish, n.marks]).toEqual(['9:16', 'dark', 'grain', 'full']);
     for (const f of FACETS) expect(n.seeds[f]).not.toBe(s.seeds[f]);
   });
   test('a reroll changes one facet and clears its pick only', () => {
-    const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', pairing: 'p', motif: 'topo', layout: 'l', dialect: null } };
+    const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', colours: null, pairing: 'p', motif: 'topo', layout: 'l', dialect: null } };
     const n = reroll(s, 'colour', counter());
     expect(n.seeds.colour).not.toBe(s.seeds.colour);
     expect({ ...n.seeds, colour: 0 }).toEqual({ ...s.seeds, colour: 0 });
     expect(n.pick).toEqual({ ...s.pick, palette: null });
   });
   test('the Paper edge value set by hand: Shuffle clears it unless Type is locked; New type clears it, other rerolls keep it (spec 10.3, review R6 S5)', () => {
-    const s: Spec = { ...defaultSpec(), style: 'pomo', params: { 'pomo.paperEdge': false, 'g.copier.grain': 0.5 } };
-    expect(shuffle(s, NO_LOCKS, counter()).params).toEqual({ 'g.copier.grain': 0.5 });
+    const s: Spec = { ...defaultSpec(), style: 'pomo', params: { 'pomo.paperEdge': false, 'finish.grain.strength': 0.5 } };
+    expect(shuffle(s, NO_LOCKS, counter()).params).toEqual({ 'finish.grain.strength': 0.5 });
     expect(shuffle(s, { ...NO_LOCKS, type: true }, counter()).params).toEqual(s.params);
-    expect(shuffle(s, { ...NO_LOCKS, layout: true, colour: true, graphic: true }, counter()).params).toEqual({ 'g.copier.grain': 0.5 });
-    expect(reroll(s, 'type', counter()).params).toEqual({ 'g.copier.grain': 0.5 });
+    expect(shuffle(s, { ...NO_LOCKS, layout: true, colour: true, graphic: true }, counter()).params).toEqual({ 'finish.grain.strength': 0.5 });
+    expect(reroll(s, 'type', counter()).params).toEqual({ 'finish.grain.strength': 0.5 });
     for (const f of ['layout', 'colour', 'graphic'] as const) expect(reroll(s, f, counter()).params).toEqual(s.params);
   });
   test('the graphic facet\'s Advanced keys (vapor.first, vapor.second, vapor.extras, graphics.cut): Shuffle clears them unless Graphic is locked (review R9 M5)', () => {
-    const p = { 'vapor.first': 'sun', 'vapor.second': 'grid', 'vapor.extras': 0, 'graphics.cut': 0, 'g.copier.grain': 0.5 };
+    const p = { 'vapor.first': 'sun', 'vapor.second': 'grid', 'vapor.extras': 0, 'graphics.cut': 0, 'g.sun.slits': 4, 'marks.no.grid': true };
     const s: Spec = { ...defaultSpec(), style: 'vapor', params: p };
-    expect(shuffle(s, NO_LOCKS, counter()).params).toEqual({ 'g.copier.grain': 0.5 });
+    expect(shuffle(s, NO_LOCKS, counter()).params).toEqual({ 'marks.no.grid': true });
     expect(shuffle(s, { ...NO_LOCKS, graphic: true }, counter()).params).toEqual(p);
-    expect(reroll(s, 'graphic', counter()).params).toEqual({ 'g.copier.grain': 0.5 });
+    expect(reroll(s, 'graphic', counter()).params).toEqual({ 'marks.no.grid': true });
   });
   test('Shuffle holds spec 8.0 in a session: 200 shuffles of each style, no repeat of the variety key in any 60 in a row (review R9 S1)', () => {
     const keyOf = (s: Spec) => varietyKey(layout(s, stubMeasure));
@@ -99,11 +99,11 @@ describe('Shuffle and locks (spec 10.1)', () => {
     expect(shuffleFresh(s, all, ['x'], () => 'x').spec).toBe(s);
   }, 120000);
   test('a style change keeps seeds and clears picks', () => {
-    const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', pairing: 'p', motif: 'topo', layout: 'l', dialect: 'icecream' } };
+    const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', colours: null, pairing: 'p', motif: 'topo', layout: 'l', dialect: 'icecream' } };
     const n = withStyle(s, 'brutal');
     expect(n.style).toBe('brutal');
     expect(n.seeds).toEqual(s.seeds);
-    expect(n.pick).toEqual({ palette: null, pairing: null, motif: null, layout: null, dialect: null });
+    expect(n.pick).toEqual({ palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null });
   });
 });
 

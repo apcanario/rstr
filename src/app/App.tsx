@@ -19,11 +19,16 @@ import { defaultSpec, FACETS, migrate, newSeed, newSeeds, seedCode, STYLE_IDS, t
 import { fitAll } from './fit';
 import { Icon } from './icons';
 import { addKept, infoText, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withStyle, type Locks, type Saved } from './state';
+import { advancedOf, type Advanced } from '../engine/advanced';
+import { apply, read, setColour, type Control, type DesignColour, type Value } from '../engine/controls';
 
 /** What the stage drew: the pairing asked for, the one used, and the note (spec 6). */
 export interface Drawn { wanted: string; pairing: string; note: string; }
 
-type Tab = 'style' | 'text' | 'look';
+type Tab = 'style' | 'text' | 'look' | 'layout' | 'graphic' | 'type' | 'colour';
+/** Simple's four tabs (Photo comes with R14) and Advanced's seven (spec 10.2, 10.3; Photo with R14). */
+const SIMPLE_TABS: Tab[] = ['style', 'text', 'look'];
+const ADV_TABS: Tab[] = ['style', 'layout', 'graphic', 'type', 'colour', 'text'];
 type Sheet = null | 'kept' | 'export';
 type Kind = 'jpeg' | 'png';
 
@@ -37,6 +42,14 @@ const SLOT_LABEL: Record<Slot, string> = { title: 'Title', subtitle: 'Subtitle',
 const KEPT_PAGE = 6;
 /** Screens this tall hold four 48 px rows in the panel; the same query sets the panel's height in app.css. */
 const TALL = '(min-height: 760px)';
+
+/** A choice with this many options or fewer is a row of segments; more is a stepper (spec 10.1: 48 px each). */
+const SEG_MAX = 4;
+/** At most this many switches or swatches share a row (each at least 48 px beside the page chips at 360 wide). */
+const PER_ROW = 4;
+const chunk = <T,>(l: T[], n: number): T[][] => Array.from({ length: Math.ceil(l.length / n) }, (_, i) => l.slice(i * n, i * n + n));
+/** A range value as the row shows it: a whole number, or two decimals. */
+const num = (v: number, step: number) => (step >= 1 ? String(Math.round(v)) : v.toFixed(2).replace(/0$/, ''));
 
 const human = (id: string) => (id ? id.charAt(0).toUpperCase() + id.slice(1).replace(/-/g, ' ') : '');
 const same = (a: Spec, b: Spec) => JSON.stringify(a) === JSON.stringify(b);
@@ -104,7 +117,7 @@ function useMedia(q: string): boolean {
 }
 
 function Panel({ pages, page, setPage }: { pages: ComponentChildren[]; page: number; setPage: (n: number) => void }) {
-  const p = Math.min(page, pages.length - 1);
+  const p = Math.max(0, Math.min(page, pages.length - 1));
   return (
     <div class="panel" data-testid="panel">
       <div class="page" data-page={p}>{pages[p]}</div>
@@ -132,7 +145,10 @@ export function App({ ready }: { ready: Promise<void> }) {
   const [locks, setLocks] = useState<Locks>(init.current.locks);
   const [advanced, setAdvanced] = useState(init.current.advanced);
   const [tab, setTab] = useState<Tab>('style');
-  const [pages, setPages] = useState<Record<Tab, number>>({ style: 0, text: 0, look: 0 });
+  // a tab the mode does not have (Look in Advanced, Layout in Simple) shows the Style tab
+  const [pages, setPages] = useState<Record<Tab, number>>({ style: 0, text: 0, look: 0, layout: 0, graphic: 0, type: 0, colour: 0 });
+  /** Graphic tab: whose parameters are shown, of the graphics the design draws. */
+  const [tune, setTune] = useState(0);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sizes, setSizes] = useState<Format[]>([init.current.spec.format]);
   const [kind, setKind] = useState<Kind>('jpeg');
@@ -386,39 +402,138 @@ export function App({ ready }: { ready: Promise<void> }) {
     for (let i = 0; i < rows.length; i += per) out.push(rows.slice(i, i + per));
     return out.map((r) => <div class="rows">{r}</div>);
   };
-  const pomo = spec.style === 'pomo', edgeOn = spec.params['pomo.paperEdge'] !== false;
+  const pomo = spec.style === 'pomo';
   // a picked layout of the other dialect would win over the Dialect control (review R6 M4): it goes
   const setDialect = (d: string) => commit((s) => {
     const dialect = d === 'either' ? null : (d as Spec['pick']['dialect']);
     const of = dialect && STYLES.pomo.parts.layout.layoutsOf?.[dialect];
     return { ...s, pick: { ...s.pick, dialect, layout: of && s.pick.layout && !of.includes(s.pick.layout) ? null : s.pick.layout } };
   });
-  const toggleEdge = () => commit((s) => {
-    const params = { ...s.params };
-    if (params['pomo.paperEdge'] === false) delete params['pomo.paperEdge']; else params['pomo.paperEdge'] = false;
-    return { ...s, params };
-  });
   const textPages = paged((['title', 'subtitle', 'info', 'caption'] as Slot[]).map(textRow));
+  const modeRow = seg([['light', 'Light'], ['dark', 'Dark']], spec.mode, (m) => set({ mode: m }), 'data-mode');
+  const finishRow = seg(FINISHES, spec.finish, (f) => set({ finish: f }), 'data-finish');
+  const marksRow = <div class="captioned"><L t="Marks" c="cap" />{seg(MARKS, spec.marks, (m) => set({ marks: m }), 'data-marks')}</div>;
+  const rerollBtn = (f: Facet) => <button aria-label={REROLL_LABEL[f]} data-reroll={f} onClick={() => commit((s) => reroll(s, f))}><Icon n="reroll" /><L t={FACET_LABEL[f]} /></button>;
   const lookPages = paged([
-    seg([['light', 'Light'], ['dark', 'Dark']], spec.mode, (m) => set({ mode: m }), 'data-mode'),
+    modeRow,
     // spec 7 (R7): every finish and marks level draws
-    seg(FINISHES, spec.finish, (f) => set({ finish: f }), 'data-finish'),
-    <div class="captioned"><L t="Marks" c="cap" />{seg(MARKS, spec.marks, (m) => set({ marks: m }), 'data-marks')}</div>,
-    <div class="captioned"><L t="New" c="cap" />
-      <div class="seg rerolls" role="group">
-        {FACETS.map((f) => (
-          <button aria-label={REROLL_LABEL[f]} data-reroll={f} onClick={() => commit((s) => reroll(s, f))}><Icon n="reroll" /><L t={FACET_LABEL[f]} /></button>
-        ))}
-      </div>
-    </div>,
-    // Postmodern only: the Dialect control (spec 8.2); in Advanced, the Paper edge switch of the photocopy dialect
+    finishRow,
+    marksRow,
+    <div class="captioned"><L t="New" c="cap" /><div class="seg rerolls" role="group">{FACETS.map(rerollBtn)}</div></div>,
+    // Postmodern only: the Dialect control (spec 8.2)
     ...(pomo ? [<div class="captioned"><L t="Dialect" c="cap" />{seg(DIALECT, spec.pick.dialect ?? 'either', setDialect, 'data-dialect')}</div>] : []),
-    ...(pomo && advanced ? [
-      <div class="slot edge"><L t="Paper edge" c="cap" /><L t={edgeOn ? 'Holds over ink' : 'Rough, no check'} c="hint" />
-        <button class={edgeOn ? 'switch on' : 'switch'} role="switch" aria-checked={edgeOn} aria-label="Paper edge" data-testid="paper-edge" onClick={toggleEdge}><i /></button></div>,
-    ] : []),
   ]);
-  const panel = { style: stylePages, text: textPages, look: lookPages }[tab];
+
+  // Advanced (spec 10.3): the controls the parts list for the design on screen, drawn by kind
+  const adv: Advanced | null = advanced && scene ? advancedOf(spec, scene) : null;
+  const setCtl = (c: Control, v: Value, merge = false) => commit((s) => apply(s, c, v), merge ? 'ctl:' + c.id : null);
+  const ctlRow = (c: Control): ComponentChildren => {
+    const cur = read(spec, c.where);
+    if (c.kind === 'choice' && c.options.length <= SEG_MAX) {
+      return (
+        <div class="captioned" data-row={c.id}><L t={c.label} c="cap" />
+          <div class="seg" role="group">
+            {c.options.map((o) => <button class={cur === o.v ? 'on' : ''} aria-pressed={cur === o.v} data-ctl={c.id} data-v={String(o.v)} onClick={() => setCtl(c, o.v)}><L t={o.label} /></button>)}
+          </div>
+        </div>
+      );
+    }
+    if (c.kind === 'choice') {
+      // a stepper through Auto and every option: one thumb, nothing to scroll
+      const i = Math.max(0, c.options.findIndex((o) => o.v === cur)), n = c.options.length;
+      return (
+        <div class="captioned stepper" data-row={c.id}><L t={c.label} c="cap" />
+          <button class="step" aria-label={`${c.label}: previous`} data-ctl-prev={c.id} onClick={() => setCtl(c, c.options[(i + n - 1) % n].v)}><Icon n="prev" /></button>
+          <L t={c.options[i].label} c={cur === null ? 'value unset' : 'value'} />
+          <button class="step" aria-label={`${c.label}: next`} data-ctl-next={c.id} onClick={() => setCtl(c, c.options[(i + 1) % n].v)}><Icon n="next" /></button>
+        </div>
+      );
+    }
+    if (c.kind === 'range') {
+      const v = typeof cur === 'number' ? cur : c.shown ?? c.min;
+      return (
+        <div class="captioned ranged" data-row={c.id}><L t={c.label} c="cap" />
+          <input type="range" class="range" min={c.min} max={c.max} step={c.step} value={v} aria-label={c.label} data-ctl={c.id}
+            onInput={(e) => setCtl(c, Number((e.target as HTMLInputElement).value), true)} />
+          <L t={num(v, c.step)} c={cur === null ? 'value unset' : 'value'} />
+          <button class={cur === null ? 'auto on' : 'auto'} aria-pressed={cur === null} aria-label={`${c.label}: auto`} data-ctl-auto={c.id} onClick={() => setCtl(c, null)}><L t="Auto" /></button>
+        </div>
+      );
+    }
+    const on = cur === null;
+    return (
+      <div class="slot edge" data-row={c.id}><L t={c.label} c="cap" /><L t={on ? c.onLabel : c.offLabel} c="hint" />
+        <button class={on ? 'switch on' : 'switch'} role="switch" aria-checked={on} aria-label={c.label} data-ctl={c.id} data-testid={c.id === 'pomo.paperEdge' ? 'paper-edge' : undefined}
+          onClick={() => setCtl(c, on ? c.off : null)}><i /></button>
+      </div>
+    );
+  };
+  /** Switches of one kind (the marks allowed) as rows of toggles: pressed is on. */
+  const switchRows = (list: Control[], cap: string) => chunk(list, PER_ROW).map((part, k) => (
+    <div class="captioned" data-row={'switches-' + k}><L t={k ? '' : cap} c="cap" />
+      <div class="seg" role="group">
+        {part.map((c) => {
+          const on = read(spec, c.where) === null;
+          return <button class={on ? 'on' : ''} aria-pressed={on} data-ctl={c.id} onClick={() => c.kind === 'switch' && setCtl(c, on ? c.off : null)}><L t={c.label} /></button>;
+        })}
+      </div>
+    </div>
+  ));
+  const newRow = (f: Facet) => <div class="captioned"><L t="New" c="cap" /><div class="seg rerolls" role="group">{rerollBtn(f)}</div></div>;
+  const tabRows = (t: 'layout' | 'graphic' | 'type') => (adv ? adv.tabs[t] : []);
+
+  // Graphic tab: the choices, then the parameters of one drawn graphic at a time (a stepper picks which)
+  const gAll = tabRows('graphic'), gLib = gAll.filter((c) => c.kind === 'range' && c.where.at === 'params' && c.where.key.startsWith('g.'));
+  const gNames = [...new Set(gLib.map((c) => (c.where as { key: string }).key.split('.')[1]))];
+  const gOne = gNames[tune % Math.max(1, gNames.length)];
+  const tuneRow = gNames.length ? [
+    <div class="captioned stepper" data-row="tune"><L t="Tune" c="cap" />
+      <button class="step" aria-label="Tune: previous graphic" data-tune-prev onClick={() => setTune((x) => (x + gNames.length - 1) % gNames.length)}><Icon n="prev" /></button>
+      <L t={human(gOne)} c="value" />
+      <button class="step" aria-label="Tune: next graphic" data-tune-next onClick={() => setTune((x) => (x + 1) % gNames.length)}><Icon n="next" /></button>
+    </div>,
+  ] : [];
+
+  // Colour tab: the palette, the design's colours (each a system colour picker), reset, the warning (spec 5)
+  const colours = adv?.colours ?? [];
+  const warn = scene?.colourWarn?.length ? scene.colourWarn : null;
+  const swatch = (d: DesignColour, i: number) => (
+    <label class={d.now !== d.base ? 'swatch on' : 'swatch'} style={{ background: d.now }} data-swatch={i}>
+      <input type="color" value={d.now} aria-label={d.label} data-colour={i} onInput={(e) => commit((s) => setColour(s, d.roles, (e.target as HTMLInputElement).value), 'colour:' + d.roles.join())} />
+      <L t={d.label} c="name" />
+    </label>
+  );
+  const edited = !!spec.pick.colours?.[spec.mode];
+  /** Reset: this mode's colours back to the palette's; the other form's edits stay. */
+  const resetColours = (s: Spec): Spec => {
+    const all = { ...(s.pick.colours ?? {}) };
+    delete all[s.mode];
+    return { ...s, pick: { ...s.pick, colours: Object.keys(all).length ? all : null } };
+  };
+
+  const advPages: Record<Tab, ComponentChildren[]> = {
+    style: [...stylePages, ...paged([
+      modeRow, finishRow,
+      ...(adv?.tabs.style.filter((c) => c.kind === 'range') ?? []).map(ctlRow),
+      marksRow,
+      ...switchRows(adv?.tabs.style.filter((c) => c.kind === 'switch') ?? [], 'Allow'),
+    ])],
+    layout: paged([...tabRows('layout').map(ctlRow), newRow('layout')]),
+    graphic: paged([...gAll.filter((c) => !gLib.includes(c)).map(ctlRow), newRow('graphic'), ...tuneRow, ...gLib.filter((c) => (c.where as { key: string }).key.split('.')[1] === gOne).map(ctlRow)]),
+    type: paged([...tabRows('type').map(ctlRow), newRow('type')]),
+    colour: paged([
+      ...(adv?.tabs.colour ?? []).map(ctlRow),
+      ...chunk(colours, PER_ROW).map((part, k) => <div class="swatches" data-row={'colours-' + k}>{part.map((d, j) => swatch(d, k * PER_ROW + j))}</div>),
+      <div class="captioned" data-row="colour-reset">
+        <button class="reset" data-testid="colour-reset" disabled={!edited} onClick={() => commit(resetColours)}><L t="Reset" /></button>
+        <L t={warn ? 'Low contrast: text kept on a plate' : edited ? 'For this design only' : 'Tap a colour to change it'} c={warn ? 'hint warn' : 'hint'} />
+        <div class="seg rerolls one" role="group">{rerollBtn('colour')}</div>
+      </div>,
+    ]),
+    text: paged((['title', 'subtitle', 'info', 'caption'] as Slot[]).flatMap((k) => [textRow(k), ...(adv?.positions[k] ? [ctlRow(adv.positions[k]!)] : [])])),
+    look: lookPages,
+  };
+  const panel = advanced ? advPages[tab] : { style: stylePages, text: textPages, look: lookPages }[tab as 'style' | 'text' | 'look'];
 
   return (
     <div class={sheet ? 'app sheeted' : 'app'}>
@@ -426,7 +541,7 @@ export function App({ ready }: { ready: Promise<void> }) {
         <div class="wm" aria-label="RSTR">RS<b>T</b>R</div>
         <button class="seedchip" data-testid="seed" aria-label="Copy seed" onClick={copySeed}><L t={flash === 'copied' ? 'Copied' : flash === 'copyfail' ? 'Copy failed' : `#${seedCode(spec.seeds)}`} /></button>
         <button class="kept" data-testid="kept" aria-label="Kept" onClick={() => setSheet('kept')}><Icon n="kept" /><L t={String(kept.length)} /></button>
-        <button class="adv" data-testid="advanced" aria-pressed={advanced} onClick={() => setAdvanced((a) => !a)}><L t="Advanced" /></button>
+        <button class="adv" data-testid="advanced" aria-pressed={advanced} onClick={() => { setAdvanced((a) => !a); setTab((t) => (advanced ? (SIMPLE_TABS.includes(t) ? t : 'style') : t === 'look' ? 'style' : t)); }}><L t="Advanced" /></button>
       </header>
       <div class={note || saveNote ? 'stage noted' : 'stage'}>
         <canvas ref={cv} data-testid="stage" />
@@ -455,7 +570,7 @@ export function App({ ready }: { ready: Promise<void> }) {
         <button class="act" data-testid="export" aria-label="Export" disabled={!loaded} onClick={() => { setSizes([spec.format]); setSheet('export'); }}><Icon n="save" /></button>
       </div>
       <nav class="tabs" role="tablist">
-        {(['style', 'text', 'look'] as Tab[]).map((t) => (
+        {(advanced ? ADV_TABS : SIMPLE_TABS).map((t) => (
           <button role="tab" aria-selected={tab === t} class={tab === t ? 'on' : ''} data-tab={t} onClick={() => setTab(t)}><Icon n={t} /><L t={human(t)} /></button>
         ))}
       </nav>

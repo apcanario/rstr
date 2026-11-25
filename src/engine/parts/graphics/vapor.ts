@@ -19,6 +19,7 @@ import { mkGraphic } from '../../items';
 import { mix, pick } from '../../rng';
 import type { GraphicItem } from '../../scene';
 import type { GraphicsPart } from '../types';
+import { cutControl, human, libraryControls, paramChoice } from '../../controls';
 
 export const VAPOR_GRAPHICS = ['sun', 'grid', 'stars', 'horizon', 'sphere', 'checker', 'windows', 'gradbars', 'mountains', 'tunnel', 'rings', 'dots', 'waves'];
 /** The first graphic with a horizon, and the floor. */
@@ -60,6 +61,18 @@ export const vaporGraphics: GraphicsPart = {
   id: 'vapor', uses: VAPOR_GRAPHICS, vocab: VAPOR_GRAPHICS, motifs: VAPOR_GRAPHICS,
   // a picked graphic is drawn in a layout that carries it (the tests force each graphic this way)
   pickFor: (name) => ({ motif: name, layout: name === 'tunnel' ? 'tunnel' : name === 'windows' ? 'windows' : 'title-floor' }),
+  // spec 8.4, 10.3 Graphic: the first graphic (with a horizon: the thing in the sky), the second (the floor, or the
+  // layout's second), the extras off, how many cut in, and the parameters of each graphic drawn
+  controls: (q) => {
+    const sec = SECOND[q.scene.frame], uniq = (l: string[]) => [...new Set(l)];
+    return [
+      ...(sec ? [] : [paramChoice('vapor.first', 'Sky', uniq(SKY_OBJECTS), (v) => human(String(v)))]),
+      paramChoice('vapor.second', sec ? 'Second' : 'Floor', uniq(sec ? sec.list : FLOORS), (v) => human(String(v))),
+      ...(sec ? [] : [paramChoice('vapor.extras', 'Extras', [0], () => 'Off')]),
+      cutControl(),
+      ...libraryControls(q, VAPOR_GRAPHICS),
+    ];
+  },
   place(c, plan) {
     const { P, W, spec, rg } = c, pg = plan.page, f = plan.focus;
     const horizonL = !!plan.boxes.sky, hz = horizonL ? plan.horizon : pg.h;

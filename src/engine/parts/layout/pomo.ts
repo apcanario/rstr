@@ -17,6 +17,7 @@ import type { Rect } from '../../geom';
 import { DIALECTS, SLOTS, type Dialect, type Slot } from '../../spec';
 import { bleed, frameFor } from '../frame';
 import { basePlan, SIZE_CLASSES, TRANSFORMS, type LayoutPart, type SizeClass, type Transform } from '../types';
+import { choice, layoutPicker, sizeControl, transformControl } from '../../controls';
 
 export const ICE_LAYOUTS = ['title-top', 'title-bottom', 'title-middle', 'stairs', 'title-side', 'big-shape'];
 export const COPY_LAYOUTS = ['copy-stack', 'copy-low', 'copy-centre', 'copy-column', 'copy-cover'];
@@ -45,7 +46,20 @@ export function askedDialect(pick: { dialect: Dialect | null; layout: string | n
 }
 
 export const pomoLayout: LayoutPart = {
-  id: 'pomo', layouts: POMO_LAYOUTS, margin: 72, dialects: DIALECTS, layoutsOf: OF,
+  id: 'pomo', layouts: POMO_LAYOUTS, margin: 72, dialects: DIALECTS, layoutsOf: OF, positions: POMO_POS,
+  // spec 10.3 Layout, 8.2: the dialect (as Simple's Look tab has it), the layouts of the dialect asked for, the
+  // transform and the title size class
+  controls: ({ spec, scene }) => {
+    const d = choice('pick.dialect', 'Dialect', { at: 'pick', key: 'dialect' }, null, DIALECTS, (v) => (v === 'icecream' ? 'Ice cream' : 'Photocopy'));
+    d.options[0].label = 'Either';
+    // a picked layout of the other dialect would win over the dialect (review R6 M4): it goes
+    d.set = (s, v) => {
+      const dialect = (v === null ? null : v) as Dialect | null, of = dialect ? OF[dialect] : null;
+      return { ...s, pick: { ...s.pick, dialect, layout: of && s.pick.layout && !of.includes(s.pick.layout) ? null : s.pick.layout } };
+    };
+    // copy-cover sets its own size class
+    return [d, layoutPicker(spec.pick.dialect ? OF[spec.pick.dialect] : POMO_LAYOUTS), transformControl(), ...(scene.frame === 'copy-cover' ? [] : [sizeControl()])];
+  },
   plan(c) {
     const { W, H, spec, story } = c, prm = spec.params;
     // the layout stream, in a fixed order: dialect, layout, transform, tilt angle, zone jitter

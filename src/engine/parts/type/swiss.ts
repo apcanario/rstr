@@ -17,6 +17,10 @@ import { SLOTS } from '../../spec';
 import { fieldColour, inkOn } from '../shared/field';
 import { upper } from '../shared/text';
 import type { SizeClass, TypePart } from '../types';
+import { capControl, paramChoice } from '../../controls';
+
+/** Title case (spec 10.3 Type): Swiss sets the title as typed unless Advanced asks for upper or lower case. */
+export const titleCase = (v: string, k: unknown) => (k === 'upper' ? upper(v) : k === 'lower' ? v.toLocaleLowerCase() : v);
 
 const MIN = { title: 40, subtitle: 20, info: 16, caption: 16 };
 /** Title size classes (spec 8.0): the start size, as a share of the normal one, and the most lines. */
@@ -28,8 +32,14 @@ const inside = (r: Rect, F: Rect) => r.x >= F.x - 0.5 && r.y >= F.y - 0.5 && r.x
 
 export const swissType: TypePart = {
   id: 'swiss', min: MIN,
+  controls: () => {
+    const k = paramChoice('type.case', 'Case', ['upper', 'lower'], (v) => (v === 'upper' ? 'Upper' : 'Lower'));
+    k.options[0].label = 'As typed';
+    return [k, capControl()];
+  },
   set(c, plan) {
-    const { W, spec, m, P, T, story } = c, tx = spec.text;
+    const { W, spec, m, P, T, story } = c;
+    const tx = { ...spec.text, title: { ...spec.text.title, v: titleCase(spec.text.title.v, spec.params['type.case']) } };
     if (!SLOTS.some((s) => tx[s].on)) return [];
     const TR = plan.boxes.text, panel = plan.boxes.panel ?? null, F = plan.boxes.field;
     const pos = plan.pos ?? {}, up = !!plan.titleUp && !!plan.boxes.title;

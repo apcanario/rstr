@@ -13,6 +13,7 @@ import { mkGraphic } from '../../items';
 import { mix, pick } from '../../rng';
 import type { Item } from '../../scene';
 import type { GraphicsPart } from '../types';
+import { cutControl, libraryControls, motifPicker } from '../../controls';
 
 export const BRUTAL_GRAPHICS = ['barcode', 'slab', 'asterisks', 'arrow', 'numeral', 'bars', 'lines', 'rules', 'dots', 'blocks', 'disc', 'lattice'];
 export const BRUTAL_CUTS = ['disc', 'column', 'strip'] as const;
@@ -104,6 +105,9 @@ export function brutalDraw(spec: { pick: { motif: string | null }; params: Recor
 
 export const brutalGraphics: GraphicsPart = {
   id: 'brutal', uses: BRUTAL_GRAPHICS, vocab: BRUTAL_GRAPHICS, motifs: BRUTAL_GRAPHICS,
+  // spec 10.3 Graphic: the first graphic, how many cut into it, and the parameters of each graphic drawn (a value
+  // set by hand wins over the heavy end)
+  controls: (q) => [motifPicker(BRUTAL_GRAPHICS, 'Graphic'), cutControl(), ...libraryControls(q, BRUTAL_GRAPHICS)],
   place(c, plan) {
     const { spec, P, W } = c, band = plan.boxes.graphic;
     if (!band) return [];

@@ -9,6 +9,7 @@
  * rule 4 reads it, OUTLINE_MIN of the size): the chrome fill's light stops cannot hold on a pale sky, and the echoes
  * are the title's own ink, so the outline is what keeps the title legible on every palette.
  */
+import { capControl } from '../../controls';
 import { firstInk, needRatio } from '../../colour';
 import { overlaps, rectQuad, contains, xfQuad, type Rect } from '../../geom';
 import { OUTLINE_MIN, sample } from '../../invariants';
@@ -24,6 +25,7 @@ const MIN = { title: 40, subtitle: 16, info: 16, caption: 16 };
 
 export const vaporType: TypePart = {
   id: 'vapor', min: MIN,
+  controls: () => [capControl()],
   set(c, plan, below) {
     const { W, spec, m, P, T } = c;
     const tx = spec.text, force = c.fallback, B = plan.boxes, xf = plan.xf;

@@ -11,6 +11,8 @@ import { STYLES } from './styles';
 import { textArea, type PartCtx } from './parts/types';
 import { compose5 } from './styles/compose';
 import { addMarks } from './marks';
+import { applyColourEdits } from './recolour';
+import { typeCap } from './controls';
 
 /** A style's palettes: its palette part's list. */
 const palettesOf = (style: Spec['style']) => STYLES[style].parts.palette.list;
@@ -51,7 +53,7 @@ export function partCtx(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, 
   const rf = rng(spec.seeds.layout);
   const rc = k > 0 ? rng(mix(spec.seeds.layout, k)) : null;
   return {
-    spec, W, H, story, top, bot, m, P, T, rf, k, fallback: k < 0, cap: capFor(k), rg: counted(rng(spec.seeds.graphic)),
+    spec, W, H, story, top, bot, m, P, T, rf, k, fallback: k < 0, cap: capFor(k) * typeCap(spec), rg: counted(rng(spec.seeds.graphic)),
     cand<V>(list: readonly V[], safe?: V): V {
       const v = list[Math.floor(rf() * list.length)];
       if (k === 0) return v;
@@ -154,7 +156,9 @@ export function solve(spec: Spec, m0: Measure, use: Use = {}): Solved {
   let last: Failure[] = [];
   // the marks layer (spec 7.2) goes on the Scene that passed, after text and graphics, in free space only;
   // its micro labels are measured like any text, so their face is recorded with the rest
-  const done = (sc: Scene): Scene => {
+  // this design's edited colours (spec 5) go on last, marks included: neither the layout nor the marks see them
+  const done = (sc: Scene): Scene => applyColourEdits(withMarks(sc), P, spec);
+  const withMarks = (sc: Scene): Scene => {
     const out = addMarks(sc, spec, m, P);
     if (out === sc) return sc;
     const faces = new Set(sc.faces);

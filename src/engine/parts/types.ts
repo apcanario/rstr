@@ -9,6 +9,7 @@ import type { Measure } from '../measure';
 import type { Rng } from '../rng';
 import type { Item } from '../scene';
 import type { Dialect, Slot, Spec } from '../spec';
+import type { Control, ControlQuery } from '../controls';
 
 /** What every part is called with for one candidate. */
 export interface PartCtx {
@@ -132,6 +133,8 @@ export interface GroundPart {
   /** A surface pass drawn over everything, type included (spec 8.7: the copier pass belongs to the ground). */
   pass?(c: PartCtx, plan: Plan, items: Item[]): Item[];
   pickFor?: PickFor;
+  /** Its Advanced controls for the design on screen (spec 10.3), shown on the Graphic tab. */
+  controls?(q: ControlQuery): Control[];
 }
 export interface LayoutPart {
   id: string; layouts: string[]; /** at 1080 wide */ margin: number; plan(c: PartCtx): Plan | null;
@@ -139,6 +142,10 @@ export interface LayoutPart {
   dialects?: Dialect[];
   /** The layouts of each dialect. */
   layoutsOf?: Partial<Record<Dialect, string[]>>;
+  /** The positions of each slot it reads from `text.<slot>.pos` (spec 8.5), the first the default; absent: none. */
+  positions?: Partial<Record<Slot, string[]>>;
+  /** Its Advanced controls (spec 10.3), shown on the Layout tab. */
+  controls?(q: ControlQuery): Control[];
 }
 export interface GraphicsPart {
   id: string;
@@ -155,12 +162,16 @@ export interface GraphicsPart {
   pickFor?: PickFor;
   /** What the variety tests count, per dialect, where the style has more than one. */
   vocabOf?: Partial<Record<Dialect, string[]>>;
+  /** Its Advanced controls (spec 10.3), shown on the Graphic tab. */
+  controls?(q: ControlQuery): Control[];
 }
 export interface TypePart {
   id: string;
   min: Record<Slot, number>;
   /** Text items and their plates in the plan's local frame, or null if this candidate cannot hold the text. `below` is the Scene so far (world). */
   set(c: PartCtx, plan: Plan, below: Item[]): Item[] | null;
+  /** Its Advanced controls (spec 10.3), shown on the Type tab. */
+  controls?(q: ControlQuery): Control[];
 }
 export interface PalettePart { id: string; list: Palette[]; }
 

@@ -16,6 +16,14 @@ export const FACETS = ['layout', 'colour', 'graphic', 'type'] as const;
 export type Facet = (typeof FACETS)[number];
 
 export interface InfoPair { k: string; v: string; }
+/** The palette roles a design's colours can be edited by (spec 5, Advanced): every role but the gradient. */
+export const COLOUR_ROLES = ['ground', 'ink', 'accent', 'accent2', 'accent3', 'paper', 'toner', 'spot', 'window', 'windowInk', 'chrome'] as const;
+export type ColourRole = (typeof COLOUR_ROLES)[number];
+/**
+ * Colours edited for this design only (spec 5): per mode, because every palette has a light and a dark form written
+ * by hand; each role set to a new #rrggbb. Absent or null: the palette's own colours.
+ */
+export type ColourEdits = Partial<Record<Mode, Partial<Record<ColourRole, string>>>>;
 export interface TextSlot<V> { on: boolean; v: V; pos: string | null; }
 export interface Spec {
   v: 1;
@@ -25,7 +33,7 @@ export interface Spec {
   finish: Finish;
   marks: Marks;
   seeds: Record<Facet, number>;
-  pick: { palette: string | null; pairing: string | null; motif: string | null; layout: string | null; dialect: Dialect | null };
+  pick: { palette: string | null; colours: ColourEdits | null; pairing: string | null; motif: string | null; layout: string | null; dialect: Dialect | null };
   params: Record<string, number | string | boolean>;
   text: {
     title: TextSlot<string>;
@@ -56,7 +64,7 @@ export function defaultSpec(seeds?: Partial<Spec['seeds']>): Spec {
   return {
     v: 1, style: 'swiss', format: '3:4', mode: 'light', finish: 'clean', marks: 'off',
     seeds: { layout: 1, colour: 2, graphic: 3, type: 4, ...seeds },
-    pick: { palette: null, pairing: null, motif: null, layout: null, dialect: null },
+    pick: { palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null },
     params: {},
     text: structuredClone(DEFAULT_TEXT),
   };
@@ -67,6 +75,20 @@ const seedOf = (v: unknown, d: number): number => (typeof v === 'number' && Numb
 const strOrNull = (v: unknown): string | null => (typeof v === 'string' && v ? v : typeof v === 'number' ? String(v) : null);
 const str = (v: unknown, d: string): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : d);
 const bool = (v: unknown, d: boolean): boolean => (typeof v === 'boolean' ? v : d);
+const HEX = /^#[0-9a-f]{6}$/i;
+/** Colour edits as stored: only known modes and roles, only #rrggbb (lower case); nothing left: null. */
+export function colourEdits(raw: unknown): ColourEdits | null {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out: ColourEdits = {};
+  for (const md of ['light', 'dark'] as const) {
+    const r = (raw as any)[md];
+    if (r == null || typeof r !== 'object') continue;
+    const one: Partial<Record<ColourRole, string>> = {};
+    for (const k of COLOUR_ROLES) if (typeof r[k] === 'string' && HEX.test(r[k])) one[k] = r[k].toLowerCase();
+    if (Object.keys(one).length) out[md] = one;
+  }
+  return Object.keys(out).length ? out : null;
+}
 
 function slotText(raw: any, d: TextSlot<string>): TextSlot<string> {
   if (raw == null || typeof raw !== 'object') return structuredClone(d);
@@ -112,6 +134,7 @@ export function migrate(raw: unknown): Spec {
     },
     pick: {
       palette: strOrNull(pickRaw.palette ?? (legacy ? r.palette : null)),
+      colours: colourEdits(pickRaw.colours),
       pairing: strOrNull(pickRaw.pairing),
       motif: strOrNull(pickRaw.motif ?? (legacy ? r.motif : null)),
       layout: strOrNull(pickRaw.layout ?? (legacy ? r.layout : null)),

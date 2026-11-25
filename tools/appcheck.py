@@ -13,6 +13,8 @@ from common import idle, open_app
 SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920)}
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
 TABS = ['style', 'text', 'look']
+# Advanced's tabs (spec 10.3, R10; Photo comes with R14)
+ADV_TABS = ['style', 'layout', 'graphic', 'type', 'colour', 'text']
 FACETS = ['layout', 'colour', 'graphic', 'type']
 PICK_OF = {'layout': 'layout', 'colour': 'palette', 'graphic': 'motif', 'type': 'pairing'}
 
@@ -21,7 +23,7 @@ PICK_OF = {'layout': 'layout', 'colour': 'palette', 'graphic': 'motif', 'type': 
 # wraps or overflows or is shortened to almost nothing.
 LAYOUT_JS = r'''() => {
   const out = [];
-  const name = (el) => (el.dataset && (el.dataset.testid || el.dataset.fit || el.dataset.style || el.dataset.tab || el.dataset.lock || el.dataset.format || el.dataset.chip || el.dataset.reroll || el.dataset.dialect)) || el.getAttribute('aria-label') || el.className || el.tagName;
+  const name = (el) => (el.dataset && (el.dataset.testid || el.dataset.fit || el.dataset.style || el.dataset.tab || el.dataset.lock || el.dataset.format || el.dataset.chip || el.dataset.reroll || el.dataset.dialect || el.dataset.ctl || el.dataset.ctlNext || el.dataset.colour)) || el.getAttribute('aria-label') || el.className || el.tagName;
   const de = document.documentElement;
   if (de.scrollHeight > de.clientHeight || de.scrollWidth > de.clientWidth) out.push(`page scrolls ${de.scrollWidth}x${de.scrollHeight} in ${de.clientWidth}x${de.clientHeight}`);
   if (document.body.scrollHeight > document.body.clientHeight + 1) out.push('body scrolls');
@@ -69,7 +71,7 @@ LAYOUT_JS = r'''() => {
     const r = el.getBoundingClientRect(), cx = (r.left + r.right) / 2, cy = (r.top + r.bottom) / 2;
     const hit = document.elementFromPoint(cx, cy);
     if (!hit || !(hit === el || el.contains(hit))) out.push(`control covered at its centre: ${name(el)} under ${hit ? name(hit) : 'nothing'}`);
-    const row = el.parentElement && el.parentElement.closest('.seg, .rows > *, .slot, .captioned, .chips, .tiles, .locks, .actions, .tabs, header');
+    const row = el.parentElement && el.parentElement.closest('.seg, .rows > *, .slot, .captioned, .swatches, .chips, .tiles, .locks, .actions, .tabs, header');
     if (row && row !== el) {
       const q = row.getBoundingClientRect();
       if (r.left < q.left - 0.5 || r.right > q.right + 0.5 || r.top < q.top - 0.5 || r.bottom > q.bottom + 0.5) out.push(`control cut by its row: ${name(el)} in ${row.className || row.tagName}`);
@@ -133,9 +135,9 @@ def goto(pg, i):
         pg.click('[data-step]')
 
 
-def views(pg):
+def views(pg, tabs=None):
     """Every tab and page, then every sheet: yields a label for each screen as it is shown."""
-    for t in TABS:
+    for t in tabs or TABS:
         pg.click(f'[data-tab="{t}"]')
         for i in range(npages(pg)):
             goto(pg, i)
@@ -149,9 +151,9 @@ def views(pg):
         pg.click('[data-testid="close"]')
 
 
-def check_layout(pg, where, fail):
+def check_layout(pg, where, fail, tabs=None):
     n = 0
-    for v in views(pg):
+    for v in views(pg, tabs):
         pg.evaluate('() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))')
         for p in pg.evaluate(LAYOUT_JS)[:6]:
             fail(f'{where}, {v}: {p}')
@@ -176,6 +178,169 @@ def longest(pg, style):
     pal = names['palettes'][pw.index(max(pw))]
     par = names['pairings'][rw.index(max(rw))]
     return pal, par
+
+
+FRAME_JS = '() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))'
+
+
+def shown_ids(pg, tab, tunes=1):
+    """Every control id drawn on an Advanced tab, over all its pages (on the Graphic tab, for each graphic Tune steps to)."""
+    pg.click(f'[data-tab="{tab}"]')
+    ids = set()
+    for _ in range(max(1, tunes)):
+        for i in range(npages(pg)):
+            goto(pg, i)
+            ids |= set(pg.evaluate('() => [...document.querySelectorAll("[data-ctl], [data-ctl-next], [data-row]")].map((e) => e.dataset.ctl || e.dataset.ctlNext || e.dataset.row)'))
+        goto(pg, 0)
+        if tunes > 1 and find(pg, tab, '[data-tune-next]'):
+            pg.click('[data-tune-next]')
+            goto(pg, 0)
+    return ids
+
+
+def set_range(pg, cid, v):
+    """Move a range control as a thumb would: its value, then an input event."""
+    pg.evaluate('([id, v]) => { const el = document.querySelector(`input[data-ctl="${id}"]`); el.value = String(v); el.dispatchEvent(new Event("input", { bubbles: true })); }', [cid, v])
+    idle(pg)
+
+
+def find(pg, tab, sel):
+    """Show the page of a tab that holds sel; False if no page does."""
+    pg.click(f'[data-tab="{tab}"]')
+    for i in range(npages(pg)):
+        goto(pg, i)
+        if pg.query_selector(sel):
+            return True
+    goto(pg, 0)
+    return False
+
+
+def run_advanced(pg, at, fail):
+    """Advanced (spec 10.3, row R10): six tabs; every control the parts list for the design is drawn; nothing scrolls,
+    wraps or is under 48 px on any page of any tab, in every style and both modes; each kind of control writes its value
+    to the spec and the stage draws it; the colour edit survives Shuffle with Colour locked and goes without."""
+    pg.click('[data-tab="style"]')
+    pg.click('[data-testid="advanced"]')
+    s0 = spec(pg)
+    n = 0
+    designs = [('swiss', {}), ('pomo', {'dialect': 'icecream'}), ('pomo', {'dialect': 'photocopy'}), ('brutal', {}), ('vapor', {'layout': 'title-sky'}), ('vapor', {'layout': 'windows'})]
+    for style, pk in designs:
+        pal, par = longest(pg, style)
+        for mode in ['light', 'dark']:
+            pg.evaluate('([st, md, pk, pa, pr]) => { const x = window.__rstr.spec(); x.style = st; x.mode = md; x.marks = "light"; x.finish = "grain"; x.pick = { ...x.pick, palette: pa, pairing: pr, motif: null, layout: null, dialect: null, colours: null, ...pk }; window.__rstr.app.load(x); }', [style, mode, pk, pal['id'], par['id']])
+            idle(pg)
+            where = f'{at} Advanced {style} {pk} {mode}'
+            n += check_layout(pg, where, fail, ADV_TABS)
+            # every generated control is on its tab (the Graphic tab's parameters through Tune), and nothing else
+            adv = pg.evaluate('(x) => window.__rstr.advanced(x)', spec(pg))
+            gnames = len({c['id'].split('.')[1] for c in adv['tabs']['graphic'] if c['id'].startswith('g.') and c['kind'] == 'range'})
+            for tab in ['style', 'layout', 'graphic', 'type', 'colour', 'text']:
+                ids = shown_ids(pg, tab, gnames if tab == 'graphic' else 1)
+                missing = {c['id'] for c in adv['tabs'][tab]} - ids
+                if missing:
+                    fail(f'{where}: the {tab} tab does not draw {sorted(missing)}')
+            # each Tune step's pages are checked too
+            for _ in range(gnames):
+                if find(pg, 'graphic', '[data-tune-next]'):
+                    pg.click('[data-tune-next]')
+                for i in range(npages(pg)):
+                    goto(pg, i)
+                    pg.evaluate(FRAME_JS)
+                    for p in pg.evaluate(LAYOUT_JS)[:4]:
+                        fail(f'{where}, graphic tune page {i + 1}: {p}')
+                goto(pg, 0)
+            if len(adv['colours']) < 2 or len(adv['colours']) > 5:
+                fail(f'{where}: the Colour tab lists {len(adv["colours"])} colours')
+    print(f'{at}: Advanced: {n} screens of six tabs checked in every style and both modes (no scroll, no wrap, controls at least 48 px); every generated control is drawn')
+
+    # each kind of control, tapped as a thumb would: it reaches the spec, and the stage draws it
+    pg.evaluate('(x) => window.__rstr.app.load({ ...x, style: "swiss", mode: "light", marks: "light", finish: "grain", params: {}, pick: { ...x.pick, layout: "graphic-above", colours: null, motif: null } })', s0)
+    idle(pg)
+
+    def stage():
+        return pg.evaluate('() => window.__rstr.app.stage()')
+
+    def tapped(what, sel, test, change=True):
+        px = stage()
+        tap(pg, sel)
+        if not test(spec(pg)):
+            fail(f'{at}: Advanced {what} did not reach the spec: {spec(pg)["params"]} {spec(pg)["pick"]}')
+        elif change and stage() == px:
+            fail(f'{at}: Advanced {what} drew the same stage')
+    if find(pg, 'layout', 'button[data-ctl="layout.size"][data-v="small"]'):
+        tapped('title size Small', 'button[data-ctl="layout.size"][data-v="small"]', lambda x: x['params'].get('layout.size') == 'small')
+    else:
+        fail(f'{at}: no title size control on the Layout tab')
+    if find(pg, 'layout', '[data-ctl-next="pick.layout"]'):
+        tapped('layout stepper', '[data-ctl-next="pick.layout"]', lambda x: x['pick']['layout'] not in (None, 'graphic-above'))
+    if find(pg, 'type', 'input[data-ctl="type.cap"]'):
+        px = stage()
+        set_range(pg, 'type.cap', 0.6)
+        if spec(pg)['params'].get('type.cap') != 0.6:
+            fail(f'{at}: the Size cap range did not reach the spec')
+        elif stage() == px:
+            fail(f'{at}: the Size cap range drew the same stage')
+        tap(pg, '[data-ctl-auto="type.cap"]')
+        if 'type.cap' in spec(pg)['params']:
+            fail(f'{at}: Auto did not clear the Size cap')
+    else:
+        fail(f'{at}: no Size cap range on the Type tab')
+    if find(pg, 'style', 'input[data-ctl="finish.grain.strength"]'):
+        set_range(pg, 'finish.grain.strength', 1.5)
+        if spec(pg)['params'].get('finish.grain.strength') != 1.5:
+            fail(f'{at}: the finish strength dial did not reach the spec')
+    else:
+        fail(f'{at}: no finish strength dial on the Style tab')
+    if find(pg, 'graphic', 'input[data-ctl^="g."]'):
+        cid = pg.get_attribute('input[data-ctl^="g."]', 'data-ctl')
+        mx = float(pg.get_attribute(f'input[data-ctl="{cid}"]', 'max'))
+        set_range(pg, cid, mx)
+        if spec(pg)['params'].get(cid) is None:
+            fail(f'{at}: the graphic parameter {cid} did not reach the spec')
+    else:
+        fail(f'{at}: no graphic parameter range on the Graphic tab')
+    if find(pg, 'text', 'button[data-ctl="pos.title"][data-v="low"]'):
+        tapped('title position Low', 'button[data-ctl="pos.title"][data-v="low"]', lambda x: x['text']['title']['pos'] == 'low')
+    else:
+        fail(f'{at}: no title position on the Text tab')
+
+    # the colour edit (spec 5): in the spec, drawn, kept with Colour locked, cleared by Shuffle without, reset
+    if not find(pg, 'colour', 'input[data-colour="0"]'):
+        fail(f'{at}: no colour swatch on the Colour tab')
+    else:
+        px = stage()
+        pg.evaluate('() => { const el = document.querySelector(`input[data-colour="0"]`); el.value = "#3a5f8c"; el.dispatchEvent(new Event("input", { bubbles: true })); }')
+        idle(pg)
+        cs = spec(pg)['pick'].get('colours') or {}
+        if '#3a5f8c' not in (cs.get('light') or {}).values():
+            fail(f'{at}: the colour edit did not reach the spec: {cs}')
+        elif stage() == px:
+            fail(f'{at}: the colour edit drew the same stage')
+        palettes = pg.evaluate('() => window.__rstr.names("swiss").palettes')
+        pg.click('button[data-lock="colour"]')
+        tap(pg, '[data-testid="shuffle"]')
+        if spec(pg)['pick'].get('colours') != cs:
+            fail(f'{at}: with Colour locked, Shuffle dropped the colour edit')
+        pg.click('button[data-lock="colour"]')
+        find(pg, 'colour', '[data-testid="colour-reset"]')
+        tap(pg, '[data-testid="colour-reset"]')
+        if spec(pg)['pick'].get('colours'):
+            fail(f'{at}: Reset did not clear the colour edit')
+        find(pg, 'colour', 'input[data-colour="0"]')
+        pg.evaluate('() => { const el = document.querySelector(`input[data-colour="0"]`); el.value = "#3a5f8c"; el.dispatchEvent(new Event("input", { bubbles: true })); }')
+        idle(pg)
+        tap(pg, '[data-testid="shuffle"]')
+        if spec(pg)['pick'].get('colours'):
+            fail(f'{at}: Shuffle with Colour unlocked kept the colour edit')
+        if pg.evaluate('() => window.__rstr.names("swiss").palettes') != palettes:
+            fail(f'{at}: a colour edit changed a palette list')
+    goto(pg, 0)
+    print(f'{at}: Advanced controls tapped: a segment, a stepper, ranges and Auto, a position, a colour edit (kept with Colour locked, cleared by Shuffle and Reset)')
+    pg.evaluate('(x) => window.__rstr.app.load(x)', s0)
+    idle(pg)
+    pg.click('[data-tab="style"]')
+    pg.click('[data-testid="advanced"]')
+    return n
 
 
 def run(b, url, fail):
@@ -307,18 +472,30 @@ def run(b, url, fail):
                         fail(f'{at}: Shuffle dropped the dialect')
             if pg.query_selector('[data-testid="paper-edge"]'):
                 fail(f'{at}: the Paper edge switch shows in Simple')
+            # in Advanced it is on the Type tab (spec 10.3, Carried R10 from R6), for a photocopy design
+            pg.evaluate('(x) => window.__rstr.app.load({ ...x, style: "pomo", pick: { ...x.pick, dialect: "photocopy", layout: null } })', spec(pg))
+            idle(pg)
             pg.click('[data-testid="advanced"]')
-            if not find_on_look('[data-testid="paper-edge"]'):
-                fail(f'{at}: no Paper edge switch in Advanced')
+            def find_on(tab, sel):
+                pg.click(f'[data-tab="{tab}"]')
+                for i in range(npages(pg)):
+                    goto(pg, i)
+                    if pg.query_selector(sel):
+                        return True
+                return False
+            if not find_on('type', '[data-testid="paper-edge"]'):
+                fail(f'{at}: no Paper edge switch on the Advanced Type tab')
             else:
-                n += check_layout(pg, f'{at} pomo Paper edge row', fail)
-                find_on_look('[data-testid="paper-edge"]')
+                n += check_layout(pg, f'{at} pomo Paper edge row', fail, ADV_TABS)
+                find_on('type', '[data-testid="paper-edge"]')
                 tap(pg, '[data-testid="paper-edge"]')
                 if spec(pg)['params'].get('pomo.paperEdge') is not False:
                     fail(f'{at}: Paper edge off did not reach the spec')
                 tap(pg, '[data-testid="paper-edge"]')
                 if 'pomo.paperEdge' in spec(pg)['params']:
                     fail(f'{at}: Paper edge on did not clear the value')
+                goto(pg, 0)
+            pg.click('[data-tab="style"]')
             pg.click('[data-testid="advanced"]')
         pg.click('[data-tab="look"]')
         goto(pg, 0)
@@ -371,6 +548,7 @@ def run(b, url, fail):
                 fail(f'{at}: with {f} locked, 50 shuffles changed only {sorted(moved)}')
             pg.click(f'button[data-lock="{f}"]')
         print(f'{at}: each facet locked survived 50 shuffles')
+        run_advanced(pg, at, fail)
 
         # Back restores the previous design exactly: the spec and the stage's pixels, step by step
         steps = [
@@ -489,8 +667,8 @@ def run(b, url, fail):
                 fail(f'{at}: reload did not bring back {k}')
         if pg.get_attribute('[data-testid="advanced"]', 'aria-pressed') != 'true':
             fail(f'{at}: reload did not bring back Advanced')
-        if len(pg.query_selector_all('[data-tab]')) != 3:
-            fail(f'{at}: Advanced should show Simple\'s three tabs until R10')
+        if [t.get_attribute('data-tab') for t in pg.query_selector_all('[data-tab]')] != ADV_TABS:
+            fail(f'{at}: Advanced should show its six tabs {ADV_TABS} (spec 10.3, R10)')
         if pg.evaluate('() => window.__rstr.app.stage()') == '':
             fail(f'{at}: after reload the stage is empty')
         pg.click('[data-testid="back"]')

@@ -66,6 +66,20 @@ export function behind(scene: Scene, i: number): string[] {
   return [...out];
 }
 
+/**
+ * Rule 4 for text item i (spec 5): null if it passes, else what failed. A haloed word's fill sits on its halo;
+ * anything else is read against what is behind it.
+ */
+export function lowContrast(scene: Scene, i: number): string | null {
+  const t = scene.items[i] as TextItem;
+  const halo = haloOf(t), bg = halo ?? behind(scene, i), need = needRatio(t.px);
+  for (const c of halo ? coloursOf(t.fill) : inkOf(t)) for (const b of bg) {
+    const r = contrast(c, b);
+    if (r < need - 1e-6) return `contrast ${r.toFixed(2)} < ${need} (${c} on ${b})`;
+  }
+  return null;
+}
+
 export function check(scene: Scene, rules: number[] = [1, 2, 3, 4, 5]): Failure[] {
   const f: Failure[] = [];
   const story = scene.format === '9:16';
@@ -89,12 +103,8 @@ export function check(scene: Scene, rules: number[] = [1, 2, 3, 4, 5]): Failure[
       }
     }
     if (rules.includes(4) && !t.waive?.includes(4)) {
-      // a haloed word's fill sits on its halo; anything else is read against what is behind it
-      const halo = haloOf(t), bg = halo ?? behind(scene, i), need = needRatio(t.px);
-      for (const c of halo ? coloursOf(t.fill) : inkOf(t)) for (const b of bg) {
-        const r = contrast(c, b);
-        if (r < need - 1e-6) { f.push({ rule: 4, part: name, msg: `contrast ${r.toFixed(2)} < ${need} (${c} on ${b})` }); break; }
-      }
+      const low = lowContrast(scene, i);
+      if (low) f.push({ rule: 4, part: name, msg: low });
     }
     if (rules.includes(5) && t.px < t.min - 1e-6) f.push({ rule: 5, part: name, msg: `${t.px.toFixed(1)} px under the minimum ${t.min}` });
   }
