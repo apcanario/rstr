@@ -10,7 +10,7 @@ import { PATTERN_KINDS, patternDraws, patternFill } from '../../graphics/pattern
 import { mkGraphic, mkRect } from '../../items';
 import { mix } from '../../rng';
 import type { GroundPart } from '../types';
-import { libraryControls, paramChoice } from '../../controls';
+import { libraryControls, paramChoice, withDrawn } from '../../controls';
 
 const PATTERN_NAMES = ['Dots', 'Grid', 'Confetti', 'Lines', 'Hatch'];
 
@@ -18,7 +18,8 @@ export const pomoGround: GroundPart = {
   id: 'pomo', uses: ['pattern', 'copier'],
   // the ice cream pattern's kind and its parameters; the copier pass's (photocopy)
   controls: (q) => [
-    ...(q.scene.items.some((i) => i.kind === 'graphic' && i.name === 'pattern') ? [paramChoice('g.pattern.kind', 'Pattern', [0, 1, 2, 3, 4], (v) => PATTERN_NAMES[Number(v)] ?? String(v))] : []),
+    // unset, the stepper shows the pattern drawn (spec 10.3; found by the review bundle 4 S1 test)
+    ...q.scene.items.flatMap((i) => (i.kind === 'graphic' && i.name === 'pattern' ? [withDrawn(paramChoice('g.pattern.kind', 'Pattern', [0, 1, 2, 3, 4], (v) => PATTERN_NAMES[Number(v)] ?? String(v)), Number(i.params.kind))] : [])).slice(0, 1),
     ...libraryControls(q, ['pattern', 'copier']),
   ],
   pickFor: (g) => (g === 'pattern' ? { dialect: 'icecream' } : g === 'copier' ? { dialect: 'photocopy' } : {}),

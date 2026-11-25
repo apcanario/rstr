@@ -112,14 +112,20 @@ export function cutControls(q: ControlQuery, list: readonly string[], cuts: read
   const first = q.scene.graphics[0], drawn = !!first && list.includes(first);
   if (!drawn) return q.spec.pick.layout ? [] : [motifPicker(list, 'Graphic')];
   const none = q.spec.params['graphics.cut'] === 0;
+  // the second shows the first cut-in the design draws while unset (spec 10.3; review bundle 4 S1)
+  const cutIn = q.scene.items.find((g) => g.kind === 'graphic' && g.layer !== 'mark' && !!g.cut && g.name !== first);
   return [
     motifPicker(list, 'Graphic'), cutControl(),
     ...(none ? [] : [
-      paramChoice('graphics.second', 'Second', list.filter((n) => n !== first)),
+      withDrawn(paramChoice('graphics.second', 'Second', list.filter((n) => n !== first)), cutIn?.kind === 'graphic' ? cutIn.name : undefined),
       paramChoice('graphics.cutShape', 'Cut as', shapesFor(first).filter((x) => cuts.includes(x)), (v) => labels[String(v)] ?? human(String(v))),
     ]),
     ...libraryControls(q, list),
   ];
+}
+/** A choice that shows `v` while unset (spec 10.3: a stepper shows what the design draws), where `v` is one of its options. */
+export function withDrawn(c: Choice, v: Value | undefined): Choice {
+  return v !== undefined && v !== null && c.options.some((o) => o.v === v) ? { ...c, drawn: v } : c;
 }
 /** How the type part scales its title's start size (1: the style's own; every later candidate tries smaller from it). */
 export const TYPE_CAP = { min: 0.6, max: 1 };
@@ -162,7 +168,8 @@ export const pairingPicker = (s: Spec) => choice('pick.pairing', 'Pairing', { at
 // ---------------------------------------------------------------------------------------------------------------
 // colours (spec 5, edit for this design)
 
-const ROLE_LABEL: Record<ColourRole, string> = { ground: 'Ground', ink: 'Ink', accent: 'Accent', accent2: 'Accent 2', accent3: 'Accent 3', paper: 'Paper', toner: 'Toner', spot: 'Spot', window: 'Window', windowInk: 'Window ink', chrome: 'Chrome' };
+// the second and third accents are short: 'Accent 2' was cut to 'Accent…' on a 360 px swatch (review bundle 4 M7)
+const ROLE_LABEL: Record<ColourRole, string> = { ground: 'Ground', ink: 'Ink', accent: 'Accent', accent2: 'Acc 2', accent3: 'Acc 3', paper: 'Paper', toner: 'Toner', spot: 'Spot', window: 'Window', windowInk: 'Window ink', chrome: 'Chrome' };
 /** At most this many colours are listed (spec 5: the three to five colours of the design). */
 export const MAX_COLOURS = 5;
 

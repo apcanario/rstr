@@ -3,8 +3,9 @@
  * and the per-design colour edit of spec 5. Every control shown for a design must change that design (a control
  * exists only for a key the engine reads), and every value it can write must still pass 9.2.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { addKept, NO_LOCKS, reroll, restore, serialize, shuffle, withStyle, type Locks } from '../src/app/state';
+import { addKept, NO_LOCKS, reroll, restore, serialize, shuffle, STORE_KEY, withStyle, type Locks } from '../src/app/state';
 import { PALETTES } from '../src/data/palettes';
 import { advancedOf, allControls, valuesOf } from '../src/engine/advanced';
 import { apply, designColours, facetOfParam, read, sceneColours, setColour } from '../src/engine/controls';
@@ -61,6 +62,30 @@ describe('Advanced controls (spec 10.3): generated from the parts, each changes 
       expect([...seen]).toEqual(expect.arrayContaining(['pick.layout', 'layout.transform', 'layout.size', 'pick.pairing', 'pick.palette', 'finish.grain.strength']));
       expect([...seen]).toEqual(expect.arrayContaining(({
         swiss: ['layout.share', 'type.track', 'graphics.second', 'graphics.cutShape'], brutal: ['graphics.second', 'graphics.cutShape'], vapor: ['layout.horizon', 'vapor.second'], pomo: [],
+      } as Record<StyleId, string[]>)[style]));
+    }, 900000);
+  }
+
+  for (const style of STYLE_IDS) {
+    test(`${style}: an unset stepper shows what the design draws wherever one of its options draws this design (review bundle 4 S1)`, () => {
+      const missing: string[] = [], wrong: string[] = [], shown = new Set<string>();
+      for (const s of [...base(style, 3), ...perLayout(style)]) {
+        const sc = sceneOf(s), s0 = sig(s, sc);
+        for (const c of allControls(advancedOf(s, sc))) {
+          // a stepper: a choice longer than a row of segments (App.tsx SEG_MAX 4), unset
+          if (c.kind !== 'choice' || c.options.length <= 4 || read(s, c.where) !== null) continue;
+          const same = c.options.filter((o) => o.v !== null && sig(apply(s, c, o.v)) === s0).map((o) => o.v);
+          if (!same.length) continue;
+          const at = `${c.id} in ${sc.frame} ${s.format} ${JSON.stringify(s.seeds)} ${s.mode}`;
+          if (c.drawn === undefined) missing.push(`${at}: shows Auto, draws ${same.join('/')}`);
+          else if (!same.includes(c.drawn)) wrong.push(`${at}: shows ${c.drawn}, draws ${same.join('/')}`);
+          else shown.add(c.id);
+        }
+      }
+      expect(missing, `${style}: unset steppers that show Auto while the design draws one of their options`).toEqual([]);
+      expect(wrong, `${style}: unset steppers that show another value than the one drawn`).toEqual([]);
+      expect([...shown]).toEqual(expect.arrayContaining(({
+        swiss: ['pick.palette', 'pick.pairing', 'graphics.second'], brutal: ['pick.palette', 'pick.pairing', 'graphics.second'], vapor: ['pick.palette', 'vapor.first', 'vapor.second'], pomo: ['pick.palette'],
       } as Record<StyleId, string[]>)[style]));
     }, 900000);
   }
@@ -203,6 +228,34 @@ describe('Edit for this design (spec 5): the design\'s colours', () => {
     expect(withStyle(s, 'brutal').pick.colours).toBeNull();
     const pal = advancedOf(s, sceneOf(s)).tabs.colour.find((c) => c.id === 'pick.palette')!;
     expect(apply(s, pal, PALETTES.swiss[1].id).pick.colours).toBeNull();
+  });
+
+  test('the saved state holds an edit only under pick.colours and no palette list; the app writes one localStorage key (review bundle 4 M6)', () => {
+    for (const style of STYLE_IDS) {
+      const s0 = defaultish(style), d = designColours(choosePalette(s0), s0, sceneOf(s0)), s = setColour(s0, d[0].roles, '#3a5f8c');
+      const saved = JSON.parse(serialize({ spec: s, back: [s0, s], kept: addKept([], s), locks: NO_LOCKS, advanced: true }));
+      const plain = JSON.parse(serialize({ spec: s0, back: [s0, s0], kept: addKept([], s0), locks: NO_LOCKS, advanced: true }));
+      // with every pick.colours taken out, the save is the save of the unedited design: the edit is nowhere else
+      const strip = (x: { spec: Spec; back: Spec[]; kept: Spec[] }) => { for (const t of [x.spec, ...x.back, ...x.kept]) delete (t.pick as Partial<Spec['pick']>).colours; return x; };
+      expect(saved.spec.pick.colours, style).toEqual(s.pick.colours);
+      expect(strip(saved), style).toEqual(strip(plain));
+      expect(Object.keys(saved).sort()).toEqual(Object.keys(plain).sort());
+      // no palette list in it: no key 'palettes', and no value anywhere is a palette id but a picked palette
+      const ids = new Set(PALETTES[style].map((P) => P.id)), found: string[] = [];
+      const walk = (x: unknown, path: string): void => {
+        if (typeof x === 'string') { if (ids.has(x) && !path.endsWith('.pick.palette')) found.push(`${path} = ${x}`); }
+        else if (Array.isArray(x)) x.forEach((v, i) => walk(v, `${path}[${i}]`));
+        else if (x && typeof x === 'object') for (const [k, v] of Object.entries(x)) { if (k === 'palettes') found.push(path + '.palettes'); walk(v, `${path}.${k}`); }
+      };
+      walk(saved, '');
+      expect(found, style).toEqual([]);
+    }
+    // the app's only localStorage writes are to STORE_KEY (src/app: one key, the saved state)
+    const src = ['../src/app/App.tsx', '../src/app/state.ts'].map((f) => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
+    const writes = [...src.matchAll(/localStorage\.(\w+)\(([^,)]*)/g)].map((m) => `${m[1]}(${m[2].trim()})`);
+    expect(writes.length).toBeGreaterThan(0);
+    for (const w of writes) expect(w, 'a localStorage call with another key').toMatch(/^(getItem|setItem)\(STORE_KEY\)$/);
+    expect(STORE_KEY).toBe('rstr.app.v1');
   });
 
   test('migrate keeps only known modes, roles and #rrggbb values', () => {

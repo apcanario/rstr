@@ -19,7 +19,7 @@ import { mkGraphic } from '../../items';
 import { mix, pick } from '../../rng';
 import type { GraphicItem } from '../../scene';
 import type { GraphicsPart } from '../types';
-import { cutControl, human, libraryControls, paramChoice } from '../../controls';
+import { cutControl, human, libraryControls, paramChoice, withDrawn } from '../../controls';
 
 export const VAPOR_GRAPHICS = ['sun', 'grid', 'stars', 'horizon', 'sphere', 'checker', 'windows', 'gradbars', 'mountains', 'tunnel', 'rings', 'dots', 'waves'];
 /** The first graphic with a horizon, and the floor. */
@@ -28,12 +28,13 @@ export const FLOORS = ['grid', 'checker', 'waves', 'dots', 'rings'];
 /** The second graphic of each layout without a horizon (its first is fixed). */
 // R9 S1: widened (windows +checker, grid, waves; sun-huge +checker; orb +waves, mountains): the field layouts were
 // where the variety key repeated most. Not the sun in the tunnel (it would sit behind the title) nor rings on the
-// huge sun (they are drawn on the focus disc, over it)
+// huge sun (they are drawn on the focus disc, over it). Review bundle 4 M4: no mountains on the huge sun or the orb
+// either; without a horizon they floated on a blank field as a stray zigzag (spec 8.4: horizon mountains)
 export const SECOND: Record<string, { first: string; list: string[] }> = {
   windows: { first: 'windows', list: ['sun', 'sphere', 'gradbars', 'dots', 'rings', 'stars', 'checker', 'grid', 'waves'] },
   tunnel: { first: 'tunnel', list: ['stars', 'sphere', 'gradbars', 'dots', 'rings', 'checker', 'waves'] },
-  'sun-huge': { first: 'sun', list: ['stars', 'gradbars', 'waves', 'dots', 'mountains', 'grid', 'checker'] },
-  orb: { first: 'sphere', list: ['stars', 'grid', 'checker', 'rings', 'gradbars', 'dots', 'waves', 'mountains'] },
+  'sun-huge': { first: 'sun', list: ['stars', 'gradbars', 'waves', 'dots', 'grid', 'checker'] },
+  orb: { first: 'sphere', list: ['stars', 'grid', 'checker', 'rings', 'gradbars', 'dots', 'waves'] },
 };
 /** What may be cut into the focus disc (spec 8.0 combination). */
 export const VAPOR_CUTS = ['dots', 'waves', 'gradbars', 'checker', 'rings'];
@@ -65,9 +66,13 @@ export const vaporGraphics: GraphicsPart = {
   // layout's second), the extras off, how many cut in, and the parameters of each graphic drawn
   controls: (q) => {
     const sec = SECOND[q.scene.frame], uniq = (l: string[]) => [...new Set(l)];
+    // what the design draws while unset (spec 10.3; review bundle 4 S1): the lead graphics in the order place() makes
+    // them; with a horizon the sky object then the floor, else the layout's own graphic and its second
+    const lead = q.scene.items.flatMap((g) => (g.kind === 'graphic' && g.lead && g.layer !== 'mark' ? [g.name] : []));
+    const drawnFirst = sec ? undefined : lead[0], drawnSecond = sec ? lead.find((n) => n !== sec.first) : lead[1];
     return [
-      ...(sec ? [] : [paramChoice('vapor.first', 'Sky', uniq(SKY_OBJECTS), (v) => human(String(v)))]),
-      paramChoice('vapor.second', sec ? 'Second' : 'Floor', uniq(sec ? sec.list : FLOORS), (v) => human(String(v))),
+      ...(sec ? [] : [withDrawn(paramChoice('vapor.first', 'Sky', uniq(SKY_OBJECTS), (v) => human(String(v))), drawnFirst)]),
+      withDrawn(paramChoice('vapor.second', sec ? 'Second' : 'Floor', uniq(sec ? sec.list : FLOORS), (v) => human(String(v))), drawnSecond),
       ...(sec ? [] : [paramChoice('vapor.extras', 'Extras', [0], () => 'Off')]),
       cutControl(),
       ...libraryControls(q, VAPOR_GRAPHICS),
@@ -179,7 +184,6 @@ export const vaporGraphics: GraphicsPart = {
         else if (second === 'sphere') g2('sphere', page, { x: f.x, y: f.y, r: f.r }, { extent: clip(sq(f.x, f.y, f.r), page) });
         else if (second === 'rings') g2('rings', sq(f.x, f.y, f.r * (plan.frame === 'orb' ? 0.5 : 1)), {}, { on: P.accent, cut: true }).layer = 'back';
         else if (second === 'gradbars') g2('gradbars', plan.frame === 'tunnel' ? { x: 0, y: 0, w: pg.w, h: Math.round(pg.h * 0.2) } : plan.frame === 'windows' ? { x: 0, y: Math.max(0, f.y - f.r), w: pg.w, h: 2 * f.r } : rest);
-        else if (second === 'mountains') { const mh = Math.round(W * 0.2); g2('mountains', topSun ? { x: 0, y: pg.h - mh, w: pg.w, h: mh } : { x: 0, y: Math.max(0, f.y - f.r - mh), w: pg.w, h: mh }); }
         else g2(second, rest);
       };
       // the field's second graphic goes behind the first where it is a backdrop
