@@ -83,6 +83,7 @@ header { display: flex; align-items: center; gap: 6px; height: 48px; flex: none;
 
 .tabs { display: flex; flex: none; margin: 0 -12px; padding: 0 12px env(safe-area-inset-bottom); border-top: 1px solid #1c1c20; }
 .tabs button { flex: 1; height: 56px; flex-direction: column; gap: 2px; border-radius: 0; font-size: 11px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: #f1efe970; }
+.tabs:has(> :nth-child(7)) button { letter-spacing: 0.04em; }
 .tabs button svg { width: 20px; height: 20px; }
 .tabs button.on { color: #f1efe9; }
 

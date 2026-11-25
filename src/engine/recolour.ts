@@ -43,6 +43,8 @@ function mapItem(it: Item, f: (c: string) => string, ground: string): Item {
   if (it.kind === 'rect') {
     return { ...it, fill: mapPaint(it.fill, f), ...(it.shadow ? { shadow: { ...it.shadow, fill: f(it.shadow.fill) } } : {}), ...(it.stroke ? { stroke: { ...it.stroke, colour: f(it.stroke.colour) } } : {}) };
   }
+  // the photo's colours are its pixels, not palette roles: an edit never touches them
+  if (it.name === 'photo') return it;
   const colours = Object.fromEntries(Object.entries(it.colours).map(([k, v]) => [k, f(v)]));
   // the faint pattern is drawn as the edited ink over the edited ground: its recorded fill is mixed again from them,
   // so rule 4 reads the colour drawn (review R10 M1)
@@ -65,7 +67,7 @@ function worst(t: TextItem, bg: string[]): number {
 }
 
 /** A plate under text item t, in its own orientation, a little larger than its ink. */
-function plateFor(t: TextItem, fill: string) {
+export function plateFor(t: TextItem, fill: string) {
   const d = Math.max(4, t.size * 0.12);
   if (!t.xf) return mkRect(pad(bounds(t.quad), d), fill, { plate: true });
   const local: Quad = t.quad.map((p) => unapply(t.xf!, p));

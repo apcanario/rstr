@@ -57,6 +57,8 @@ export interface Opts {
   /** The marks level and finish set on every spec (spec 7; absent: off and clean). */
   marks?: Spec['marks'];
   finish?: Spec['finish'];
+  /** The photo set on every spec (spec 8.9, 9.4): a registered photo's id, and where it is pinned. */
+  photo?: Spec['photo'];
 }
 /** What layout may use for a spec: the app's font check (spec 6). Absent: every pairing is drawn as asked. */
 export type Resolve = (spec: Spec) => Use;
@@ -102,6 +104,7 @@ export function* specs(o: Opts = {}): Generator<Spec> {
               if (o.params) s.params = { ...o.params };
               if (o.marks) s.marks = o.marks;
               if (o.finish) s.finish = o.finish;
+              if (o.photo) s.photo = structuredClone(o.photo);
               yield s;
             }
 }

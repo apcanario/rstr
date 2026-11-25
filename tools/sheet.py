@@ -124,6 +124,33 @@ with served() as url, browser() as b:
         rows.append(row)
     strip(rows, h=460).save(os.path.join(OUT, 'refs-compare.jpg'), quality=85)
     print('wrote shots/refs-compare.jpg')
+    # row R14: the photo in every role (columns) under every style (rows), and unpinned shuffles, with the test photos
+    for pid, w, h, sd in [('test-portrait', 3000, 4000, 7), ('test-landscape', 4000, 2600, 11)]:
+        pg.evaluate('([i, w, h, s]) => window.__rstr.photo.test(i, w, h, s)', [pid, w, h, sd])
+    PH = 'x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null};'
+    rows = []
+    for si, style in enumerate(STYLES):
+        cells = []
+        for k, role in enumerate(['ground', 'box', 'disc', 'column', 'band']):
+            n = si * 5 + k
+            spec = pg.evaluate('([s, r, n]) => { const x = window.__rstr.spec(); ' + PH + ' x.style = s; x.format = ["1:1", "3:4", "9:16"][n % 3]; x.mode = n % 2 ? "dark" : "light"; x.seeds = {layout: 8100 + n * 7919, colour: 8200 + n * 104729, graphic: 8300 + n * 1299709, type: 8400 + n * 31}; x.photo = {id: n % 2 ? "test-landscape" : "test-portrait", treatment: null, place: {role: r}}; return x; }', [style, role, n])
+            sol = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
+            cells.append((img(pg, spec), f'{style} {spec["format"]} {spec["mode"]} {role} {sol["layout"]}'))
+        rows.append(cells)
+    strip(rows, h=520).save(os.path.join(OUT, 'photo-roles.jpg'), quality=85)
+    print('wrote shots/photo-roles.jpg')
+    for style in STYLES:
+        rows = []
+        for row in range(2):
+            cells = []
+            for i in range(6):
+                n = row * 6 + i
+                spec = pg.evaluate('([s, n]) => { const x = window.__rstr.spec(); ' + PH + ' x.style = s; x.format = ["1:1", "3:4", "9:16"][n % 3]; x.mode = n % 4 === 3 ? "dark" : "light"; x.seeds = {layout: 9100 + n * 7919, colour: 9200 + n * 104729, graphic: 9300 + n * 1299709, type: 9400 + n * 31}; x.photo = {id: n % 2 ? "test-landscape" : "test-portrait", treatment: null, place: null}; return x; }', [style, n])
+                sc = pg.evaluate('(s) => { const c = window.__rstr.scene(s); const g = c.items.find((i) => i.name === "photo"); return [c.frame, c.layout, g ? g.params.role : "none"].join(" "); }', spec)
+                cells.append((img(pg, spec), f'{spec["format"]} {spec["mode"]} {sc}'))
+            rows.append(cells)
+        strip(rows).save(os.path.join(OUT, f'photo-{style}.jpg'), quality=85)
+        print('wrote', f'shots/photo-{style}.jpg')
     pg.close()
     # app screens (row R4): every tab and page and both sheets at both phone sizes, then each style and dark
     for old in [f for f in os.listdir(OUT) if f.startswith('screen-')]:
@@ -189,6 +216,23 @@ with served() as url, browser() as b:
         pg.click('button[data-mode="dark"]')
         idle(pg)
         pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-{STYLES[-1]}-dark.png'))
+        # row R14: the Photo tab with a photo on the design, Simple then Advanced
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            pg.click('[data-tab="photo"]')
+            pg.set_input_files('[data-testid="photo-input"]', appcheck.test_jpegs(tmp)[0])
+            pg.wait_for_function('() => !!window.__rstr.spec().photo', timeout=15000)
+            idle(pg)
+            pg.wait_for_timeout(150)
+            pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-photo-simple.png'))
+            pg.click('[data-testid="advanced"]')
+            pg.click('[data-tab="photo"]')
+            for i in range(appcheck.npages(pg)):
+                appcheck.goto(pg, i)
+                pg.wait_for_timeout(150)
+                pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-adv-photo-{i + 1}.png'))
+            appcheck.goto(pg, 0)
+            pg.click('[data-testid="advanced"]')
         pg.close()
     print('wrote shots/screen-*.png')
     if errors:

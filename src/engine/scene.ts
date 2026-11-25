@@ -83,6 +83,11 @@ export interface GraphicItem {
   /** A surface pass's free distances from the left, right and top sides to the nearest text, as shares of the page:
    *  read from the finished text like `knock`, so the pass's dark edges keep off it (review R6 S3). */
   keep?: { l: number; r: number; t: number };
+  /**
+   * The photo (spec 8.9): what its pixels measured under text items, each quad wholly inside the photo's clip. Behind a
+   * text item a region contains, the photo shows only these colours and nothing under it shows (it is opaque).
+   */
+  regions?: { quad: Quad; fills: string[] }[];
   avoid?: Quad[];            // text quads the graphic keeps off: nothing of it lies directly behind their ink
   knock?: { glyphs: number[]; boxes: Quad[]; pad: number };  // what paint cuts out: big text by its glyphs (padded), small text by its box
 }

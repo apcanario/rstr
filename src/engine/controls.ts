@@ -14,15 +14,17 @@ import { paramKey } from './graphics/params';
 import type { Scene } from './scene';
 import { COLOUR_ROLES, type ColourRole, type Facet, type Slot, type Spec } from './spec';
 
-/** The Advanced tabs (spec 10.3; Photo comes with R14). */
-export const ADV_TABS = ['style', 'layout', 'graphic', 'type', 'colour', 'text'] as const;
+/** The Advanced tabs (spec 10.3). */
+export const ADV_TABS = ['style', 'layout', 'graphic', 'type', 'colour', 'text', 'photo'] as const;
 export type AdvTab = (typeof ADV_TABS)[number];
 
 /** Where a control's value lives in the spec. */
 export type Where =
   | { at: 'params'; key: string }
   | { at: 'pick'; key: 'layout' | 'motif' | 'palette' | 'pairing' | 'dialect' }
-  | { at: 'pos'; slot: Slot };
+  | { at: 'pos'; slot: Slot }
+  /** Where the photo sits (spec 8.9, 10.3 Photo): a field of `photo.place`. */
+  | { at: 'photo'; key: 'role' | 'scale' | 'x' | 'y' };
 /** A control's value: null is unset (the seed decides). */
 export type Value = string | number | boolean | null;
 
@@ -56,6 +58,7 @@ export interface ControlQuery { spec: Spec; scene: Scene; }
 export function read(s: Spec, w: Where): Value {
   if (w.at === 'params') return w.key in s.params ? s.params[w.key] : null;
   if (w.at === 'pick') return s.pick[w.key] ?? null;
+  if (w.at === 'photo') return s.photo?.place?.[w.key] ?? null;
   return s.text[w.slot].pos ?? null;
 }
 
@@ -67,6 +70,12 @@ export function write(s: Spec, w: Where, v: Value): Spec {
     return { ...s, params };
   }
   if (w.at === 'pick') return { ...s, pick: { ...s.pick, [w.key]: v === null ? null : String(v) } };
+  if (w.at === 'photo') {
+    if (!s.photo) return s;
+    const place: Record<string, unknown> = { ...(s.photo.place ?? {}) };
+    if (v === null) delete place[w.key]; else place[w.key] = v;
+    return { ...s, photo: { ...s.photo, place: Object.keys(place).length ? (place as never) : null } };
+  }
   return { ...s, text: { ...s.text, [w.slot]: { ...s.text[w.slot], pos: v === null ? null : String(v) } } };
 }
 
@@ -160,6 +169,24 @@ export function libraryControls(q: ControlQuery, uses: readonly string[]): Range
     }
   }
   return out;
+}
+
+/**
+ * The Photo tab (spec 10.3: role, scale, offset; the treatment and its parameters come with R15). Layout's facet: the
+ * layout stream places the photo (spec 3), so Shuffle clears them unless Layout is locked. Only on a design that draws
+ * a photo; unset, each shows what the design draws.
+ */
+export function photoControls(q: ControlQuery): Control[] {
+  const g = q.scene.items.find((i) => i.kind === 'graphic' && i.name === 'photo');
+  if (!q.spec.photo || !g || g.kind !== 'graphic') return [];
+  const P = g.params as Record<string, number | string>, b = g.box;
+  const room = (d: number, size: number, at: number) => (size - d > 0.5 ? (at - Number(d === b.w ? P.x : P.y)) / (size - d) : 0.5);
+  const sx = room(b.w, Number(P.w), b.x), sy = room(b.h, Number(P.h), b.y);
+  const role = withDrawn(choice('photo.role', 'Role', { at: 'photo', key: 'role' }, 'layout', ['ground', 'box', 'disc', 'column', 'band'],
+    (v) => ({ ground: 'Ground', box: 'In box', disc: 'Disc', column: 'Column', band: 'Band' })[String(v)] ?? String(v)), String(P.role));
+  const range = (key: 'scale' | 'x' | 'y', label: string, min: number, max: number, shown: number | undefined, log = false): Ranged =>
+    ({ kind: 'range', id: 'photo.' + key, label, where: { at: 'photo', key }, facet: 'layout', min, max, step: (max - min) / 100, ...(shown !== undefined && Number.isFinite(shown) ? { shown: Math.max(min, Math.min(max, shown)) } : {}), ...(log ? { log: true } : {}) });
+  return [role, range('scale', 'Scale', 1, 2.5, Number(P.scale), true), range('x', 'Across', 0, 1, sx), range('y', 'Down', 0, 1, sy)];
 }
 
 /** The style's pairings by full name (spec 6; the Type lock shows only the display family, review R4 M6). */

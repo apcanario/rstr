@@ -13,13 +13,16 @@ import { browserMeasure } from './engine';
 import { clumsyOf, pickForGraphic, picksOf, runAdvanced, runBrutalWidth, runIndependence, runInvariants, runTune, runVariety, specs, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
-import { bench, copierProof, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
+import { bench, copierProof, photoPixels, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
 import { labelsOf, markOverlaps } from './engine/marks';
 import { thumb } from './engine';
 import { withStyle } from './app/state';
 import { migrate, type Spec, type StyleId } from './engine/spec';
 import { advancedOf } from './engine/advanced';
 import type { Control } from './engine/controls';
+import { photoOf, registerPhoto, testPicture, gridSize } from './engine/photo';
+import { decodePhoto, testBlob } from './engine/photoload';
+import { storedIds } from './photos';
 
 /** Every tool call lays out the way the app does: with the wanted pairing only if its fonts are loaded (spec 6). */
 const useOf = (spec: Spec) => resolvePairing(spec, available);
@@ -97,6 +100,24 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       const s = migrate(raw), sc = scene(s, browserMeasure(), useOf(s)), a = advancedOf(s, sc, (t) => scene(t, browserMeasure(), { pairing: sc.pairing }));
       const plain = (c: Control) => ({ id: c.id, kind: c.kind, label: c.label, facet: c.facet, where: c.where, options: c.kind === 'choice' ? c.options : undefined, min: c.kind === 'range' ? c.min : undefined, max: c.kind === 'range' ? c.max : undefined });
       return { tabs: Object.fromEntries(Object.entries(a.tabs).map(([t, l]) => [t, l.map(plain)])), colours: a.colours, warn: sc.colourWarn ?? [] };
+    },
+    /** Row R14 (spec 8.9, 9.4): test photos and the photo's proofs. */
+    photo: {
+      /** Register a test photo with its picture (testPicture, drawn at a grid size, decoded as the app decodes a kept photo). */
+      async test(id: string, w: number, h: number, seed = 1) {
+        const [gw, gh] = gridSize(w, h);
+        const blob = await testBlob(gw, gh, testPicture(gw, gh, seed));
+        const p = await decodePhoto(id, blob);
+        // the picture is drawn at its grid size; layout reads it as the size asked for
+        registerPhoto({ ...p, w, h });
+        return { id, w, h };
+      },
+      /** Whether a photo is ready to draw, and its pixel size. */
+      info: (id: string) => { const p = photoOf(id); return p ? { w: p.w, h: p.h, img: !!p.img } : null; },
+      /** Ids of the photos kept on this phone (IndexedDB). */
+      stored: () => storedIds(),
+      /** Text over the photo read on pixels (spec 9.4). */
+      pixels: (raw: unknown) => { const s = migrate(raw); return photoPixels(s, useOf(s)); },
     },
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),

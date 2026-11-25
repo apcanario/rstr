@@ -18,17 +18,19 @@ import type { Scene } from '../engine/scene';
 import { defaultSpec, FACETS, migrate, newSeed, newSeeds, seedCode, STYLE_IDS, type Facet, type Finish, type Marks, type Slot, type Spec, type StyleId } from '../engine/spec';
 import { fitAll } from './fit';
 import { Icon } from './icons';
-import { addKept, infoText, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withStyle, type Locks, type Saved } from './state';
+import { addKept, infoText, newCrop, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withPhoto, withStyle, type Locks, type Saved } from './state';
+import { addPhoto, ensurePhoto, prune } from '../photos';
+import { photoOf } from '../engine/photo';
 import { advancedOf, type Advanced } from '../engine/advanced';
 import { apply, human, read, setColour, type Control, type DesignColour, type Value } from '../engine/controls';
 
 /** What the stage drew: the pairing asked for, the one used, and the note (spec 6). */
 export interface Drawn { wanted: string; pairing: string; note: string; }
 
-type Tab = 'style' | 'text' | 'look' | 'layout' | 'graphic' | 'type' | 'colour';
-/** Simple's four tabs (Photo comes with R14) and Advanced's seven (spec 10.2, 10.3; Photo with R14). */
-const SIMPLE_TABS: Tab[] = ['style', 'text', 'look'];
-const ADV_TABS: Tab[] = ['style', 'layout', 'graphic', 'type', 'colour', 'text'];
+type Tab = 'style' | 'text' | 'look' | 'layout' | 'graphic' | 'type' | 'colour' | 'photo';
+/** Simple's four tabs and Advanced's seven (spec 10.2, 10.3). */
+const SIMPLE_TABS: Tab[] = ['style', 'text', 'look', 'photo'];
+const ADV_TABS: Tab[] = ['style', 'layout', 'graphic', 'type', 'colour', 'text', 'photo'];
 type Sheet = null | 'kept' | 'export';
 type Kind = 'jpeg' | 'png';
 
@@ -148,7 +150,7 @@ export function App({ ready }: { ready: Promise<void> }) {
   const [advanced, setAdvanced] = useState(init.current.advanced);
   const [tab, setTab] = useState<Tab>('style');
   // a tab the mode does not have (Look in Advanced, Layout in Simple) shows the Style tab
-  const [pages, setPages] = useState<Record<Tab, number>>({ style: 0, text: 0, look: 0, layout: 0, graphic: 0, type: 0, colour: 0 });
+  const [pages, setPages] = useState<Record<Tab, number>>({ style: 0, text: 0, look: 0, layout: 0, graphic: 0, type: 0, colour: 0, photo: 0 });
   /** Graphic tab: whose parameters are shown, of the graphics the design draws. */
   const [tune, setTune] = useState(0);
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -162,6 +164,11 @@ export function App({ ready }: { ready: Promise<void> }) {
   const [loaded, setLoaded] = useState(false);
   const [note, setNote] = useState('');
   const [scene, setScene] = useState<Scene | null>(null);
+  /** Photo tab: '' idle, 'reading' while a photo is imported, 'failed' when the file could not be read. */
+  const [photoState, setPhotoState] = useState<'' | 'reading' | 'failed'>('');
+  /** The design names a photo that is not on this phone (deleted, or a design from elsewhere). */
+  const [photoGone, setPhotoGone] = useState(false);
+  const fileIn = useRef<HTMLInputElement>(null);
   const spec = doc.spec;
 
   const cv = useRef<HTMLCanvasElement>(null);
@@ -182,8 +189,10 @@ export function App({ ready }: { ready: Promise<void> }) {
 
   const draw = (s: Spec) => {
     const my = ++token.current;
-    const job = fontsFor(ready, s).then(({ use, drawn: d }) => {
+    // the design's photo is read from the phone before the design is drawn (spec 8.9); one not on this phone is drawn without
+    const job = Promise.all([fontsFor(ready, s), ensurePhoto(s.photo?.id)]).then(([{ use, drawn: d }, has]) => {
       if (my !== token.current || !cv.current) return;
+      setPhotoGone(!!s.photo && !has);
       const sc = render(cv.current, s, null, use);
       drawn.current = d;
       drawnSpec.current = s;
@@ -249,6 +258,7 @@ export function App({ ready }: { ready: Promise<void> }) {
     for (const f of FORMAT_LIST.filter((x) => sizes.includes(x))) {
       const one = { ...s, format: f };
       const { use } = await fontsFor(ready, one);
+      await ensurePhoto(one.photo?.id);
       const c = document.createElement('canvas');
       render(c, one, null, use);
       const type = kind === 'jpeg' ? 'image/jpeg' : 'image/png';
@@ -314,6 +324,16 @@ export function App({ ready }: { ready: Promise<void> }) {
     }
   }, [doc, kept, locks, advanced]);
 
+  // photos no design refers to any more (current, Back, Kept) leave the phone, a little after the last change
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(() => {
+      const used = new Set([doc.spec, ...doc.back, ...kept].map((s) => s.photo?.id).filter((x): x is string => !!x));
+      prune(used).catch(() => undefined);
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [doc, kept, loaded]);
+
   // labels fit after every render and on resize
   useLayoutEffect(() => { fitAll(); });
   useEffect(() => {
@@ -351,12 +371,18 @@ export function App({ ready }: { ready: Promise<void> }) {
   // Kept thumbnails of the page shown
   useEffect(() => {
     if (sheet !== 'kept' || !loaded) return;
+    let stop = false;
     keptCv.current.forEach((c, i) => {
       const s = kept[keptPage * KEPT_PAGE + i];
-      if (!c || !s || !c.parentElement) return;
-      const box = c.parentElement.getBoundingClientRect(), [W, H] = FORMATS[s.format];
-      thumb(c, s, Math.min(box.width - 8, ((box.height - 8) * W) / H) * devicePixelRatio, resolvePairing(s, available));
+      if (!c || !s) return;
+      // a kept design's photo is read from the phone first (spec 8.9)
+      ensurePhoto(s.photo?.id).then(() => {
+        if (stop || !c.parentElement) return;
+        const box = c.parentElement.getBoundingClientRect(), [W, H] = FORMATS[s.format];
+        thumb(c, s, Math.min(box.width - 8, ((box.height - 8) * W) / H) * devicePixelRatio, resolvePairing(s, available));
+      });
     });
+    return () => { stop = true; };
   }, [sheet, kept, keptPage, loaded]);
 
   const keptPages = Math.max(1, Math.ceil(kept.length / KEPT_PAGE));
@@ -490,7 +516,7 @@ export function App({ ready }: { ready: Promise<void> }) {
     </div>
   ));
   const newRow = (f: Facet) => <div class="captioned"><L t="New" c="cap" /><div class="seg rerolls" role="group">{rerollBtn(f)}</div></div>;
-  const tabRows = (t: 'layout' | 'graphic' | 'type') => (adv ? adv.tabs[t] : []);
+  const tabRows = (t: 'layout' | 'graphic' | 'type' | 'photo') => (adv ? adv.tabs[t] : []);
 
   // Graphic tab: the choices, then the parameters of one drawn graphic at a time (a stepper picks which)
   const gAll = tabRows('graphic'), gLib = gAll.filter((c) => c.kind === 'range' && c.where.at === 'params' && c.where.key.startsWith('g.'));
@@ -521,6 +547,34 @@ export function App({ ready }: { ready: Promise<void> }) {
     return { ...s, pick: { ...s.pick, colours: Object.keys(all).length ? all : null } };
   };
 
+  // Photo tab (spec 10.2, 10.3, 8.9): add or change, remove, New crop; Advanced adds role, scale and offset. Treatments: R15.
+  const onFile = async (e: Event) => {
+    const input = e.target as HTMLInputElement, f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    setPhotoState('reading');
+    try {
+      const id = await addPhoto(f);
+      setPhotoState('');
+      commit((s) => withPhoto(s, id));
+    } catch { setPhotoState('failed'); }
+  };
+  const has = !!spec.photo;
+  const shown = photoOf(spec.photo?.id);
+  const photoHint = photoState === 'reading' ? 'Reading photo' : photoState === 'failed' ? 'Could not read that photo'
+    : !has ? 'Kept on this phone only' : photoGone ? 'Photo not on this phone' : shown ? `${shown.w} × ${shown.h} px` : '';
+  const photoRows = [
+    <div class="seg" role="group" data-row="photo-file">
+      <button data-testid="photo-add" disabled={photoState === 'reading'} onClick={() => fileIn.current?.click()}><Icon n="photo" /><L t={has ? 'Change' : 'Add photo'} /></button>
+      <button data-testid="photo-remove" disabled={!has} onClick={() => commit((s) => withPhoto(s, null))}><Icon n="close" /><L t="Remove" /></button>
+    </div>,
+    <div class="captioned" data-row="photo-crop">
+      <L t={photoHint} c={photoState === 'failed' || photoGone ? 'hint warn' : 'hint'} />
+      <div class="seg rerolls one" role="group"><button data-testid="photo-crop" disabled={!has} aria-label="New crop" onClick={() => commit((s) => newCrop(s))}><Icon n="reroll" /><L t="Crop" /></button></div>
+    </div>,
+  ];
+  const photoPages = paged(photoRows);
+
   const advPages: Record<Tab, ComponentChildren[]> = {
     style: [...stylePages, ...paged([
       modeRow, finishRow,
@@ -542,8 +596,9 @@ export function App({ ready }: { ready: Promise<void> }) {
     ]),
     text: paged((['title', 'subtitle', 'info', 'caption'] as Slot[]).flatMap((k) => [textRow(k), ...(adv?.positions[k] ? [ctlRow(adv.positions[k]!)] : [])])),
     look: lookPages,
+    photo: paged([...photoRows, ...(adv?.tabs.photo ?? []).map(ctlRow)]),
   };
-  const panel = advanced ? advPages[tab] : { style: stylePages, text: textPages, look: lookPages }[tab as 'style' | 'text' | 'look'];
+  const panel = advanced ? advPages[tab] : { style: stylePages, text: textPages, look: lookPages, photo: photoPages }[tab as 'style' | 'text' | 'look' | 'photo'];
 
   return (
     <div class={sheet ? 'app sheeted' : 'app'}>
@@ -553,6 +608,7 @@ export function App({ ready }: { ready: Promise<void> }) {
         <button class="kept" data-testid="kept" aria-label="Kept" onClick={() => setSheet('kept')}><Icon n="kept" /><L t={String(kept.length)} /></button>
         <button class="adv" data-testid="advanced" aria-pressed={advanced} onClick={() => { setAdvanced((a) => !a); setTab((t) => (advanced ? (SIMPLE_TABS.includes(t) ? t : 'style') : t === 'look' ? 'style' : t)); }}><L t="Advanced" /></button>
       </header>
+      <input ref={fileIn} type="file" accept="image/*" hidden data-testid="photo-input" onChange={onFile} />
       <div class={note || saveNote ? 'stage noted' : 'stage'}>
         <canvas ref={cv} data-testid="stage" />
         {(note || saveNote) && (

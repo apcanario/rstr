@@ -1,6 +1,7 @@
 /** The design is data (spec 3). Schema v1, validation and migration. */
 import type { Format } from './formats';
 import { FORMATS } from './formats';
+import { PHOTO_ROLES, type PhotoPlace, type PhotoSpec } from './photo';
 
 export type StyleId = 'swiss' | 'pomo' | 'brutal' | 'vapor';
 export type Mode = 'light' | 'dark';
@@ -34,6 +35,8 @@ export interface Spec {
   marks: Marks;
   seeds: Record<Facet, number>;
   pick: { palette: string | null; colours: ColourEdits | null; pairing: string | null; motif: string | null; layout: string | null; dialect: Dialect | null };
+  /** The design's photo (spec 8.9): its id on the phone, its treatment (R15) and where Advanced or New crop pinned it. */
+  photo: PhotoSpec | null;
   params: Record<string, number | string | boolean>;
   text: {
     title: TextSlot<string>;
@@ -65,9 +68,30 @@ export function defaultSpec(seeds?: Partial<Spec['seeds']>): Spec {
     v: 1, style: 'swiss', format: '3:4', mode: 'light', finish: 'clean', marks: 'off',
     seeds: { layout: 1, colour: 2, graphic: 3, type: 4, ...seeds },
     pick: { palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null },
+    photo: null,
     params: {},
     text: structuredClone(DEFAULT_TEXT),
   };
+}
+
+const unit = (v: unknown, a: number, b: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(a, Math.min(b, v)) : undefined);
+/** A stored photo reference: an id, a treatment name or null, and only the known place fields in range; anything else: null. */
+export function photoRef(raw: unknown): PhotoSpec | null {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as any;
+  if (typeof r.id !== 'string' || !r.id || r.id.length > 80) return null;
+  let place: PhotoPlace | null = null;
+  if (r.place && typeof r.place === 'object' && !Array.isArray(r.place)) {
+    const p: PhotoPlace = {};
+    if ((PHOTO_ROLES as readonly string[]).includes(r.place.role)) p.role = r.place.role;
+    const s = unit(r.place.scale, 1, 2.5), x = unit(r.place.x, 0, 1), y = unit(r.place.y, 0, 1);
+    if (s !== undefined) p.scale = s;
+    if (x !== undefined) p.x = x;
+    if (y !== undefined) p.y = y;
+    if (typeof r.place.crop === 'number' && Number.isFinite(r.place.crop)) p.crop = Math.floor(Math.abs(r.place.crop)) >>> 0;
+    if (Object.keys(p).length) place = p;
+  }
+  return { id: r.id, treatment: typeof r.treatment === 'string' && r.treatment ? r.treatment : null, place };
 }
 
 const oneOf = <T extends string>(v: unknown, list: readonly T[], d: T): T => (list.includes(v as T) ? (v as T) : d);
@@ -140,6 +164,7 @@ export function migrate(raw: unknown): Spec {
       layout: strOrNull(pickRaw.layout ?? (legacy ? r.layout : null)),
       dialect: (DIALECTS as string[]).includes(pickRaw.dialect) ? pickRaw.dialect : null,
     },
+    photo: photoRef(r.photo),
     params: {},
     text: {
       title: slotText(r.text?.title, d.text.title),

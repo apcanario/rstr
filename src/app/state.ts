@@ -37,6 +37,8 @@ function dropFacet(s: Spec, f: Facet): Spec {
     for (const k of SLOTS) if (text[k].pos !== null) (text as any)[k] = { ...text[k], pos: null };
     out = { ...out, text };
   }
+  // where the photo sits is the layout stream's (spec 3, 8.9): Advanced's role, scale and offset, and New crop's crop
+  if (f === 'layout' && s.photo?.place) out = { ...out, photo: { ...s.photo, place: null } };
   if (f === 'colour' && s.pick.colours) out = { ...out, pick: { ...out.pick, colours: null } };
   return out;
 }
@@ -79,6 +81,19 @@ export function reroll(s: Spec, f: Facet, seed: () => number = newSeed): Spec {
 export function withStyle(s: Spec, style: Spec['style']): Spec {
   const params = Object.fromEntries(Object.entries(s.params).filter(([k]) => facetOfParam(k) === null));
   return { ...s, style, params, pick: { palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null } };
+}
+
+/** A photo chosen from the phone (spec 8.9): its id in, its treatment and anything pinned about where it sat gone. */
+export const withPhoto = (s: Spec, id: string | null): Spec => ({ ...s, photo: id ? { id, treatment: null, place: null } : null });
+
+/**
+ * New crop (spec 10.2 Photo): a new crop seed for the photo alone; its role stays, and a scale or offset set by hand
+ * goes, since it would win over the new crop. Nothing else of the design moves.
+ */
+export function newCrop(s: Spec, seed: () => number = newSeed): Spec {
+  if (!s.photo) return s;
+  const role = s.photo.place?.role;
+  return { ...s, photo: { ...s.photo, place: { ...(role ? { role } : {}), crop: seed() } } };
 }
 
 /** Push the design before a change onto Back, keeping the newest BACK_STEPS. */

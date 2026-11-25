@@ -12,9 +12,9 @@ from common import idle, open_app
 
 SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920)}
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
-TABS = ['style', 'text', 'look']
-# Advanced's tabs (spec 10.3, R10; Photo comes with R14)
-ADV_TABS = ['style', 'layout', 'graphic', 'type', 'colour', 'text']
+TABS = ['style', 'text', 'look', 'photo']
+# Advanced's tabs (spec 10.3, R10; Photo with R14)
+ADV_TABS = ['style', 'layout', 'graphic', 'type', 'colour', 'text', 'photo']
 FACETS = ['layout', 'colour', 'graphic', 'type']
 PICK_OF = {'layout': 'layout', 'colour': 'palette', 'graphic': 'motif', 'type': 'pairing'}
 
@@ -234,7 +234,7 @@ def run_advanced(pg, at, fail):
             # every generated control is on its tab (the Graphic tab's parameters through Tune), and nothing else
             adv = pg.evaluate('(x) => window.__rstr.advanced(x)', spec(pg))
             gnames = len({c['id'].split('.')[1] for c in adv['tabs']['graphic'] if c['id'].startswith('g.') and c['kind'] == 'range'})
-            for tab in ['style', 'layout', 'graphic', 'type', 'colour', 'text']:
+            for tab in ADV_TABS:
                 ids = shown_ids(pg, tab, gnames if tab == 'graphic' else 1)
                 missing = {c['id'] for c in adv['tabs'][tab]} - ids
                 if missing:
@@ -712,7 +712,7 @@ def run(b, url, fail):
         if pg.get_attribute('[data-testid="advanced"]', 'aria-pressed') != 'true':
             fail(f'{at}: reload did not bring back Advanced')
         if [t.get_attribute('data-tab') for t in pg.query_selector_all('[data-tab]')] != ADV_TABS:
-            fail(f'{at}: Advanced should show its six tabs {ADV_TABS} (spec 10.3, R10)')
+            fail(f'{at}: Advanced should show its seven tabs {ADV_TABS} (spec 10.3, R10, R14)')
         if pg.evaluate('() => window.__rstr.app.stage()') == '':
             fail(f'{at}: after reload the stage is empty')
         pg.click('[data-testid="back"]')
@@ -799,3 +799,128 @@ def run(b, url, fail):
         if errors:
             fail(f'{at}: page errors {errors[:3]}')
         pg.close()
+
+
+def test_jpegs(tmp):
+    """Two photos as a phone gives them: a landscape picture stored sideways with EXIF orientation 6 (the camera was
+    held upright, so the app must show it 1200 x 1600), and a plain landscape one."""
+    import os
+    from PIL import Image as I, ImageDraw
+    out = []
+    for name, (w, h), orient in [('upright.jpg', (1600, 1200), 6), ('wide.jpg', (2400, 1500), 1)]:
+        im = I.new('RGB', (w, h), (30, 60, 110))
+        d = ImageDraw.Draw(im)
+        for i in range(0, w, 40):
+            d.rectangle([i, h // 2, i + 20, h], fill=(220, 200, 150))
+        d.ellipse([w // 3, h // 8, w // 3 + h // 4, h // 8 + h // 4], fill=(255, 240, 200))
+        ex = I.Exif()
+        ex[0x0112] = orient
+        p = os.path.join(tmp, name)
+        im.save(p, quality=90, exif=ex.tobytes())
+        out.append(p)
+    return out
+
+
+def run_photo(b, url, fail):
+    """Row R14 in the app (spec 8.9, 10.2, 10.3): Add a photo from the phone through the Photo tab, its orientation
+    corrected; the stage draws it; it survives reload; New crop and Remove; Shuffle with Layout locked holds where it
+    sits; and no network request carries image data (every request is a GET with no body, none to a host but this
+    one and the font hosts)."""
+    import tempfile
+    from urllib.parse import urlparse
+    at = 'photo 412x915'
+    pg, errors = open_app(b, url, 412, 915)
+    host = urlparse(url).netloc
+    reqs = []
+    pg.on('request', lambda r: reqs.append((r.method, r.url, r.post_data_buffer)))
+    with tempfile.TemporaryDirectory() as tmp:
+        upright, wide = test_jpegs(tmp)
+        pg.click('[data-tab="photo"]')
+        for p in pg.evaluate(LAYOUT_JS)[:6]:
+            fail(f'{at}, Photo tab without a photo: {p}')
+        if not pg.query_selector('[data-testid="photo-add"]') or pg.get_attribute('[data-testid="photo-remove"]', 'disabled') is None:
+            fail(f'{at}: the Photo tab has no Add, or Remove is live with no photo')
+        before = spec(pg)
+        pg.set_input_files('[data-testid="photo-input"]', upright)
+        try:
+            pg.wait_for_function('() => !!window.__rstr.spec().photo', timeout=15000)
+        except Exception:
+            fail(f'{at}: choosing a photo did not put it on the design')
+            pg.close()
+            return
+        idle(pg)
+        s = spec(pg)
+        pid = s['photo']['id']
+        info = pg.evaluate('(id) => window.__rstr.photo.info(id)', pid)
+        if not info or (info['w'], info['h']) != (1200, 1600):
+            fail(f'{at}: a 1600 x 1200 photo with EXIF orientation 6 was kept as {info} (want 1200 x 1600, orientation corrected)')
+        if {k: v for k, v in s.items() if k != 'photo'} != {k: v for k, v in before.items() if k != 'photo'}:
+            fail(f'{at}: adding a photo changed more than the photo')
+        sc = pg.evaluate('(s) => window.__rstr.scene(s)', s)
+        if not any(i['kind'] == 'graphic' and i['name'] == 'photo' for i in sc['items']):
+            fail(f'{at}: the design with a photo draws none')
+        for p in pg.evaluate(LAYOUT_JS)[:6]:
+            fail(f'{at}, Photo tab with a photo: {p}')
+        # New crop moves the crop alone
+        tap(pg, '[data-testid="photo-crop"]')
+        s2 = spec(pg)
+        if not (s2['photo'] and s2['photo']['place'] and 'crop' in s2['photo']['place']) or s2['seeds'] != s['seeds']:
+            fail(f'{at}: New crop did not set a crop alone: {s2["photo"]}')
+        # Layout locked: Shuffle holds the photo's role and crop
+        pg.click('button[data-lock="layout"]')
+        g0 = [i for i in pg.evaluate('(s) => window.__rstr.scene(s)', spec(pg))['items'] if i['kind'] == 'graphic' and i['name'] == 'photo']
+        tap(pg, '[data-testid="shuffle"]')
+        g1 = [i for i in pg.evaluate('(s) => window.__rstr.scene(s)', spec(pg))['items'] if i['kind'] == 'graphic' and i['name'] == 'photo']
+        if not g0 or not g1 or (g0[0]['params']['role'], g0[0]['params']['scale']) != (g1[0]['params']['role'], g1[0]['params']['scale']):
+            fail(f'{at}: with Layout locked, Shuffle moved the photo')
+        pg.click('button[data-lock="layout"]')
+        # Advanced: the Photo tab carries role, scale and offset
+        pg.click('[data-testid="advanced"]')
+        pg.click('[data-tab="photo"]')
+        ids = set()
+        for i in range(npages(pg)):
+            goto(pg, i)
+            ids |= set(pg.evaluate('() => [...document.querySelectorAll("[data-row]")].map((e) => e.dataset.row)'))
+            for p in pg.evaluate(LAYOUT_JS)[:6]:
+                fail(f'{at}, Advanced Photo tab page {i + 1}: {p}')
+        goto(pg, 0)
+        want = {'photo-file', 'photo-crop', 'photo.role', 'photo.scale', 'photo.x', 'photo.y'}
+        if not want <= ids:
+            fail(f'{at}: the Advanced Photo tab lacks {sorted(want - ids)}')
+        pg.click('[data-testid="advanced"]')
+        # reload: the design and its photo come back from the phone
+        st = spec(pg)
+        pg.wait_for_timeout(400)
+        pg.reload()
+        pg.wait_for_function('window.__rstr !== undefined')
+        pg.evaluate('() => window.__rstr.ready')
+        idle(pg)
+        s3 = spec(pg)
+        info = pg.evaluate('(id) => window.__rstr.photo.info(id)', pid)
+        if not s3.get('photo') or s3['photo']['id'] != pid or not info or not info['img']:
+            fail(f'{at}: after reload the photo did not come back ({s3.get("photo")}, {info})')
+        elif not any(i['kind'] == 'graphic' and i['name'] == 'photo' for i in pg.evaluate('(s) => window.__rstr.scene(s)', s3)['items']):
+            fail(f'{at}: after reload the design draws no photo')
+        if json.dumps(s3, sort_keys=True) != json.dumps(st, sort_keys=True):
+            fail(f'{at}: reload did not bring back the design with its photo')
+        # Change: a second photo replaces the first; Remove takes it off the design
+        pg.click('[data-tab="photo"]')
+        pg.set_input_files('[data-testid="photo-input"]', wide)
+        try:
+            pg.wait_for_function('(id) => { const p = window.__rstr.spec().photo; return p && p.id !== id; }', arg=pid, timeout=15000)
+        except Exception:
+            fail(f'{at}: Change did not replace the photo')
+        idle(pg)
+        tap(pg, '[data-testid="photo-remove"]')
+        if spec(pg).get('photo') is not None:
+            fail(f'{at}: Remove left a photo on the design')
+        stored = pg.evaluate('() => window.__rstr.photo.stored()')
+        if pid not in stored:
+            fail(f'{at}: the first photo left the phone while Back still holds it')
+    bad = [(m, u[:120]) for (m, u, body) in reqs if m != 'GET' or body or u.startswith('data:') or (urlparse(u).netloc not in (host, 'fonts.googleapis.com', 'fonts.gstatic.com') and not u.startswith('blob:'))]
+    if bad:
+        fail(f'{at}: requests that could carry the photo: {bad[:4]}')
+    if errors:
+        fail(f'{at}: page errors {errors[:3]}')
+    print(f'{at}: a photo added through the Photo tab (orientation corrected), drawn, New crop, Layout lock holds it, Advanced role/scale/offset, back after reload, Change and Remove; {len(reqs)} requests, none with a body or to another host')
+    pg.close()

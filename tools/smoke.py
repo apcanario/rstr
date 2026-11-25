@@ -338,6 +338,40 @@ with served() as url, browser() as b:
         if px[0] == px[1.5]:
             fail(f'finish {fin}: strength 0 and 1.5 drew the same pixels', spec)
     print(f'advanced: values, colour edits and the finish strength on the real fonts took {time.time() - t1:.0f} s')
+    # row R14 (spec 8.9, 9.4): with a test photo, portrait and landscape, 9.2 in every style, format and role, no
+    # fallback; unpinned too; text over the photo read on pixels; the same spec and photo draw the same pixels
+    t1 = time.time()
+    for pid, w, h, sd in [('test-portrait', 3000, 4000, 7), ('test-landscape', 4000, 2600, 11)]:
+        pg.evaluate('([i, w, h, s]) => window.__rstr.photo.test(i, w, h, s)', [pid, w, h, sd])
+    nph = 0
+    for style in STYLES:
+        for fmt in FORMATS:
+            for role in ['ground', 'box', 'disc', 'column', 'band', None]:
+                for pid in ['test-portrait', 'test-landscape']:
+                    o = {'styles': [style], 'formats': [fmt], 'n': max(4, N // (40 if role else 10)), 'start': 300, 'variants': 'cycle',
+                         'photo': {'id': pid, 'treatment': None, 'place': {'role': role} if role else None}}
+                    r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', o)
+                    nph += r['count']
+                    fallback_check(f'9.2 photo {style} {fmt} {role or "unpinned"} {pid}', r, 0)
+                    for f in r['failures'][:3]:
+                        fail(f'9.2 photo {style} {fmt} {role} {pid}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    print(f'photo 9.2: {nph} designs over 4 styles x 3 formats x 5 roles and unpinned x 2 test photos x 2 modes, real fonts')
+    npx = meas = plat = 0
+    for style in STYLES:
+        for k, role in enumerate(['ground', 'box', 'disc', 'column', 'band']):
+            for i in range(3):
+                spec = pg.evaluate('([s, r, k, i]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][(k + i) % 3]; x.mode = i % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 7100 + k * 31 + i, colour: 7200 + i, graphic: 7300 + k + i, type: 7400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: null, place: {role: r}}; return x; }', [style, role, k, i])
+                r = pg.evaluate('(s) => window.__rstr.photo.pixels(s)', spec)
+                npx += r['items']
+                meas += r['measured']
+                plat += r['plated']
+                if r['low']:
+                    fail(f'photo pixels {style} {role}: {r["low"]} of {r["masked"]} text pixels over the photo under the ratio of spec 5 {r["lows"]}', spec)
+                if i == 0 and k == 0:
+                    a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
+                    if a != pg.evaluate('(s) => window.__rstr.pixels(s)', spec):
+                        fail(f'photo determinism {style}: the same spec and photo drew different pixels', spec)
+    print(f'photo pixels: {npx} text items over the photo read on pixels ({meas} measured, {plat} on a plate), none under spec 5; determinism per style; {time.time() - t1:.0f} s')
     print(f'engine checks took {time.time() - t0:.0f} s')
     # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face
     t0 = time.time()
@@ -349,6 +383,7 @@ with served() as url, browser() as b:
 
     # the frame and Simple mode at both phone sizes (spec 10, row R4)
     appcheck.run(b, url, fail)
+    appcheck.run_photo(b, url, fail)
 
 # the summary carries the skipped online checks, so a reader of the last line alone sees the gap (review R3 S1)
 if fails:

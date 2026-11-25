@@ -2,6 +2,7 @@
 import { MASK } from '../data/palettes/system';
 import { GRAPHICS } from './graphics';
 import { drawMark } from './markdraw';
+import { photoOf } from './photo';
 import { clock, type Time } from './graphics/clock';
 import type { Ctx } from './graphics/types';
 import type { Quad } from './geom';
@@ -121,7 +122,8 @@ function layer(w: number, h: number): Ctx | null {
 
 function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, noLayer = false) {
   // a mark (spec 7.2) is drawn by the marks layer, not the graphics library
-  const G = it.name === 'mark' ? { draw: (c: Ctx, g: GraphicItem, r: ReturnType<typeof rng>) => drawMark(c, g, r) } : GRAPHICS[it.name];
+  // the photo (spec 8.9) is drawn from the picture the app registered, covering its box
+  const G = it.name === 'mark' ? { draw: (c: Ctx, g: GraphicItem, r: ReturnType<typeof rng>) => drawMark(c, g, r) } : it.name === 'photo' ? { draw: drawPhoto } : GRAPHICS[it.name];
   if (!G) return;
   const T = clock(t);
   const run = (c: Ctx) => {
@@ -168,6 +170,15 @@ function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, n
   }
   L.restore();
   ctx.drawImage(L.canvas as CanvasImageSource, 0, 0);
+}
+
+/** The photo in its cover rect; a photo not registered (still loading, or gone) draws as a plain plate of the ground. */
+function drawPhoto(c: Ctx, g: GraphicItem) {
+  const p = photoOf(String(g.params.id)), P = g.params as Record<string, number>;
+  if (!p?.img) { c.fillStyle = g.colours.missing; c.fillRect(g.box.x, g.box.y, g.box.w, g.box.h); return; }
+  c.imageSmoothingEnabled = true;
+  c.imageSmoothingQuality = 'high';
+  c.drawImage(p.img, P.x, P.y, P.w, P.h);
 }
 
 export interface PaintOpts {

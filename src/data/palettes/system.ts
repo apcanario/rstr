@@ -5,3 +5,7 @@
 export const MASK = '#000000';
 export const MARKER = '#13F7A9';
 export const EDIT_GREY = '#808080';
+/** What a photo can show anywhere (spec 8.9), for every check that does not measure it: no ink passes against all three. */
+export const PHOTO_ANY = ['#000000', '#767676', '#FFFFFF'];
+/** What a photo with transparency is flattened on when it is kept (spec 8.9). */
+export const PHOTO_FLAT = '#ffffff';

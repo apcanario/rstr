@@ -3,7 +3,7 @@ import { MARKER, MASK } from '../data/palettes/system';
 import { FORMATS } from './formats';
 import { bounds, contains, overlaps } from './geom';
 import type { Ctx } from './graphics/types';
-import { behind } from './invariants';
+import { behind, haloOf, inkOf } from './invariants';
 import { knockText, paint, paintText } from './paint';
 import { CELL, CELL_MIN, CELL_PX, RING, paintFinished, textContrast, tooLow } from './finish';
 import { contrast, needRatio, toHex } from './colour';
@@ -310,4 +310,48 @@ export async function bench(spec: Spec, use: Use = {}): Promise<{ scene: number;
   else await new Promise<Blob | null>((r) => (c as HTMLCanvasElement).toBlob(r, 'image/jpeg', 0.92));
   const t4 = performance.now();
   return { scene: t1 - t0, paint: rep.paint, effect: rep.effect, text: rep.text, guard: rep.guard, restored: rep.restored, pass, encode: t4 - t3, total: t2 - t0 + (t4 - t3) };
+}
+
+/**
+ * Row R14 (spec 9.4: text over the photo passes contrast measured on pixels): paint the design with its photo and
+ * without its text, then read every pixel inside each text item's painted mask, for each item the photo lies under,
+ * against the colours that carry it (`inkOf`). `low` counts mask pixels under the ratio of spec 5. `measured`: items
+ * the photo was measured under (no plate); `plated`: items on a plate over it.
+ */
+export function photoPixels(spec: Spec, use: Use = {}): { items: number; measured: number; plated: number; masked: number; low: number; worst: number; lows: { part: string; ratio: number }[] } {
+  const [W, H] = FORMATS[spec.format];
+  const sc0: Scene = sceneOf(spec, browserMeasure(), use);
+  const sc: Scene = { ...sc0, items: sc0.items.filter((i) => !(i.kind === 'graphic' && i.pass)) };
+  const at = sc.items.findIndex((i) => i.kind === 'graphic' && i.name === 'photo');
+  const out = { items: 0, measured: 0, plated: 0, masked: 0, low: 0, worst: Infinity, lows: [] as { part: string; ratio: number }[] };
+  if (at < 0) return out;
+  const g = sc.items[at] as import('./scene').GraphicItem;
+  const base = canvas(W, H), mask = canvas(W, H);
+  paint(base, sc, null, { noText: true });
+  const a = base.getImageData(0, 0, W, H).data;
+  sc.items.forEach((it, i) => {
+    if (i <= at || it.kind !== 'text' || !overlaps(g.quad, it.quad) || haloOf(it) || it.waive?.includes(4)) return;
+    out.items++;
+    if (g.regions?.some((r) => contains(r.quad, it.quad))) out.measured++;
+    else if (sc.items.slice(at + 1, i).some((p) => p.kind === 'rect' && p.plate && contains(p.quad, it.quad))) out.plated++;
+    mask.clearRect(0, 0, W, H);
+    paintText(mask, { ...it, fill: MASK, stroke: it.stroke && { ...it.stroke, paint: MASK }, echoes: undefined });
+    const r = bounds(it.quad), x0 = Math.max(0, Math.floor(r.x) - 2), y0 = Math.max(0, Math.floor(r.y) - 2);
+    const x1 = Math.min(W, Math.ceil(r.x + r.w) + 2), y1 = Math.min(H, Math.ceil(r.y + r.h) + 2);
+    if (x1 <= x0 || y1 <= y0) return;
+    const m = mask.getImageData(x0, y0, x1 - x0, y1 - y0).data, need = needRatio(it.px);
+    const inks = inkOf(it);
+    let worst = Infinity;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      if (m[((y - y0) * (x1 - x0) + (x - x0)) * 4 + 3] < 128) continue;
+      out.masked++;
+      const o = (y * W + x) * 4, hex = toHex([a[o], a[o + 1], a[o + 2]]);
+      const c = Math.min(...inks.map((k) => contrast(k, hex)));
+      if (c < worst) worst = c;
+      if (c < need - 1e-6) out.low++;
+    }
+    out.worst = Math.min(out.worst, worst);
+    if (worst < need - 1e-6 && out.lows.length < 6) out.lows.push({ part: `${it.slot}.${it.part}`, ratio: Math.round(worst * 100) / 100 });
+  });
+  return out;
 }

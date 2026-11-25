@@ -1,9 +1,9 @@
 /**
  * Advanced mode's controls for the design on screen (spec 10.3), gathered per tab from the parts' own lists, the
- * finish's and the marks layer's: the app draws whatever this returns. Photo (R14) and Mix (R18) come later.
+ * finish's and the marks layer's, and the photo's (R14): the app draws whatever this returns. Mix (R18) comes later.
  */
 import { choosePalette } from './layout';
-import { apply, designColours, pairingPicker, palettePicker, positionControls, read, type AdvTab, type Control, type DesignColour, type Value } from './controls';
+import { apply, designColours, photoControls, pairingPicker, palettePicker, positionControls, read, type AdvTab, type Control, type DesignColour, type Value } from './controls';
 import { finishControls } from './finish';
 import { marksControls } from './marks';
 import type { Scene } from './scene';
@@ -70,6 +70,7 @@ export function advancedOf(spec: Spec, scene: Scene, trial?: Trial): Advanced {
       type: [pairingPicker(spec), ...(P.type.controls?.(q) ?? [])].filter(live).map(mark),
       colour: [palettePicker(P.palette.list)].map(mark),
       text: Object.values(positions) as Control[],
+      photo: photoControls(q),
     },
     positions,
     colours: designColours(choosePalette(spec), spec, scene),

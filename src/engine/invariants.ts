@@ -50,6 +50,9 @@ export function behind(scene: Scene, i: number): string[] {
     const it = scene.items[j];
     if (it.kind === 'text') continue;
     if (it.kind === 'graphic') {
+      // the photo's measured pixels (spec 8.9): opaque where it was measured
+      const reg = it.regions?.find((r) => contains(r.quad, T.quad));
+      if (reg && !avoided(it, T.quad)) { reg.fills.forEach((c) => out.add(c)); return [...out]; }
       if (!avoided(it, T.quad) && overlaps(it.quad, T.quad)) it.fills.forEach((c) => out.add(c));
       continue;
     }
