@@ -297,6 +297,30 @@ with served() as url, browser() as b:
                 if style in ENFORCED and not v['pass']['sixty']:
                     fail(f'variety {style} {fmt} {d}: {v["repeats60"]} repeats in 60')
     print(f'variety: enforced for {", ".join(ENFORCED)}')
+    # row R10 (review R10 S3): every Advanced value of every non-library control, and every colour edit (each design
+    # colour set to each other and to grey), through 9.2 with the real fonts, per style x format x mode, seed sets 0
+    # and 7 (review R10's probe set), marks light, Grain on: no value may drop a design to the fallback, no rule may
+    # fail, and under a colour edit a rule 4 failure must be one the Scene warns of
+    t1 = time.time()
+    for style in STYLES:
+        for fmt in FORMATS:
+            for start in (0, 7):
+                r = pg.evaluate('(o) => window.__rstr.proof.advanced(o)', {'styles': [style], 'formats': [fmt], 'n': 1, 'start': start})
+                print(f'advanced {style:6} {fmt:4} seed set {start}: {r["designs"]} designs, {r["values"]} values, {r["edits"]} colour edits ({r["warned"]} warned), {len(r["fallbacks"])} fallbacks, {len(r["failures"])} failing')
+                for x in r['fallbacks'][:3]:
+                    fail(f'advanced {style} {fmt}: {x["id"]} = {json.dumps(x["v"])} drops the design to the fallback', x['spec'])
+                for x in r['failures'][:3]:
+                    fail(f'advanced {style} {fmt}: {x["id"]} = {json.dumps(x["v"])}: ' + '; '.join(f'rule {y["rule"]} {y["part"]}: {y["msg"]}' for y in x['failures'][:4]), x['spec'])
+    # review R10 S4: the finish strength changes the finished pixels (0 against 1.5), every finish
+    for fin, style in (('grain', 'swiss'), ('grunge', 'brutal'), ('vhs', 'vapor'), ('glitch', 'pomo')):
+        spec = pg.evaluate('([f, s]) => { const x = window.__rstr.spec(); x.style = s; x.finish = f; x.format = "1:1"; x.params = {}; return x; }', [fin, style])
+        px = {}
+        for k in (0, 1.5):
+            spec['params'] = {f'finish.{fin}.strength': k}
+            px[k] = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
+        if px[0] == px[1.5]:
+            fail(f'finish {fin}: strength 0 and 1.5 drew the same pixels', spec)
+    print(f'advanced: values, colour edits and the finish strength on the real fonts took {time.time() - t1:.0f} s')
     print(f'engine checks took {time.time() - t0:.0f} s')
     # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face
     t0 = time.time()

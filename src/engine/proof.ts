@@ -10,6 +10,10 @@ import { coverOf } from './cover';
 import { STYLES } from './styles';
 import { labelsOf, markOverlaps } from './marks';
 import { DEFAULT_TEXT, defaultSpec, SLOTS, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
+import { advancedOf, allControls, valuesOf } from './advanced';
+import { apply, designColours, setColour } from './controls';
+import { choosePalette } from './layout';
+import { EDIT_GREY } from '../data/palettes/system';
 
 export { coverOf };
 
@@ -328,4 +332,55 @@ export function runTune(m: Measure, style: StyleId, n = 300, resolve?: Resolve):
     if (why.length) flagged.push({ spec: s, frame: sc.frame, transform: sc.transform, graphics: sc.graphics, palette: sc.palette, why });
   }
   return { count: n, flagged, byRule };
+}
+
+/**
+ * The edits the colour checks make (spec 5, edit for this design): every design colour set to every other (the worst
+ * edits: colours collide), and to a mid grey.
+ */
+export function colourEdits(s: Spec, sc: Scene): Spec[] {
+  const d = designColours(choosePalette(s), s, sc), out: Spec[] = [];
+  for (const a of d) { for (const b of d) if (a !== b) out.push(setColour(s, a.roles, b.now)); out.push(setColour(s, a.roles, EDIT_GREY)); }
+  return out;
+}
+
+export interface AdvancedReport {
+  designs: number; values: number; edits: number; warned: number;
+  /** A value that dropped a design that did not fall back to the fallback (review R10 S2). */
+  fallbacks: { spec: Spec; id: string; v: unknown }[];
+  /** A value or an edit that broke 9.2 (rule 4 under an edit only where the Scene does not warn of it). */
+  failures: { spec: Spec; id: string; v: unknown; failures: Failure[] }[];
+}
+
+/**
+ * Advanced (spec 10.3, review R10 S3) with the measure given (the real fonts in smoke): every value of every
+ * non-library control of each design (the library ends have their own run), and every colour edit of `colourEdits`,
+ * through 9.2. A fallback a value causes is reported; under a colour edit a rule 4 failure is legal only where the
+ * Scene warns of it (`colourWarn`), and rules 1, 2, 3 and 5 always hold.
+ */
+export function runAdvanced(m: Measure, o: Opts = {}, resolve?: Resolve): AdvancedReport {
+  const r: AdvancedReport = { designs: 0, values: 0, edits: 0, warned: 0, fallbacks: [], failures: [] };
+  const sceneOf = (s: Spec) => solve(s, m, resolve?.(s)).scene;
+  for (const s of specs({ variants: 'cycle', marks: 'light', finish: 'grain', ...o })) {
+    r.designs++;
+    const sc0 = sceneOf(s);
+    for (const c of allControls(advancedOf(s, sc0))) {
+      if (c.where.at === 'params' && c.where.key.startsWith('g.') && c.kind === 'range') continue;
+      for (const v of valuesOf(c)) {
+        const t = apply(s, c, v), sc = sceneOf(t);
+        r.values++;
+        if (sc.layout === 'fallback' && sc0.layout !== 'fallback' && r.fallbacks.length < 20) r.fallbacks.push({ spec: t, id: c.id, v });
+        const f = check(sc);
+        if (f.length && r.failures.length < 20) r.failures.push({ spec: t, id: c.id, v, failures: f });
+      }
+    }
+    for (const e of colourEdits(s, sc0)) {
+      const se = sceneOf(e), warn = se.colourWarn ?? [];
+      r.edits++;
+      if (warn.length) r.warned++;
+      const f = check(se).filter((x) => x.rule !== 4 || !warn.includes(x.part));
+      if (f.length && r.failures.length < 20) r.failures.push({ spec: e, id: 'colour', v: e.pick.colours, failures: f });
+    }
+  }
+  return r;
 }

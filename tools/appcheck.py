@@ -562,6 +562,9 @@ def run(b, url, fail):
             ('[data-tab="text"]', 'type'), (None, 'button[data-slot="subtitle"]'), ('[data-tab="style"]', 'button[data-style="vapor"]'),
             (None, '[data-testid="shuffle"]'), (None, 'button[data-format="1:1"]'), ('[data-tab="look"]', 'button[data-reroll-page]'),
             ('[data-tab="style"]', '[data-testid="shuffle"]'),
+            # Advanced (review R10 S4): a range dragged (three input events, one Back step, spec 10.1) and a colour
+            # edited (two input events, one step)
+            (None, 'adv-range'), (None, 'adv-colour'),
         ]
         hist = []
         for pre, act in steps:
@@ -576,6 +579,27 @@ def run(b, url, fail):
                 pg.keyboard.press('End')
                 pg.keyboard.type(' xyz')
                 idle(pg)
+            elif sel == 'adv-range':
+                if pg.get_attribute('[data-testid="advanced"]', 'aria-pressed') != 'true':
+                    pg.click('[data-testid="advanced"]')
+                    idle(pg)
+                cid = None
+                for tab in ['type', 'layout', 'graphic', 'style']:
+                    if find(pg, tab, 'input[type="range"][data-ctl]'):
+                        cid = pg.get_attribute('input[type="range"][data-ctl]', 'data-ctl')
+                        break
+                if not cid:
+                    fail(f'{at}: Back test: no range control in Advanced')
+                else:
+                    lo, hi = (float(pg.get_attribute(f'input[data-ctl="{cid}"]', k)) for k in ('min', 'max'))
+                    for t in (0.2, 0.35, 0.1):
+                        set_range(pg, cid, lo + (hi - lo) * t)
+            elif sel == 'adv-colour':
+                if not find(pg, 'colour', 'input[data-colour="0"]'):
+                    fail(f'{at}: Back test: no colour swatch on the Colour tab')
+                for col in ('#3a5f8c', '#5c2a7e'):
+                    pg.evaluate('(c) => { const el = document.querySelector(`input[data-colour="0"]`); el.value = c; el.dispatchEvent(new Event("input", { bubbles: true })); }', col)
+                    idle(pg)
             elif sel == 'button[data-reroll-page]':
                 for i in range(npages(pg)):
                     goto(pg, i)
@@ -603,7 +627,10 @@ def run(b, url, fail):
                 break
         if len(pg.evaluate('() => window.__rstr.app.state().back')) != nb - len(steps):
             fail(f'{at}: Back did not take exactly one step per tap')
-        print(f'{at}: Back restored {len(steps)} designs exactly (spec and stage pixels), typing in a field is one step')
+        if pg.get_attribute('[data-testid="advanced"]', 'aria-pressed') == 'true':
+            pg.click('[data-testid="advanced"]')
+            idle(pg)
+        print(f'{at}: Back restored {len(steps)} designs exactly (spec and stage pixels), typing in a field is one step, so is a range drag and a colour edit')
 
         # export: all three sizes, JPEG and PNG, files of exactly the format's pixels, named rstr-<seed>-<format>
         pg.click('[data-testid="export"]')

@@ -10,7 +10,7 @@ import type { Scene } from './engine/scene';
 import { check } from './engine/invariants';
 import { solve, unloadedFaces } from './engine/layout';
 import { browserMeasure } from './engine';
-import { clumsyOf, pickForGraphic, picksOf, runIndependence, runInvariants, runTune, runVariety, specs, type Opts } from './engine/proof';
+import { clumsyOf, pickForGraphic, picksOf, runAdvanced, runIndependence, runInvariants, runTune, runVariety, specs, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
 import { bench, copierProof, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
@@ -94,7 +94,7 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     },
     /** Row R10: the Advanced controls of a design, by tab, as the app draws them (spec 10.3), its colours and its warning. */
     advanced: (raw: unknown) => {
-      const s = migrate(raw), sc = scene(s, browserMeasure(), useOf(s)), a = advancedOf(s, sc);
+      const s = migrate(raw), sc = scene(s, browserMeasure(), useOf(s)), a = advancedOf(s, sc, (t) => scene(t, browserMeasure(), { pairing: sc.pairing }));
       const plain = (c: Control) => ({ id: c.id, kind: c.kind, label: c.label, facet: c.facet, where: c.where, options: c.kind === 'choice' ? c.options : undefined, min: c.kind === 'range' ? c.min : undefined, max: c.kind === 'range' ? c.max : undefined });
       return { tabs: Object.fromEntries(Object.entries(a.tabs).map(([t, l]) => [t, l.map(plain)])), colours: a.colours, warn: sc.colourWarn ?? [] };
     },
@@ -104,6 +104,8 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     names: (style: StyleId) => ({ palettes: PALETTES[style].map((p) => ({ id: p.id, name: p.name })), pairings: PAIRINGS[style].map((p) => ({ id: p.id, name: p.name })) }),
     proof: {
       invariants: (o: Opts) => runInvariants(browserMeasure(), o, resolve),
+      /** Row R10 (review R10 S3): every Advanced value and colour edit of each design through 9.2, real fonts. */
+      advanced: (o: Opts) => runAdvanced(browserMeasure(), o, resolve),
       picks: (style: StyleId) => picksOf(style),
       independence: (o: Opts) => runIndependence(browserMeasure(), o, resolve),
       /** The three variety tests of spec 8.0 for one style in one format. */
