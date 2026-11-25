@@ -17,7 +17,7 @@ A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwav
 - **One photo** you upload: Shuffle moves and crops it; monochrome, duotone, halftone and more.
 - **Text:** four slots at first, then layers you add, remove and rank.
 - **Sizes:** 1:1, 3:4, 9:16 and paper ratio; JPEG, PNG or WebP at 1x to 3x; a print file good for A3.
-- **Simple and Advanced** modes on one switch.
+- **Simple and Advanced** modes on one switch. Advanced has six tabs (Style, Layout, Graphic, Type, Colour, Text) built from each style's own controls, and a colour edit for the design in hand (3 to 5 colours, contrast repaired and warned). Shuffle clears hand-set values except for the facets you locked.
 - **Mix (experimental):** crosses of two styles.
 - Then motion (MP4), then the APK.
 
@@ -28,7 +28,7 @@ A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwav
 | 1 | Engine, colour, type, frame and Simple mode | Done: R1 to R4 and the viewer check; R3's online lines open (H3) |
 | 2 | Parts and variety, Swiss | Built: R13 (parts, variety engine) and R5 (Swiss finished); Pedro looks at Swiss before bundle 3 |
 | 3 | Postmodern (both dialects), finishes, marks | Built: R6 (Postmodern) closed; R7 (finishes, marks) closed; bundle viewer check (fix) applied, bundle close next |
-| 4 | Brutalist, Vaporwave, Advanced mode | In progress: R8 (Brutalist: eight layouts, size classes, a band of 12 blunt graphics, a free strip for marks) and R9 (Vaporwave: eight layouts, six new graphics, cut-ins, a sky title that reads in every palette; Shuffle no longer repeats one of the last 59 designs) closed; R10 queued |
+| 4 | Brutalist, Vaporwave, Advanced mode | In progress: R8 (Brutalist: eight layouts, size classes, a band of 12 blunt graphics, a free strip for marks) and R9 (Vaporwave: eight layouts, six new graphics, cut-ins, a sky title that reads in every palette; Shuffle no longer repeats one of the last 59 designs) and R10 (Advanced mode: six tabs generated from each part's controls, per-design colour edit, finish strengths, marks allowed) closed; the bundle viewer check is next |
 | 5 | Photo and export, A3 print | Queued |
 | 6 | Text layers, retouch | Queued |
 | 7 | Mix | Queued |

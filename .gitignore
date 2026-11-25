@@ -5,3 +5,4 @@ dist-single
 __pycache__
 shots/
 public/fonts/gf/
+.watchdog
