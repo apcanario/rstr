@@ -300,7 +300,12 @@ def run_advanced(pg, at, fail):
     else:
         fail(f'{at}: no graphic parameter range on the Graphic tab')
     if find(pg, 'text', 'button[data-ctl="pos.title"][data-v="low"]'):
-        tapped('title position Low', 'button[data-ctl="pos.title"][data-v="low"]', lambda x: x['text']['title']['pos'] == 'low')
+        # the seed may already draw the title low: Top and Low each reach the spec and draw different stages
+        tap(pg, 'button[data-ctl="pos.title"][data-v="top"]')
+        px = stage()
+        tapped('title position Low', 'button[data-ctl="pos.title"][data-v="low"]', lambda x: x['text']['title']['pos'] == 'low', change=False)
+        if stage() == px:
+            fail(f'{at}: Advanced title positions Top and Low drew the same stage')
     else:
         fail(f'{at}: no title position on the Text tab')
 
