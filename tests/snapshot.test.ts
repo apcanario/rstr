@@ -3,7 +3,7 @@
  * R13 S5), stay as they are. For each style, a
  * hash of every Scene item (kind, quad, fills, name, params, runs: the whole item, numbers rounded to 1e-3) over
  * 40 seed sets x 3 formats x 2 modes on the stub measure. A row that changes one of these styles on purpose
- * updates its hash here and says so in the changelog. Bundle 3 touches shared code: a Swiss change shows here. Swiss hash updated for the bundle 2 viewer fixes (S2, M1-M4). Postmodern hash updated for R6 (both dialects built), then for the bundle 3 viewer fixes (S1, M3, M4). Brutalist hash updated for R8 (Brutalist finished). Vaporwave hash updated for R9 (Vaporwave finished), then for the R9 review fixes (S2 to S5, M1 to M4). Postmodern hash updated for the R10 review fixes (S2: a photocopy caption that does not fit beside the label on a narrow page goes under it, where the design fell back before).
+ * updates its hash here and says so in the changelog. Bundle 3 touches shared code: a Swiss change shows here. Swiss hash updated for the bundle 2 viewer fixes (S2, M1-M4). Postmodern hash updated for R6 (both dialects built), then for the bundle 3 viewer fixes (S1, M3, M4). Brutalist hash updated for R8 (Brutalist finished). Vaporwave hash updated for R9 (Vaporwave finished), then for the R9 review fixes (S2 to S5, M1 to M4). Postmodern hash updated for the R10 review fixes (S2: a photocopy caption that does not fit beside the label on a narrow page goes under it, where the design fell back before). Brutalist hash updated for the bundle 4 viewer fixes (S2: a numeral only where it is drawn huge; S4: no cut-in in a band taller than the title). Vaporwave hash updated for the bundle 4 viewer fixes (M4: no mountains on the huge sun or the orb).
  */
 import { describe, expect, test } from 'vitest';
 import { solve } from '../src/engine/layout';
@@ -14,8 +14,8 @@ import type { StyleId } from '../src/engine/spec';
 const SNAPSHOT: Partial<Record<StyleId, string>> = {
   swiss: '3d2d70e8',
   pomo: '1370597a',
-  brutal: '41ea25ad',
-  vapor: '7976e21b',
+  brutal: 'f6e39d09',
+  vapor: 'cabbe2a2',
 };
 
 const round = (_k: string, v: unknown) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v);
