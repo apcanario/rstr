@@ -28,7 +28,7 @@ A phone app in Simple mode: pick a style (Swiss, Postmodern, Brutalist, Vaporwav
 | 1 | Engine, colour, type, frame and Simple mode | Done: R1 to R4 and the viewer check; R3's online lines open (H3) |
 | 2 | Parts and variety, Swiss | Built: R13 (parts, variety engine) and R5 (Swiss finished); Pedro looks at Swiss before bundle 3 |
 | 3 | Postmodern (both dialects), finishes, marks | Built: R6 (Postmodern) closed; R7 (finishes, marks) closed; bundle viewer check (fix) applied, bundle close next |
-| 4 | Brutalist, Vaporwave, Advanced mode | In progress: R8 (Brutalist: eight layouts, size classes, a band of 12 blunt graphics, a free strip for marks) closed; R9 and R10 queued |
+| 4 | Brutalist, Vaporwave, Advanced mode | In progress: R8 (Brutalist: eight layouts, size classes, a band of 12 blunt graphics, a free strip for marks) and R9 (Vaporwave: eight layouts, six new graphics, cut-ins, a sky title that reads in every palette; Shuffle no longer repeats one of the last 59 designs) closed; R10 queued |
 | 5 | Photo and export, A3 print | Queued |
 | 6 | Text layers, retouch | Queued |
 | 7 | Mix | Queued |
