@@ -251,7 +251,7 @@ def run_advanced(pg, at, fail):
                 goto(pg, 0)
             if len(adv['colours']) < 2 or len(adv['colours']) > 5:
                 fail(f'{where}: the Colour tab lists {len(adv["colours"])} colours')
-    print(f'{at}: Advanced: {n} screens of six tabs checked in every style and both modes (no scroll, no wrap, controls at least 48 px); every generated control is drawn')
+    print(f'{at}: Advanced: {n} screens of seven tabs checked in every style and both modes (no scroll, no wrap, controls at least 48 px); every generated control is drawn')
 
     # each kind of control, tapped as a thumb would: it reaches the spec, and the stage draws it
     pg.evaluate('(x) => window.__rstr.app.load({ ...x, style: "swiss", mode: "light", marks: "light", finish: "grain", params: {}, pick: { ...x.pick, layout: "graphic-above", colours: null, motif: null } })', s0)
@@ -508,7 +508,12 @@ def run(b, url, fail):
                 tap(pg, '[data-testid="paper-edge"]')
                 if spec(pg)['params'].get('pomo.paperEdge') is not False:
                     fail(f'{at}: Paper edge off did not reach the spec')
-                tap(pg, '[data-testid="paper-edge"]')
+                # the rows are drawn again from the new design: find the switch again before the second tap (in one
+                # R14 smoke run it was not found on the page shown and the tap timed out; not seen again)
+                if not find_on('type', '[data-testid="paper-edge"]'):
+                    fail(f'{at}: the Paper edge switch went away once off')
+                else:
+                    tap(pg, '[data-testid="paper-edge"]')
                 if 'pomo.paperEdge' in spec(pg)['params']:
                     fail(f'{at}: Paper edge on did not clear the value')
                 goto(pg, 0)
