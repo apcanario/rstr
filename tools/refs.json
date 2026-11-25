@@ -19,8 +19,8 @@
     {"name": "brutal-1x1", "style": "brutal", "format": "1:1", "s": 4, "pick": {"palette": "blackout", "layout": "title-top"}, "text": "tx", "mode": "dark", "params": {"layout.transform": "none", "layout.size": "oversize"}},
     {"name": "brutal-3x4", "style": "brutal", "format": "3:4", "s": 2, "pick": {"palette": "alarm", "layout": "title-top"}, "text": "tx", "mode": "light", "params": {"layout.transform": "none", "layout.size": "oversize"}},
     {"name": "brutal-9x16", "style": "brutal", "format": "9:16", "s": 6, "pick": {"palette": "klein", "layout": "title-top"}, "text": "tx", "mode": "dark", "params": {"layout.transform": "none", "layout.size": "oversize"}},
-    {"name": "vapor-1x1", "style": "vapor", "format": "1:1", "s": 4, "pick": {"palette": "night", "layout": "title-floor"}, "text": "tx", "mode": "dark", "params": {"vapor.first": "sun", "vapor.second": "grid", "vapor.extras": 0, "graphics.cut": 0}},
-    {"name": "vapor-3x4", "style": "vapor", "format": "3:4", "s": 2, "pick": {"palette": "miami", "layout": "title-sky"}, "text": "tx", "mode": "dark", "params": {"vapor.first": "sun", "vapor.second": "grid", "vapor.extras": 0, "graphics.cut": 0}},
-    {"name": "vapor-9x16", "style": "vapor", "format": "9:16", "s": 3, "pick": {"palette": "miami", "layout": "title-sky"}, "text": "tx", "mode": "dark", "params": {"vapor.first": "sun", "vapor.second": "grid", "vapor.extras": 0, "graphics.cut": 0}}
+    {"name": "vapor-1x1", "style": "vapor", "format": "1:1", "s": 4, "pick": {"palette": "night", "layout": "title-floor"}, "text": "tx", "mode": "dark", "params": {"vapor.first": "sun", "vapor.second": "grid", "vapor.extras": 0, "graphics.cut": 0, "g.stars.count": 46, "g.stars.size": 1, "g.stars.spread": 0.7}},
+    {"name": "vapor-3x4", "style": "vapor", "format": "3:4", "s": 2, "pick": {"palette": "miami", "layout": "title-sky"}, "text": "tx", "mode": "dark", "params": {"vapor.first": "sun", "vapor.second": "grid", "vapor.extras": 0, "graphics.cut": 0, "g.stars.count": 46, "g.stars.size": 1, "g.stars.spread": 0.7}},
+    {"name": "vapor-9x16", "style": "vapor", "format": "9:16", "s": 3, "pick": {"palette": "miami", "layout": "title-sky"}, "text": "tx", "mode": "dark", "params": {"vapor.first": "sun", "vapor.second": "grid", "vapor.extras": 0, "graphics.cut": 0, "g.stars.count": 46, "g.stars.size": 1, "g.stars.spread": 0.7}}
   ]
 }

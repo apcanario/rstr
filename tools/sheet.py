@@ -146,7 +146,7 @@ with served() as url, browser() as b:
                 pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-{t}-{i + 1}.png'))
             appcheck.goto(pg, 0)
         # the Postmodern Look tab in Simple (review R6 M5), then every Advanced tab and page (R10) for a photocopy
-        # design (the most Type and Graphic rows) and a Vaporwave one, marks and a finish on so their controls show
+        # design (the most Type and Graphic rows), a Vaporwave one, a Swiss and a Brutalist one, marks and a finish on so their controls show
         cur = pg.evaluate('() => JSON.stringify(window.__rstr.spec())')
         pg.evaluate('(s) => { const x = JSON.parse(s); x.style = "pomo"; window.__rstr.app.load(x); }', cur)
         idle(pg)
@@ -158,8 +158,10 @@ with served() as url, browser() as b:
         appcheck.goto(pg, 0)
         pg.click('[data-tab="style"]')
         pg.click('[data-testid="advanced"]')
-        for name, pk in [('pomo', '{"dialect": "photocopy"}'), ('vapor', '{"layout": "title-sky"}')]:
-            pg.evaluate('([s, st, pk]) => { const x = JSON.parse(s); x.style = st; x.marks = "light"; x.finish = "grain"; x.pick = { ...x.pick, ...JSON.parse(pk) }; window.__rstr.app.load(x); }', [cur, name, pk])
+        # each design as the app reaches it (review bundle 4 S3): the Swiss ref's picks, params and positions cleared,
+        # as a tap on the style tile clears them, so every row shows what that style draws; every style
+        for name, pk in [('swiss', '{}'), ('brutal', '{}'), ('pomo', '{"dialect": "photocopy"}'), ('vapor', '{"layout": "title-sky"}')]:
+            pg.evaluate('([s, st, pk]) => { const x = JSON.parse(s); x.style = st; x.marks = "light"; x.finish = "grain"; x.params = {}; x.pick = { palette: null, pairing: null, motif: null, layout: null, dialect: null, colours: null, ...JSON.parse(pk) }; for (const k of Object.keys(x.text)) x.text[k].pos = null; window.__rstr.app.load(x); }', [cur, name, pk])
             idle(pg)
             for t in appcheck.ADV_TABS:
                 pg.click(f'[data-tab="{t}"]')
