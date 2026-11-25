@@ -8,6 +8,7 @@
 import type { Form } from '../../../data/palettes/types';
 import type { Rect } from '../../geom';
 import { GRAPHICS } from '../../graphics';
+import { numeralGeom } from '../../graphics/numeral';
 import { chooseParams, clampTo } from '../../graphics/params';
 import { mkGraphic } from '../../items';
 import { mix, pick } from '../../rng';
@@ -63,9 +64,29 @@ function coloursOn(P: Form, under: string): Record<string, string> {
 export interface BrutalCut { name: string; shape: (typeof BRUTAL_CUTS)[number]; role: Role; box: Rect; params: Record<string, number>; }
 export interface BrutalDraw { first: string; plate: Role | null; params: Record<string, number>; box: Rect; cuts: BrutalCut[]; }
 
-/** Everything Brutalist graphics decides, in stream order, before any item is made: pure on the graphic stream. */
-export function brutalDraw(spec: { pick: { motif: string | null }; params: Record<string, unknown> }, P: Form, rg: () => number, band: Rect): BrutalDraw {
-  const first = spec.pick.motif && BRUTAL_GRAPHICS.includes(spec.pick.motif) ? spec.pick.motif : pick(rg, BRUTAL_GRAPHICS);
+/**
+ * A huge numeral is huge (spec 8.3): its figure at least a quarter of the canvas width tall. Read at the heavy end's
+ * smallest scale and thickest stroke (scale 0.91, weight 0.22: the smallest figure the heavy end can draw in the box),
+ * so every figure drawn unpinned in a box that passes is at least that tall (review bundle 4 S2: in a band or a cut
+ * of the band's height a numeral read as a few stray digits).
+ */
+export const NUMERAL_MIN = 0.25;
+export const numeralHeight = (box: Rect, p: { weight: number; scale: number }): number => {
+  const { u } = numeralGeom(box, { ...p, x: 0.5 });
+  return u * (9.2 + p.weight * 10);
+};
+export const numeralFits = (box: Rect, W: number): boolean => numeralHeight(box, { weight: 0.22, scale: 0.91 }) >= W * NUMERAL_MIN - 1e-6;
+
+/**
+ * Everything Brutalist graphics decides, in stream order, before any item is made: pure on the graphic stream. `W`:
+ * the canvas width (a numeral only where it is huge). `title`: the title's height; a band taller than the title takes
+ * no cut-in unless Advanced asks for one, so a short title is not set under a pile of graphics (review bundle 4 S4).
+ */
+export function brutalDraw(spec: { pick: { motif: string | null }; params: Record<string, unknown> }, P: Form, rg: () => number, band: Rect, o: { W?: number; title?: number } = {}): BrutalDraw {
+  const W = o.W ?? 1080, hand = !!spec.pick.motif && BRUTAL_GRAPHICS.includes(spec.pick.motif);
+  let first = hand ? spec.pick.motif! : pick(rg, BRUTAL_GRAPHICS);
+  // a numeral the band cannot hold huge gives way to another band graphic (one more draw, only then); a hand pick wins
+  if (!hand && first === 'numeral' && !numeralFits(band, W)) first = pick(rg, BRUTAL_GRAPHICS.filter((n) => n !== 'numeral'));
   const up = rg();
   // reversed out of a plate of ink or accent, about one roll in four
   const plate: Role | null = up < 0.13 ? 'ink' : up < 0.26 ? 'accent' : null;
@@ -74,6 +95,8 @@ export function brutalDraw(spec: { pick: { motif: string | null }; params: Recor
   let drawn = typeof set === 'number' ? Math.max(0, Math.min(2, Math.round(set))) : u < 0.1 ? 2 : u < 0.62 ? 1 : 0;
   // a second graphic or a cut shape picked by hand (spec 10.3) is cut in: at least one, unless Advanced set none
   if ((pin.name || pin.shape) && typeof set !== 'number') drawn = Math.max(1, drawn);
+  // a band taller than the title takes the first graphic alone, unless Advanced set the cut-ins or picked one (S4)
+  if (o.title !== undefined && band.h > o.title && typeof set !== 'number' && !pin.name && !pin.shape) drawn = 0;
   const under = plate ? P[plate] : P.ground;
   // a cut's plate shows as a cut: never the first graphic's plate, nor the ink it is drawn in (every cut overlaps it;
   // review R8 S5: an ink disc cut into ink arrows read as one mass); else the accent
@@ -105,6 +128,11 @@ export function brutalDraw(spec: { pick: { motif: string | null }; params: Recor
       const sh = h * (0.3 + 0.2 * a);
       box = { x, y: b < 0.5 ? y : y + h - sh, w, h: sh };
     }
+    // a numeral cut in where its box cannot hold it huge gives way to another graphic (S2); the hand-picked second wins
+    if (name === 'numeral' && !(k === 0 && pin.name) && !numeralFits(box, W)) {
+      name = pick(rg, BRUTAL_GRAPHICS.filter((n) => !used.has(n) && n !== 'numeral' && !(shape === 'disc' && n === 'disc')));
+      used.add(name);
+    }
     cuts.push({ name, shape, role, box, params: heavyParams(name, spec.params, rg) });
   }
   return { first, plate, params, box: band, cuts };
@@ -119,7 +147,9 @@ export const brutalGraphics: GraphicsPart = {
   place(c, plan) {
     const { spec, P, W } = c, band = plan.boxes.graphic;
     if (!band) return [];
-    const d = brutalDraw(spec, P, c.rg, band);
+    // the title's height (both halves of a split); up the edge the band stands beside the title, not under it
+    const T = plan.titleUp ? 0 : [plan.boxes.title, plan.boxes.title2].reduce((a, b) => a + (b ? b.h : 0), 0);
+    const d = brutalDraw(spec, P, c.rg, band, { W, title: T || undefined });
     const mod = (plan.page.w - 2 * plan.margin) / 6;
     const seed = (k: number) => mix(spec.seeds.graphic, 101 + k);
     const under = d.plate ? P[d.plate] : P.ground;

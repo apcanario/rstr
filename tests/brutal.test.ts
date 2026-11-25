@@ -5,11 +5,11 @@ import { bounds, overlaps, rectQuad } from '../src/engine/geom';
 import { GRAPHICS } from '../src/engine/graphics';
 import { choosePairing, choosePalette, partCtx, solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
-import { BRUTAL_CUTS, BRUTAL_GRAPHICS, brutalDraw } from '../src/engine/parts/graphics/brutal';
+import { BRUTAL_CUTS, BRUTAL_GRAPHICS, brutalDraw, NUMERAL_MIN, numeralFits, numeralHeight } from '../src/engine/parts/graphics/brutal';
 import { BRUTAL_LAYOUTS, FULL_WIDTH, brutalLayout } from '../src/engine/parts/layout/brutal';
 import { brutalBreaks, brutalLines } from '../src/engine/parts/shared/brutal';
 import { isCoreFace, PAIRINGS } from '../src/data/pairings';
-import { shuffleSeeds, specs } from '../src/engine/proof';
+import { runBrutalWidth, shuffleSeeds, specs } from '../src/engine/proof';
 import { counted, rng } from '../src/engine/rng';
 import type { GraphicItem, Scene, TextItem } from '../src/engine/scene';
 import { defaultSpec, type Spec } from '../src/engine/spec';
@@ -96,6 +96,54 @@ describe('R8: layouts, transforms, graphics (spec 8.0, 8.3)', () => {
   });
 });
 
+describe('review bundle 4: the huge numeral, and the band over a short title', () => {
+  const designs = () => specs({ styles: ['brutal'], n: 200, variants: 'cycle', picks: 'none' });
+  test('every numeral drawn unpinned is at least a quarter of the canvas width tall, first graphic or cut-in (S2); numerals still drawn', () => {
+    let n = 0;
+    const small: string[] = [];
+    for (const s of designs()) {
+      const sc = solve(s, stubMeasure).scene;
+      for (const g of sc.items) {
+        if (g.kind !== 'graphic' || g.name !== 'numeral' || g.layer === 'mark') continue;
+        n++;
+        const h = numeralHeight(g.box, { weight: Number(g.params.weight), scale: Number(g.params.scale) });
+        if (h < sc.w * NUMERAL_MIN) small.push(`${s.format} ${JSON.stringify(s.seeds)} ${sc.frame}: ${h.toFixed(0)} px${g.cut ? ' (cut in)' : ''}`);
+      }
+    }
+    expect(small, 'numerals under a quarter of the width').toEqual([]);
+    console.log(`bundle 4 S2: ${n} numerals in 600 Brutalist designs, none under ${NUMERAL_MIN} of the width`);
+    expect(n).toBeGreaterThan(5);
+  }, 120000);
+  test('a numeral picked by hand as the second is drawn whatever its size (the hand pick wins); the rule reads the box as the figure does', () => {
+    const P = choosePalette(brutal(0));
+    const d = brutalDraw({ pick: { motif: null }, params: { 'graphics.second': 'numeral', 'graphics.cut': 1 } }, P, counted(rng(5)), { x: 0, y: 0, w: 982, h: 120 });
+    expect(d.cuts[0]?.name === 'numeral' || d.first === 'numeral').toBe(true);
+    // the box rule: 300 high holds a huge figure (273 px at the heavy end's smallest), 280 does not
+    expect(numeralFits({ x: 0, y: 0, w: 982, h: 300 }, 1080)).toBe(true);
+    expect(numeralFits({ x: 0, y: 0, w: 982, h: 280 }, 1080)).toBe(false);
+  });
+  test('a band taller than the title takes no cut-in unless Advanced asks (S4); one-word titles are where it shows', () => {
+    let tall = 0, cut = 0;
+    for (const s of designs()) {
+      const sc = solve(s, stubMeasure).scene;
+      if (sc.layout === 'fallback') continue;
+      const plan = planOf(s, sc), B = plan.boxes.graphic;
+      if (!B || plan.titleUp) continue;
+      const T = [plan.boxes.title, plan.boxes.title2].reduce((a, b) => a + (b ? b.h : 0), 0);
+      if (!T || B.h <= T) continue;
+      tall++;
+      if (sc.items.some((g) => g.kind === 'graphic' && g.layer !== 'mark' && g.cut)) cut++;
+    }
+    expect(tall).toBeGreaterThan(0);
+    expect(cut, `${cut} of ${tall} bands taller than the title carry a cut-in`).toBe(0);
+    // Advanced's cut-in count still wins over the rule
+    const one = specs({ styles: ['brutal'], n: 60, variants: 'cycle', picks: 'none', params: { 'graphics.cut': 1 } });
+    let forced = 0;
+    for (const s of one) { const sc = solve(s, stubMeasure).scene; if (sc.items.some((g) => g.kind === 'graphic' && g.layer !== 'mark' && g.cut)) forced++; }
+    expect(forced).toBeGreaterThan(0);
+  }, 120000);
+});
+
 describe('R8: every title line fills the width (spec 8.3; Carried R8, review R1 M4)', () => {
   test('lines break one word each up to four, else three balanced; fewer, wider lines only as a fallback break', () => {
     expect(brutalLines('Signal and noise')).toEqual(['SIGNAL', 'AND', 'NOISE']);
@@ -128,6 +176,18 @@ describe('R8: every title line fills the width (spec 8.3; Carried R8, review R1 
     expect(lines).toBeGreaterThan(n * 1.5);
     console.log(`R8 full width: ${lines} title lines in ${n} designs`);
   }, 120000);
+  test('the smoke run\'s full-width proof (review bundle 4 M5) finds nothing off on the stub measure, per pairing, and fails a line off by 1%', () => {
+    for (const p of PAIRINGS.brutal.filter((x) => isCoreFace(x.display))) {
+      const r = runBrutalWidth(stubMeasure, { n: 10, variants: 'cycle', pick: { pairing: p.id } });
+      expect(r.designs, p.id).toBeGreaterThan(20);
+      expect(r.off, p.id).toEqual([]);
+    }
+    // the test of the test: lines laid out on the stub and read with a measure 2% wide are all off
+    const wide: typeof stubMeasure = (s, f, px, tr) => { const mt = stubMeasure(s, f, px, tr); return { ...mt, left: mt.left * 1.02, right: mt.right * 1.02 }; };
+    const r = runBrutalWidth(stubMeasure, { n: 4, variants: 'cycle' }, undefined, wide);
+    expect(r.lines).toBeGreaterThan(0);
+    expect(r.off.length).toBe(Math.min(50, r.lines));
+  });
   test('the 1:1 Anton title (Klein, Alarm) fills the width where height binds (review R1 M4)', () => {
     for (const palette of ['klein', 'alarm']) for (let i = 0; i < 30; i++) {
       const s = brutal(i, '1:1');
