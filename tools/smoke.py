@@ -287,6 +287,23 @@ with served() as url, browser() as b:
             print(f'variety {style:6} {fmt:4}  60 shuffles: {v["repeats60"]} repeats ({res(v["pass"]["sixty"])}); 300 shuffles: missing {miss or "nothing"} ({res(v["pass"]["coverage"])}); top layout {v["top"]["layout"]} {v["top"]["share"] * 100:.0f}% ({res(v["pass"]["share"])})')
             if style in ENFORCED and not all(v['pass'].values()):
                 fail(f'variety {style} {fmt}: {v["pass"]}')
+    # review bundle 4 M5: spec 8.3's full-width rule (every title line of four words or fewer spans the inner width
+    # within 1%) with each bundled Brutalist face, as tests/brutal.test.ts checks it on the stub measure; a pairing
+    # whose fonts are not loaded is skipped and reported (the online ones: Carried R3)
+    nwide = 0
+    for pid in pg.evaluate('() => window.__rstr.fonts.pairings("brutal")'):
+        if not pg.evaluate('(id) => window.__rstr.fonts.available(id)', pid):
+            print(f'full width brutal {pid}: fonts not loaded, skipped (Carried R3)')
+            continue
+        r = pg.evaluate('(o) => window.__rstr.proof.brutalWidth(o)', {'n': max(30, N // 4), 'variants': 'cycle', 'pick': {'pairing': pid}})
+        print(f'full width brutal {pid}: {r["designs"]} designs, {r["lines"]} title lines, {len(r["off"])} off by 1% or more, {r["fallbacks"]} fallbacks, {r["skipped"]} not drawn with the pairing')
+        if r['designs'] == 0 or r['skipped']:
+            fail(f'full width brutal {pid}: nothing measured with its own faces ({r["designs"]} designs, {r["skipped"]} skipped)')
+        nwide += 1
+        for x in r['off'][:3]:
+            fail(f'full width brutal {pid}: "{x["line"]}" {x["got"]:.1f} of {x["want"]:.1f} px', x['spec'])
+    if nwide < 2:
+        fail(f'full width brutal: {nwide} pairings measured with their own faces, the bundled ones expected')
     # spec 8.2 (R6): each Postmodern dialect alone meets the 60-shuffle test (and is reported on the other two)
     for style in STYLES:
         for d in pg.evaluate('(s) => window.__rstr.proof.dialects(s)', style):

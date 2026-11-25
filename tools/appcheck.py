@@ -322,6 +322,18 @@ def run_advanced(pg, at, fail):
         elif stage() == px:
             fail(f'{at}: the colour edit drew the same stage')
         palettes = pg.evaluate('() => window.__rstr.names("swiss").palettes')
+        # review bundle 4 M6: on the phone the edit is saved under pick.colours only, in the one localStorage key
+        pg.wait_for_timeout(600)
+        st = pg.evaluate('''() => { const keys = Object.keys(localStorage), raw = localStorage.getItem("rstr.app.v1");
+            if (!raw) return { keys, raw: null };
+            const x = JSON.parse(raw); for (const t of [x.spec, ...(x.back || []), ...(x.kept || [])]) if (t && t.pick) delete t.pick.colours;
+            return { keys, raw, rest: JSON.stringify(x).toLowerCase().includes("#3a5f8c") }; }''')
+        if [k for k in st['keys'] if k != 'rstr.app.v1']:
+            fail(f'{at}: localStorage keys besides the saved state: {st["keys"]}')
+        if not st['raw'] or '#3a5f8c' not in st['raw'].lower():
+            fail(f'{at}: the colour edit was not saved')
+        elif st['rest']:
+            fail(f'{at}: the colour edit is saved outside pick.colours')
         pg.click('button[data-lock="colour"]')
         tap(pg, '[data-testid="shuffle"]')
         if spec(pg)['pick'].get('colours') != cs:

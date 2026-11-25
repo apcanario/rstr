@@ -1,11 +1,11 @@
 /** The proof of spec 9.2 and 9.3 over many seeds. Run by the unit tests (stub measure) and the smoke run (real fonts). */
 import { FORMAT_LIST, type Format } from './formats';
 import { check, type Failure } from './invariants';
-import { choosePairing, solve, type Use } from './layout';
+import { choosePairing, partCtx, solve, type Use } from './layout';
 import { PAIRINGS } from '../data/pairings';
 import type { Measure } from './measure';
 import { mix } from './rng';
-import type { Item, Scene } from './scene';
+import type { Item, Scene, TextItem } from './scene';
 import { coverOf } from './cover';
 import { STYLES } from './styles';
 import { labelsOf, markOverlaps } from './marks';
@@ -380,6 +380,38 @@ export function runAdvanced(m: Measure, o: Opts = {}, resolve?: Resolve): Advanc
       if (warn.length) r.warned++;
       const f = check(se).filter((x) => x.rule !== 4 || !warn.includes(x.part));
       if (f.length && r.failures.length < 20) r.failures.push({ spec: e, id: 'colour', v: e.pick.colours, failures: f });
+    }
+  }
+  return r;
+}
+
+/**
+ * Review bundle 4 M5: spec 8.3's full-width rule with the real faces. Every title line of a Brutalist title of four
+ * words or fewer spans the inner width (up the edge: the strip's height) within 1%, in the layouts that promise it,
+ * for each pairing given (the bundled ones, in the smoke run), drawn with that pairing only where `resolve` allows it.
+ * `lines`: lines measured; `off`: lines off by 1% or more, with the spec; `skipped`: designs not drawn with the pairing.
+ * `read`: the measure the lines are read with (the layout's own; another only for the test of the test).
+ */
+export interface WidthReport { designs: number; lines: number; skipped: number; fallbacks: number; off: { spec: Spec; line: string; got: number; want: number }[]; }
+export function runBrutalWidth(m: Measure, o: Opts = {}, resolve?: Resolve, read: Measure = m): WidthReport {
+  const r: WidthReport = { designs: 0, lines: 0, skipped: 0, fallbacks: 0, off: [] };
+  for (const spec of specs({ ...o, styles: ['brutal'] })) {
+    if (!spec.text.title.on || spec.text.title.v.trim().split(/\s+/).length > 4) continue;
+    const use = resolve?.(spec);
+    if (spec.pick.pairing && use?.pairing && use.pairing !== spec.pick.pairing) { r.skipped++; continue; }
+    const sc = solve(spec, m, use).scene;
+    if (sc.layout === 'fallback') { r.fallbacks++; continue; }
+    const T = PAIRINGS.brutal.find((p) => p.id === sc.pairing)!;
+    const plan = STYLES.brutal.parts.layout.plan(partCtx(spec, m, choosePalette(spec), T, Number(sc.layout.slice(1))));
+    const ts = sc.items.filter((i): i is TextItem => i.kind === 'text' && i.slot === 'title');
+    // every Brutalist layout promises it (FULL_WIDTH: all but title-up, whose lines span the strip's height)
+    if (!plan || !ts.length) continue;
+    r.designs++;
+    const box = plan.boxes.title!, want = plan.titleUp ? box.h : box.w;
+    for (const t of ts) {
+      const run = t.runs[0], mt = read(run.s, t.font, t.size), got = (mt.left + mt.right) * (run.sx ?? 1);
+      r.lines++;
+      if (Math.abs(got - want) / want >= 0.01 && r.off.length < 50) r.off.push({ spec, line: run.s, got, want });
     }
   }
   return r;
