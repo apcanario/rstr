@@ -18,6 +18,8 @@ export const sphere: Graphic = {
     const has = g.params.r !== undefined;
     const cx = has ? Number(g.params.x) : R.x + R.w / 2, cy = has ? Number(g.params.y) : R.y + R.h / 2;
     const r = (has ? Number(g.params.r) : (Math.min(R.w, R.h) / 2) * 0.97) * T.rev(0);
+    // a sphere clipped to nothing (a radius at or under 0) draws nothing: canvas throws on a negative ellipse radius
+    if (!(r > 0)) return;
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(tilt);
     ctx.strokeStyle = g.colours.line; ctx.lineWidth = Math.max(1.5, W * val(g, G, 'weight'));
     ctx.shadowColor = g.colours.line; ctx.shadowBlur = W * 0.008;

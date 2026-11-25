@@ -261,12 +261,13 @@ def run_advanced(pg, at, fail):
         return pg.evaluate('() => window.__rstr.app.stage()')
 
     def tapped(what, sel, test, change=True):
-        px = stage()
+        px, before = stage(), spec(pg)
         tap(pg, sel)
         if not test(spec(pg)):
             fail(f'{at}: Advanced {what} did not reach the spec: {spec(pg)["params"]} {spec(pg)["pick"]}')
         elif change and stage() == px:
-            fail(f'{at}: Advanced {what} drew the same stage')
+            # the design before the tap, so a seed that shows the control but draws the same can be opened (R14)
+            fail(f'{at}: Advanced {what} drew the same stage', before)
     if find(pg, 'layout', 'button[data-ctl="layout.size"][data-v="small"]'):
         tapped('title size Small', 'button[data-ctl="layout.size"][data-v="small"]', lambda x: x['params'].get('layout.size') == 'small')
     else:

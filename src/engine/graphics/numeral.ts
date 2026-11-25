@@ -55,6 +55,8 @@ export const numeral: Graphic = {
     const G = numeral, R = g.box, C = g.colours;
     const wt = val(g, G, 'weight');
     const { u, lw, at } = numeralGeom(R, { weight: wt, scale: val(g, G, 'scale'), x: val(g, G, 'x') });
+    // a box too small for a figure (u at or under 0) draws nothing: canvas throws on a negative ellipse radius
+    if (!(u > 0)) return;
     ctx.save();
     ctx.strokeStyle = C.a; ctx.lineWidth = lw * T.rev(0); ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
     ctx.beginPath();
