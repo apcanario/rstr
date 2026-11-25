@@ -4,7 +4,7 @@ import { chooseParams, lerpRange, paramKey } from '../src/engine/graphics/params
 import { check } from '../src/engine/invariants';
 import { solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
-import { pickForGraphic, runVariety, specs, textVariants, varietyOf, type VarietyRow } from '../src/engine/proof';
+import { freshDraw, pickForGraphic, pushRecent, runVariety, specs, textVariants, varietyBase, varietyOf, varietyWindows, VARIETY_WINDOW, type VarietyRow } from '../src/engine/proof';
 import { rng } from '../src/engine/rng';
 import type { GraphicItem } from '../src/engine/scene';
 import { STYLES } from '../src/engine/styles';
@@ -136,4 +136,35 @@ describe('the variety tests of spec 8.0', () => {
       expect(v.pass, `vapor ${f}: ${JSON.stringify(v)}`).toEqual({ sixty: true, coverage: true, share: true });
     }
   }, 240000);
+  test('the 60-shuffle rule holds in 20 windows of 60 from different seed bases, every style and format, through Shuffle\'s guard (review R9 S1)', () => {
+    for (const st of STYLE_IDS) for (const f of ['1:1', '3:4', '9:16'] as const) {
+      const w = varietyWindows(stubMeasure, st, f, 20);
+      console.log(`variety windows ${st} ${f} (stub, guarded): ${JSON.stringify(w)}`);
+      expect(w, `${st} ${f}`).toEqual(Array(20).fill(0));
+    }
+  }, 600000);
+  test('the format runs are independent: each format has its own seed base (review R9 S1)', () => {
+    const bases = (['1:1', '3:4', '9:16'] as const).map((f) => varietyBase(f));
+    expect(new Set(bases).size).toBe(3);
+    // the raw windows differ by format (before R9's fix the three runs drew the same 60 keys)
+    const w = (['1:1', '3:4', '9:16'] as const).map((f) => JSON.stringify(varietyWindows(stubMeasure, 'vapor', f, 5, true)));
+    expect(new Set(w).size, w.join(' ')).toBeGreaterThan(1);
+  }, 120000);
+  test('Vaporwave\'s own spread, without the guard: about 1.5 repeats in 60 or fewer on average over 20 windows (review R9 S1, measured)', () => {
+    for (const f of ['1:1', '3:4', '9:16'] as const) {
+      const w = varietyWindows(stubMeasure, 'vapor', f, 20, true), mean = w.reduce((a, b) => a + b, 0) / w.length;
+      console.log(`variety windows vapor ${f} (stub, raw): ${JSON.stringify(w)}, mean ${mean.toFixed(2)}, clean ${w.filter((x) => x === 0).length} of 20`);
+      expect(mean, `vapor ${f}`).toBeLessThan(2.2);
+    }
+  }, 300000);
+  test('freshDraw redraws a repeated key, at most the given number of times, and the recent list keeps 59', () => {
+    let i = 0;
+    const seq = ['a', 'a', 'b'];
+    expect(freshDraw(() => seq[i++], (x) => x, ['a'])).toEqual({ value: 'b', key: 'b' });
+    expect(freshDraw(() => 'a', (x) => x, ['a'], 3).key).toBe('a');
+    let r: string[] = [];
+    for (let k = 0; k < 100; k++) r = pushRecent(r, String(k));
+    expect(r.length).toBe(VARIETY_WINDOW - 1);
+    expect(r[r.length - 1]).toBe('99');
+  });
 });

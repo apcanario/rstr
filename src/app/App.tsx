@@ -5,7 +5,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { installApi } from '../api';
-import { choosePairing, render, thumb, type Use } from '../engine';
+import { choosePairing, render, scene as sceneOf, thumb, type Use } from '../engine';
+import { varietyKey } from '../engine/proof';
 import { resolvePairing } from '../engine/layout';
 import { pixelHash } from '../engine/pixels';
 import { defaultPairing } from '../data/pairings';
@@ -17,7 +18,7 @@ import type { Scene } from '../engine/scene';
 import { defaultSpec, FACETS, migrate, newSeed, newSeeds, seedCode, STYLE_IDS, type Facet, type Finish, type Marks, type Slot, type Spec, type StyleId } from '../engine/spec';
 import { fitAll } from './fit';
 import { Icon } from './icons';
-import { addKept, infoText, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffle as shuffleSpec, STORE_KEY, withStyle, type Locks, type Saved } from './state';
+import { addKept, infoText, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withStyle, type Locks, type Saved } from './state';
 
 /** What the stage drew: the pairing asked for, the one used, and the note (spec 6). */
 export interface Drawn { wanted: string; pairing: string; note: string; }
@@ -189,7 +190,14 @@ export function App({ ready }: { ready: Promise<void> }) {
     lastKey.current = null;
     setDoc((d) => (d.back.length ? { spec: d.back[d.back.length - 1], back: d.back.slice(0, -1) } : d));
   };
-  const doShuffle = () => commit((s) => preferAvailable(shuffleSpec(s, locksRef.current), locksRef.current.type));
+  // the session's recent shuffles (spec 8.0: no repeat of layout, transform, graphics and palette in 60; review R9 S1)
+  const recentShuffles = useRef<string[]>([]);
+  const shuffleKey = (s: Spec) => `${s.style}|${s.format}|${varietyKey(sceneOf(s))}`;
+  const doShuffle = () => commit((s) => {
+    const r = shuffleFresh(s, locksRef.current, recentShuffles.current, shuffleKey);
+    recentShuffles.current = r.recent;
+    return preferAvailable(r.spec, locksRef.current.type);
+  });
   const pickStyle = (id: StyleId) => commit((s) => preferAvailable(withStyle(s, id), locksRef.current.type));
   const set = (p: Partial<Spec>) => commit((s) => ({ ...s, ...p }));
   const onText = (slot: Slot, v: string) => commit((s) => ({

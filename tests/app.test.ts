@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import { addKept, BACK_STEPS, infoText, KEPT_MAX, NO_LOCKS, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffle, withStyle, type Locks } from '../src/app/state';
+import { addKept, BACK_STEPS, infoText, KEPT_MAX, NO_LOCKS, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffle, shuffleFresh, withStyle, type Locks } from '../src/app/state';
+import { varietyKey } from '../src/engine/proof';
 import { STYLES } from '../src/engine/styles';
 import { choosePalette, choosePairing, layout } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
@@ -75,6 +76,28 @@ describe('Shuffle and locks (spec 10.1)', () => {
     expect(reroll(s, 'type', counter()).params).toEqual({ 'g.copier.grain': 0.5 });
     for (const f of ['layout', 'colour', 'graphic'] as const) expect(reroll(s, f, counter()).params).toEqual(s.params);
   });
+  test('the graphic facet\'s Advanced keys (vapor.first, vapor.second, vapor.extras, graphics.cut): Shuffle clears them unless Graphic is locked (review R9 M5)', () => {
+    const p = { 'vapor.first': 'sun', 'vapor.second': 'grid', 'vapor.extras': 0, 'graphics.cut': 0, 'g.copier.grain': 0.5 };
+    const s: Spec = { ...defaultSpec(), style: 'vapor', params: p };
+    expect(shuffle(s, NO_LOCKS, counter()).params).toEqual({ 'g.copier.grain': 0.5 });
+    expect(shuffle(s, { ...NO_LOCKS, graphic: true }, counter()).params).toEqual(p);
+    expect(reroll(s, 'graphic', counter()).params).toEqual({ 'g.copier.grain': 0.5 });
+  });
+  test('Shuffle holds spec 8.0 in a session: 200 shuffles of each style, no repeat of the variety key in any 60 in a row (review R9 S1)', () => {
+    const keyOf = (s: Spec) => varietyKey(layout(s, stubMeasure));
+    for (const style of ['swiss', 'pomo', 'brutal', 'vapor'] as const) {
+      let s: Spec = { ...defaultSpec(), style, format: '3:4' }, recent: string[] = [];
+      const seed = counter(77), keys: string[] = [];
+      for (let i = 0; i < 200; i++) {
+        const r = shuffleFresh(s, NO_LOCKS, recent, keyOf, seed);
+        s = r.spec; recent = r.recent; keys.push(keyOf(s));
+      }
+      for (let i = 0; i < keys.length; i++) expect(keys.slice(Math.max(0, i - 59), i), `${style} shuffle ${i}`).not.toContain(keys[i]);
+    }
+    const all = { layout: true, colour: true, graphic: true, type: true };
+    const s = defaultSpec();
+    expect(shuffleFresh(s, all, ['x'], () => 'x').spec).toBe(s);
+  }, 120000);
   test('a style change keeps seeds and clears picks', () => {
     const s: Spec = { ...defaultSpec(), pick: { palette: 'paper', pairing: 'p', motif: 'topo', layout: 'l', dialect: 'icecream' } };
     const n = withStyle(s, 'brutal');

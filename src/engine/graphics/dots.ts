@@ -13,7 +13,10 @@ export const dots: Graphic = {
     inv: { min: 0, max: 1, def: 0, int: true },
   },
   draw(ctx, g, _r, T) {
-    const G = dots, R = g.box, C = g.colours, W = Number(g.params.W);
+    const G = dots, C = g.colours, W = Number(g.params.W);
+    // floor (not a ranged parameter; Vaporwave, R9 M1): the screen flattened toward the box's top by this factor, a ground plane
+    const fl = Number(g.params.floor) > 0 ? Number(g.params.floor) : 1, R = fl < 1 ? { ...g.box, h: g.box.h / fl } : g.box;
+    if (fl < 1) { ctx.save(); ctx.translate(0, R.y); ctx.scale(1, fl); ctx.translate(0, -R.y); }
     const step = W * val(g, G, 'pitch'), fall = val(g, G, 'falloff'), inv = val(g, G, 'inv');
     const fx = R.x + R.w * (val(g, G, 'fx') + 0.12 * Math.cos(TAU * T.ph) * (T.on ? 1 : 0)), fy = R.y + R.h * (val(g, G, 'fy') + 0.12 * Math.sin(TAU * T.ph) * (T.on ? 1 : 0));
     const maxd = Math.hypot(R.w, R.h) * 0.75, e = T.rev(0);
@@ -23,5 +26,6 @@ export const dots: Graphic = {
       const rad = step * 0.5 * Math.pow(k, fall) * e;
       if (rad > 0.6) { ctx.beginPath(); ctx.arc(x, y, rad, 0, TAU); ctx.fill(); }
     }
+    if (fl < 1) ctx.restore();
   },
 };

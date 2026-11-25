@@ -2,6 +2,7 @@
  * The app's state as pure functions (spec 10.1): Shuffle with locks, the per-facet rerolls, Back steps, Kept,
  * and what is saved on the phone. No DOM here, so the unit tests run them directly.
  */
+import { freshDraw, pushRecent } from '../engine/proof';
 import { FACETS, migrate, newSeed, type Facet, type Spec } from '../engine/spec';
 
 /** Back keeps this many steps (spec 10.1). */
@@ -18,7 +19,7 @@ export const NO_LOCKS: Locks = { layout: false, colour: false, graphic: false, t
 export const PICK_OF: Record<Facet, keyof Spec['pick']> = { layout: 'layout', colour: 'palette', graphic: 'motif', type: 'pairing' };
 
 /** Values set by hand that belong to a facet (spec 10.3): Shuffle clears them unless that facet is locked. */
-export const PARAMS_OF: Record<Facet, string[]> = { layout: [], colour: [], graphic: [], type: ['pomo.paperEdge'] };
+export const PARAMS_OF: Record<Facet, string[]> = { layout: [], colour: [], graphic: ['vapor.first', 'vapor.second', 'vapor.extras', 'graphics.cut'], type: ['pomo.paperEdge'] };
 
 function dropParams(params: Spec['params'], f: Facet): Spec['params'] {
   if (!PARAMS_OF[f].some((k) => k in params)) return params;
@@ -38,6 +39,17 @@ export function shuffle(s: Spec, locks: Locks, seed: () => number = newSeed): Sp
     params = dropParams(params, f);
   }
   return { ...s, seeds, pick, params };
+}
+
+/**
+ * Shuffle as the app runs it (spec 8.0, review R9 S1): a design whose variety key (`keyOf`: layout, transform, first
+ * and second graphic, palette, within one style and format) repeats one of the recent shuffles is drawn again, a few
+ * times at most (freshDraw). `recent` is the session's last keys; the result carries them on. All locked: no change.
+ */
+export function shuffleFresh(s: Spec, locks: Locks, recent: readonly string[], keyOf: (s: Spec) => string, seed: () => number = newSeed): { spec: Spec; recent: string[] } {
+  if (FACETS.every((f) => locks[f])) return { spec: s, recent: [...recent] };
+  const { value, key } = freshDraw(() => shuffle(s, locks, seed), keyOf, recent);
+  return { spec: value, recent: pushRecent(recent, key) };
 }
 
 /** Look tab: New layout, New colours, New graphic, New type. One facet only, whatever the locks. */

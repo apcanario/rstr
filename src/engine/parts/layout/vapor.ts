@@ -83,8 +83,14 @@ export const vaporLayout: LayoutPart = {
       if (name === 'title-sky') {
         B.title = { x: M, y: up0, w: textW, h: Math.round(hz * SKY_TEXT) - up0 };
         sunUnder(B.title.y + B.title.h);
+        // and close under it: a small sun left a dead band of sky between the text and the sun (R9 S5); the sun's top
+        // comes within W * 0.04 (radius) of the box's foot, its size still varying with uk
+        const fill = (hz - (B.title.y + B.title.h) - gap) / (1 + k);
+        sunR = Math.min(fill, Math.max(sunR, fill - W * 0.04));
         if (pairs) B.info = infoAt(Math.round(floorTop + (dn0 - capRoom - floorTop - winH) * 0.45), right);
-        pos.title = 'top';
+        // the block sits at the foot of its box, just over the sun; the spare sky goes above it, under the stars (R9 S5:
+        // at the top of the box a 9:16 title left a dead band of sky between the subtitle and the sun)
+        pos.title = 'bottom';
       } else if (name === 'title-window') {
         // the title in a window across the sky; the sun behind it shows where it is lower than the window
         const ph = Math.round((hz - up0) * 0.62);
@@ -110,7 +116,7 @@ export const vaporLayout: LayoutPart = {
         }
       }
       // the sun never runs off the side of the canvas by more than a third of itself
-      sunX = Math.max(sunR * 0.66, Math.min(W - sunR * 0.66, sunX));
+      sunX = Math.max((sunR * 2) / 3, Math.min(W - (sunR * 2) / 3, sunX));
       plan.focus = { x: sunX, y: hz - sunR * k, r: sunR };
       return plan;
     }

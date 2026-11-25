@@ -178,12 +178,33 @@ export interface Variety {
   pass: { sixty: boolean; coverage: boolean; share: boolean };
 }
 
+/** What the 60-shuffle test of spec 8.0 compares: layout, transform, first graphic, second graphic, palette. */
+export const varietyKey = (r: { frame: string; transform: string; graphics: string[]; palette: string }): string =>
+  [r.frame, r.transform, r.graphics[0] ?? '-', r.graphics[1] ?? '-', r.palette].join('|');
+
+/** How many shuffles the 60-shuffle test spans, and how many times Shuffle redraws a design that repeats one of them. */
+export const VARIETY_WINDOW = 60, VARIETY_TRIES = 8;
+
+/**
+ * Spec 8.0's 60-shuffle rule held by Shuffle itself (review R9 S1): drawn independently, the five facets of the key
+ * repeat about once or twice in any 60 shuffles for every style, so a clean first window was a lucky seed. Draw, and
+ * while the key is among the last VARIETY_WINDOW - 1 keys, draw again, at most VARIETY_TRIES times; the last draw
+ * stands. The app's Shuffle and the variety runs go through this.
+ */
+export function freshDraw<T>(draw: () => T, keyOf: (t: T) => string, recent: readonly string[], tries = VARIETY_TRIES): { value: T; key: string } {
+  let value = draw(), key = keyOf(value);
+  for (let i = 0; i < tries && recent.includes(key); i++) { value = draw(); key = keyOf(value); }
+  return { value, key };
+}
+/** The recent keys after one more shuffle: the newest VARIETY_WINDOW - 1. */
+export const pushRecent = (recent: readonly string[], key: string): string[] => [...recent, key].slice(-(VARIETY_WINDOW - 1));
+
 /** The three variety tests of spec 8.0 over a list of shuffles, in order. Pure, so the test of the tests can feed it rows. */
 export function varietyOf(rows: VarietyRow[], lists: VarietyLists): Variety {
   const seen = new Set<string>();
   let repeats60 = 0;
   for (const r of rows.slice(0, 60)) {
-    const key = [r.frame, r.transform, r.graphics[0] ?? '-', r.graphics[1] ?? '-', r.palette].join('|');
+    const key = varietyKey(r);
     if (seen.has(key)) repeats60++;
     seen.add(key);
   }
@@ -201,25 +222,40 @@ export function varietyOf(rows: VarietyRow[], lists: VarietyLists): Variety {
   return { count: rows.length, repeats60, missing, top: { layout, share }, pass: { sixty: repeats60 === 0, coverage, share: share <= 0.25 } };
 }
 
-/** Seeds of the i-th shuffle of the variety run: every facet new, as Shuffle with nothing locked. */
-export const shuffleSeeds = (i: number): Spec['seeds'] => ({ layout: mix(0x5a17, i * 4 + 1), colour: mix(0x5a17, i * 4 + 2), graphic: mix(0x5a17, i * 4 + 3), type: mix(0x5a17, i * 4 + 4) });
+/** Seeds of the i-th draw of a variety run from a base: every facet new, as Shuffle with nothing locked. */
+export const shuffleSeeds = (i: number, base = 0x5a17): Spec['seeds'] => ({ layout: mix(base, i * 4 + 1), colour: mix(base, i * 4 + 2), graphic: mix(base, i * 4 + 3), type: mix(base, i * 4 + 4) });
+/** The base of a variety run: its own per format (review R9 S1: one base made the three format runs one run). */
+export const varietyBase = (format: Format, run = 0): number => mix(0x5a17 + run * 7919, FORMAT_LIST.indexOf(format) + 1);
 
 /**
- * The variety tests of spec 8.0 for one style in one format: n shuffles (300) of the default text in light mode.
- * The pairing counted is the one the shuffle chose (the type seed), not the one drawn when its fonts are not loaded.
+ * The variety tests of spec 8.0 for one style in one format: n shuffles (300) of the default text in light mode, each
+ * drawn through Shuffle's guard (freshDraw) as the app draws them; `raw` leaves the guard out, to measure the
+ * style's own spread. The pairing counted is the one the shuffle chose (the type seed), not the one drawn when its
+ * fonts are not loaded.
  */
-export function runVariety(m: Measure, style: StyleId, format: Format, n = 300, resolve?: Resolve, pick: Pick = {}): Variety {
-  const rows: VarietyRow[] = [];
-  for (let i = 0; i < n; i++) {
-    const s = defaultSpec(shuffleSeeds(i));
+export function runVariety(m: Measure, style: StyleId, format: Format, n = 300, resolve?: Resolve, pick: Pick = {}, o: { base?: number; raw?: boolean } = {}): Variety {
+  const rows: VarietyRow[] = [], base = o.base ?? varietyBase(format);
+  let recent: string[] = [], c = 0;
+  const draw = (): VarietyRow => {
+    const s = defaultSpec(shuffleSeeds(c++, base));
     s.style = style; s.format = format; s.pick = { ...s.pick, ...pick };
     const sc = solve(s, m, resolve?.(s)).scene;
-    rows.push({ frame: sc.frame, transform: sc.transform, graphics: sc.graphics, palette: sc.palette, pairing: choosePairing(s).id });
+    return { frame: sc.frame, transform: sc.transform, graphics: sc.graphics, palette: sc.palette, pairing: choosePairing(s).id };
+  };
+  for (let i = 0; i < n; i++) {
+    const { value, key } = o.raw ? (() => { const v = draw(); return { value: v, key: varietyKey(v) }; })() : freshDraw(draw, varietyKey, recent);
+    rows.push(value);
+    recent = pushRecent(recent, key);
   }
   const st = STYLES[style], d = pick.dialect ?? null;
   // with a dialect picked, the lists are that dialect's own (spec 8.2: each dialect alone meets the tests)
   const layouts = (d && st.parts.layout.layoutsOf?.[d]) || st.layouts, vocab = (d && st.parts.graphics.vocabOf?.[d]) || st.parts.graphics.vocab;
   return varietyOf(rows, { layouts, graphics: vocab, palettes: st.parts.palette.list.map((p) => p.id), pairings: PAIRINGS[style].map((p) => p.id) });
+}
+
+/** Repeats in each of `windows` runs of 60 shuffles, each from its own base (review R9 S1: not one lucky window). */
+export function varietyWindows(m: Measure, style: StyleId, format: Format, windows = 20, raw = false): number[] {
+  return Array.from({ length: windows }, (_, w) => runVariety(m, style, format, VARIETY_WINDOW, undefined, {}, { base: varietyBase(format, w + 1), raw }).repeats60);
 }
 
 

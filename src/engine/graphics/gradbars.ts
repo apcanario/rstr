@@ -13,7 +13,9 @@ export const gradbars: Graphic = {
   draw(ctx, g, r, T) {
     const G = gradbars, R = g.box, C = g.colours;
     const n = val(g, G, 'count'), wt = val(g, G, 'weight'), prog = val(g, G, 'prog'), down = val(g, G, 'angle');
-    const span = down ? R.w : R.h, pitch = span / n, grow = r() < 0.5;
+    // grow (not a ranged parameter): 0 thickest first (top or left), 1 thinnest first; unset, the item's stream decides
+    const rolled = r() < 0.5, grow = typeof g.params.grow === 'number' ? g.params.grow === 1 : rolled;
+    const span = down ? R.w : R.h, pitch = span / n;
     const grad = down ? ctx.createLinearGradient(0, R.y, 0, R.y + R.h) : ctx.createLinearGradient(R.x, 0, R.x + R.w, 0);
     grad.addColorStop(0, C.a); grad.addColorStop(1, C.b);
     ctx.fillStyle = grad;
