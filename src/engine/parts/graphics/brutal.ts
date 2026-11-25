@@ -13,7 +13,8 @@ import { mkGraphic } from '../../items';
 import { mix, pick } from '../../rng';
 import type { Item } from '../../scene';
 import type { GraphicsPart } from '../types';
-import { cutControl, libraryControls, motifPicker } from '../../controls';
+import { cutControls } from '../../controls';
+import { pinnedCut } from './swiss';
 
 export const BRUTAL_GRAPHICS = ['barcode', 'slab', 'asterisks', 'arrow', 'numeral', 'bars', 'lines', 'rules', 'dots', 'blocks', 'disc', 'lattice'];
 export const BRUTAL_CUTS = ['disc', 'column', 'strip'] as const;
@@ -69,8 +70,10 @@ export function brutalDraw(spec: { pick: { motif: string | null }; params: Recor
   // reversed out of a plate of ink or accent, about one roll in four
   const plate: Role | null = up < 0.13 ? 'ink' : up < 0.26 ? 'accent' : null;
   const params = heavyParams(first, spec.params, rg);
-  const u = rg(), set = spec.params['graphics.cut'];
-  const drawn = typeof set === 'number' ? Math.max(0, Math.min(2, Math.round(set))) : u < 0.1 ? 2 : u < 0.62 ? 1 : 0;
+  const u = rg(), set = spec.params['graphics.cut'], pin = pinnedCut(spec.params, first, BRUTAL_GRAPHICS, BRUTAL_CUTS);
+  let drawn = typeof set === 'number' ? Math.max(0, Math.min(2, Math.round(set))) : u < 0.1 ? 2 : u < 0.62 ? 1 : 0;
+  // a second graphic or a cut shape picked by hand (spec 10.3) is cut in: at least one, unless Advanced set none
+  if ((pin.name || pin.shape) && typeof set !== 'number') drawn = Math.max(1, drawn);
   const under = plate ? P[plate] : P.ground;
   // a cut's plate shows as a cut: never the first graphic's plate, nor the ink it is drawn in (every cut overlaps it;
   // review R8 S5: an ink disc cut into ink arrows read as one mass); else the accent
@@ -80,10 +83,14 @@ export function brutalDraw(spec: { pick: { motif: string | null }; params: Recor
   const used = new Set([first]), shapes = new Set<string>();
   const { x, y, w, h } = band;
   for (let k = 0; k < drawn; k++) {
-    const name = pick(rg, BRUTAL_GRAPHICS.filter((n) => !used.has(n)));
+    let name = pick(rg, BRUTAL_GRAPHICS.filter((n) => !used.has(n)));
+    // the first cut-in's graphic and shape picked by hand win (the stream is read as it would be, so nothing else moves)
+    if (k === 0 && pin.name) name = pin.name;
     used.add(name);
     // a numeral is not cut in as a strip: a figure the strip's height reads as stray digits (review R8 M4)
-    const shape = pick(rg, BRUTAL_CUTS.filter((s) => !shapes.has(s) && !(s === 'disc' && name === 'disc') && !(s === 'strip' && name === 'numeral')));
+    const legal = BRUTAL_CUTS.filter((s) => !shapes.has(s) && !(s === 'disc' && name === 'disc') && !(s === 'strip' && name === 'numeral'));
+    let shape = pick(rg, legal);
+    if (k === 0 && pin.shape && (legal as readonly string[]).includes(pin.shape)) shape = pin.shape as (typeof BRUTAL_CUTS)[number];
     shapes.add(shape);
     const role = pick(rg, roles.length ? roles : (['accent'] as Role[]));
     const a = rg(), b = rg();
@@ -105,9 +112,10 @@ export function brutalDraw(spec: { pick: { motif: string | null }; params: Recor
 
 export const brutalGraphics: GraphicsPart = {
   id: 'brutal', uses: BRUTAL_GRAPHICS, vocab: BRUTAL_GRAPHICS, motifs: BRUTAL_GRAPHICS,
-  // spec 10.3 Graphic: the first graphic, how many cut into it, and the parameters of each graphic drawn (a value
-  // set by hand wins over the heavy end)
-  controls: (q) => [motifPicker(BRUTAL_GRAPHICS, 'Graphic'), cutControl(), ...libraryControls(q, BRUTAL_GRAPHICS)],
+  // spec 10.3 Graphic: the first graphic, how many cut into it, the second (the first cut-in) and how it is cut in,
+  // and the parameters of each graphic drawn (a value set by hand wins over the heavy end); only the first graphic
+  // where the design has no band (a picked one can still bring a band, review R10 S1)
+  controls: (q) => cutControls(q, BRUTAL_GRAPHICS, BRUTAL_CUTS, () => BRUTAL_CUTS, { disc: 'Disc', column: 'Column', strip: 'Strip' }),
   place(c, plan) {
     const { spec, P, W } = c, band = plan.boxes.graphic;
     if (!band) return [];

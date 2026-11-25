@@ -115,6 +115,11 @@ export interface Plan {
   pos?: Partial<Record<Slot, string>>;
   /** The style's dialect where it has more than one (Postmodern: ice cream or photocopy, spec 8.2); absent: its first. */
   dialect?: Dialect;
+  /**
+   * Advanced control ids this design ignores (spec 10.3: a control is shown only where it changes the design): the
+   * parts add the ones only they can tell, such as a size class that leaves the band as it is.
+   */
+  inert?: string[];
 }
 
 /** A plan with every shared value at its neutral setting, for a layout to fill in. */

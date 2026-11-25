@@ -8,7 +8,7 @@
  * Nothing here draws or chooses at random; reading and writing a control are pure functions of the spec.
  */
 import { PAIRINGS } from '../data/pairings';
-import { formOf, type Form } from '../data/palettes';
+import type { Form } from '../data/palettes';
 import { GRAPHICS } from './graphics';
 import { paramKey } from './graphics/params';
 import type { Scene } from './scene';
@@ -36,10 +36,10 @@ interface Base {
   /** A write with more to it than setting the value (Dialect drops a picked layout of the other dialect). */
   set?: (s: Spec, v: Value) => Spec;
 }
-/** One of a list; `null` among the options is Auto. */
-export interface Choice extends Base { kind: 'choice'; options: { v: Value; label: string }[]; }
-/** A number between two ends; unset draws `shown` (what the design has now), if known. */
-export interface Ranged extends Base { kind: 'range'; min: number; max: number; step: number; shown?: number; }
+/** One of a list; `null` among the options is Auto. `drawn`: the option the design draws while unset (review R10 M6). */
+export interface Choice extends Base { kind: 'choice'; options: { v: Value; label: string }[]; drawn?: Value; }
+/** A number between two ends; unset draws `shown` (what the design has now), if known. `log`: the slider runs in log space (scale-like parameters, review R10 M2). */
+export interface Ranged extends Base { kind: 'range'; min: number; max: number; step: number; shown?: number; log?: boolean; }
 /** On while unset; off writes `off`. */
 export interface Switch extends Base { kind: 'switch'; off: Value; onLabel: string; offLabel: string; }
 export type Control = Choice | Ranged | Switch;
@@ -96,12 +96,31 @@ export const paramChoice = (key: string, label: string, values: readonly Value[]
   choice(key, label, { at: 'params', key }, facetOfParam(key), values, labels);
 
 /** Shared by every layout part that reads them (spec 8.0): the transform and the title size class. */
-export const transformControl = () => paramChoice('layout.transform', 'Turn', ['none', 'tilt', 'quarter'], (v) => ({ none: 'None', tilt: 'Tilt', quarter: 'Quarter' })[String(v)] ?? String(v));
-export const sizeControl = () => paramChoice('layout.size', 'Title', ['small', 'normal', 'oversize'], (v) => ({ small: 'Small', normal: 'Normal', oversize: 'Over' })[String(v)] ?? String(v));
+export const transformControl = (options: readonly string[] = ['none', 'tilt', 'quarter']) => paramChoice('layout.transform', 'Turn', options, (v) => ({ none: 'None', tilt: 'Tilt', quarter: 'Quarter' })[String(v)] ?? String(v));
+export const sizeControl = (options: readonly string[] = ['small', 'normal', 'oversize']) => paramChoice('layout.size', 'Title', options, (v) => ({ small: 'Small', normal: 'Normal', oversize: 'Over' })[String(v)] ?? String(v));
 export const layoutPicker = (layouts: readonly string[]) => choice('pick.layout', 'Layout', { at: 'pick', key: 'layout' }, 'layout', layouts);
 export const motifPicker = (motifs: readonly string[], label = 'First') => choice('pick.motif', label, { at: 'pick', key: 'motif' }, 'graphic', motifs);
 /** How many graphics cut into the first (spec 8.0): `graphics.cut`, 0, 1 or 2. */
 export const cutControl = () => paramChoice('graphics.cut', 'Cut in', [0, 1, 2], (v) => String(v));
+/**
+ * The Graphic tab of a style that cuts graphics into its first (spec 8.0, 10.3: first and second graphic pickers, how
+ * the second is cut in): the first graphic; then, where the design draws a graphic, how many cut in, the second (the
+ * first cut-in, never the first graphic) and its shape, unless Advanced set no cut-in; and the library parameters.
+ * The first graphic is hidden only where a picked layout draws none: unpicked, a picked graphic can move the layout.
+ */
+export function cutControls(q: ControlQuery, list: readonly string[], cuts: readonly string[], shapesFor: (first: string) => readonly string[], labels: Record<string, string>): Control[] {
+  const first = q.scene.graphics[0], drawn = !!first && list.includes(first);
+  if (!drawn) return q.spec.pick.layout ? [] : [motifPicker(list, 'Graphic')];
+  const none = q.spec.params['graphics.cut'] === 0;
+  return [
+    motifPicker(list, 'Graphic'), cutControl(),
+    ...(none ? [] : [
+      paramChoice('graphics.second', 'Second', list.filter((n) => n !== first)),
+      paramChoice('graphics.cutShape', 'Cut as', shapesFor(first).filter((x) => cuts.includes(x)), (v) => labels[String(v)] ?? human(String(v))),
+    ]),
+    ...libraryControls(q, list),
+  ];
+}
 /** How the type part scales its title's start size (1: the style's own; every later candidate tries smaller from it). */
 export const TYPE_CAP = { min: 0.6, max: 1 };
 export const capControl = (): Ranged => ({ kind: 'range', id: 'type.cap', label: 'Size cap', where: { at: 'params', key: 'type.cap' }, facet: 'type', min: TYPE_CAP.min, max: TYPE_CAP.max, step: 0.05, shown: 1 });
@@ -131,7 +150,7 @@ export function libraryControls(q: ControlQuery, uses: readonly string[]): Range
     for (const [k, R] of Object.entries(GRAPHICS[it.name].params)) {
       const key = paramKey(it.name, k), v = it.params[k];
       out.push({ kind: 'range', id: key, label: paramLabel(k), where: { at: 'params', key }, facet: 'graphic', min: R.min, max: R.max,
-        step: R.int ? 1 : (R.max - R.min) / 100, shown: typeof v === 'number' ? v : R.def });
+        step: R.int ? 1 : (R.max - R.min) / 100, shown: typeof v === 'number' ? v : R.def, ...(R.log && R.min > 0 && !R.int ? { log: true } : {}) });
     }
   }
   return out;
@@ -213,4 +232,3 @@ export function palettePicker(list: { id: string; name: string }[]): Choice {
   return c;
 }
 
-export { formOf };

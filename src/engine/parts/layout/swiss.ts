@@ -14,7 +14,7 @@ import { bleed, frameFor } from '../frame';
 import { SIZE_CLASSES, TRANSFORMS, type LayoutPart, type Plan, type SizeClass, type Transform } from '../types';
 import type { Rect } from '../../geom';
 import { SLOTS, type Slot } from '../../spec';
-import { layoutPicker, paramChoice, sizeControl, transformControl } from '../../controls';
+import { layoutPicker, paramChoice, sizeControl, transformControl, type Ranged } from '../../controls';
 
 export const SWISS_LAYOUTS = ['graphic-above', 'graphic-below', 'full-bleed', 'column', 'type-only', 'vertical', 'centred-low', 'split'];
 /** The positions of each text slot (spec 8.5), the first the default; weights by repetition. */
@@ -27,17 +27,40 @@ const FLAG_OF: Record<string, [string, string, string]> = {
   'full-bleed': ['Panel', 'Low', 'Top'], column: ['Column', 'Right', 'Left'], split: ['Field', 'Low', 'Top'],
 };
 
+/** The layouts whose graphic takes a share of the text area's height (`layout.share`), and set text on the axis. */
+const SHARE_LAYOUTS = ['graphic-above', 'graphic-below'];
+/** The layouts whose inset graphic bleeds on a tilted or turned page whatever `layout.flag` says. */
+const BLEED_TURNED = ['graphic-above', 'graphic-below', 'centred-low'];
+/**
+ * The graphic's share of the text area (spec 10.3 graphic share), as a share of the one the style gives this design:
+ * the most is the style's own (a larger graphic dropped a tilted 3:4 page to the fallback, review R10 fix), the least
+ * six tenths of it.
+ */
+export const SWISS_SHARE = { min: 0.6, max: 1 };
+/** The graphic's share the style rolls with no Advanced value: on a tilted page (smaller than the canvas) the graphic
+ * gives up room so the title keeps its size (spec 8.1: graphics pay for the tilt); a quarter turn keeps the page's
+ * size, so its graphic keeps its share (review R5 S2). */
+const shareOf = (transform: string, tall: boolean, square: boolean) => (transform === 'tilt' ? (square ? 0.3 : 0.36) : transform !== 'none' ? (square ? 0.4 : 0.44) : tall ? 0.6 : square ? 0.54 : 0.58);
+const shareControl = (): Ranged => ({ kind: 'range', id: 'layout.share', label: 'Graphic', where: { at: 'params', key: 'layout.share' }, facet: 'layout', min: SWISS_SHARE.min, max: SWISS_SHARE.max, step: 0.02, shown: 1 });
+
 const snap = (v: number, mod: number) => Math.max(mod, Math.round(v / mod) * mod);
 
 export const swissLayout: LayoutPart = {
   id: 'swiss', layouts: SWISS_LAYOUTS, margin: 72, positions: SWISS_POS,
-  // spec 10.3 Layout: the layout, the transform, the title size class, the axis column, and whether an inset graphic bleeds
-  // (the axis only where the layout sets text on it, the flag only where the layout reads it)
-  controls: ({ scene }) => [
-    layoutPicker(SWISS_LAYOUTS), transformControl(), sizeControl(),
-    ...(['graphic-above', 'graphic-below'].includes(scene.frame) ? [paramChoice('layout.axis', 'Axis', [0, 1, 2], (v) => `Col ${Number(v) + 1}`)] : []),
-    ...(FLAG_OF[scene.frame] ? [paramChoice('layout.flag', FLAG_OF[scene.frame][0], [0, 1], (v) => FLAG_OF[scene.frame][v ? 2 : 1])] : []),
-  ],
+  // spec 10.3 Layout: the layout, the transform, the title size class, the axis column, whether an inset graphic
+  // bleeds and the graphic's share, each only where the design reads it (review R10 S1): the axis where the layout
+  // sets text on it (column 3 only on an upright page: a tilted or turned one holds it to column 2), the flag where
+  // the layout reads it (a tilted or turned page bleeds an inset graphic whatever it says), the share in the two
+  // layouts whose graphic takes a share of the text area
+  controls: ({ scene }) => {
+    const turned = scene.transform !== 'none', f = FLAG_OF[scene.frame];
+    return [
+      layoutPicker(SWISS_LAYOUTS), transformControl(), sizeControl(),
+      ...(SHARE_LAYOUTS.includes(scene.frame) ? [paramChoice('layout.axis', 'Axis', turned ? [0, 1] : [0, 1, 2], (v) => `Col ${Number(v) + 1}`)] : []),
+      ...(f && !(turned && BLEED_TURNED.includes(scene.frame)) ? [paramChoice('layout.flag', f[0], [0, 1], (v) => f[v ? 2 : 1])] : []),
+      ...(SHARE_LAYOUTS.includes(scene.frame) ? [shareControl()] : []),
+    ];
+  },
   plan(c) {
     const { W, H, spec, story } = c, prm = spec.params;
     // the layout stream, in a fixed order: layout, axis, flag, transform, tilt angle, size class, band, positions
@@ -79,9 +102,9 @@ export const swissLayout: LayoutPart = {
     const turned = transform !== 'none', tilted = transform === 'tilt';
     const tall = story && transform === 'none', square = Math.abs(pg.h / pg.w - 1) < 0.05;
     /** The graphic's share of the text area's height. */
-    // on a tilted page (smaller than the canvas) the graphic gives up room so the title keeps its size (spec 8.1:
-    // graphics pay for the tilt); a quarter turn keeps the page's size, so its graphic keeps its share (review R5 S2)
-    const gshare = tilted ? (square ? 0.3 : 0.36) : turned ? (square ? 0.4 : 0.44) : tall ? 0.6 : square ? 0.54 : 0.58;
+    let gshare = shareOf(transform, tall, square);
+    const sh = prm['layout.share'];
+    if (typeof sh === 'number' && Number.isFinite(sh)) gshare *= Math.max(SWISS_SHARE.min, Math.min(SWISS_SHARE.max, sh));
 
     // on a tilted or turned page an inset graphic would float in a field of ground: it bleeds instead (tuning)
     const out = flag || turned;

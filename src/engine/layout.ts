@@ -44,7 +44,7 @@ export function resolvePairing(spec: Spec, isAvailable: (p: Pairing) => boolean)
   return { pairing: isAvailable(want) ? want.id : defaultPairing(spec.style).id };
 }
 
-interface Built { items: Item[]; frame: string; transform: string; }
+interface Built { items: Item[]; frame: string; transform: string; inert?: string[]; }
 /** What every part of the spec's style is called with for candidate k (-1: the fallback). */
 export function partCtx(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, margin = STYLES[spec.style].margin): PartCtx {
   const [W, H] = FORMATS[spec.format];
@@ -65,10 +65,10 @@ export function partCtx(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, 
 
 function build(spec: Spec, m: Measure, P: Form, T: Pairing, k: number): Built | null {
   const r = compose5(STYLES[spec.style].parts, partCtx(spec, m, P, T, k));
-  return r ? { items: r.items, frame: r.plan.frame, transform: r.plan.transform } : null;
+  return r ? { items: r.items, frame: r.plan.frame, transform: r.plan.transform, inert: r.plan.inert } : null;
 }
 
-function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: string, measured: Map<string, FontRef>, frame: string, transform: string): Scene {
+function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: string, measured: Map<string, FontRef>, frame: string, transform: string, inert?: string[]): Scene {
   const [W, H] = FORMATS[spec.format];
   const all = new Map(measured);
   for (const i of items) if (i.kind === 'text') all.set(faceKey((i as TextItem).font), (i as TextItem).font);
@@ -76,7 +76,9 @@ function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: str
   const faces = [...all.keys()].sort();
   const gs = items.filter((i): i is GraphicItem => i.kind === 'graphic' && i.layer !== 'ground');
   const graphics = [...gs.filter((g) => g.lead), ...gs.filter((g) => !g.lead)].map((g) => g.tag ?? g.name);
-  return { w: W, h: H, style: spec.style, format: spec.format, palette: P.id, pairing: T.id, layout: layoutName, frame, transform, graphics, ground: P.ground, items, fonts, faces };
+  const sc: Scene = { w: W, h: H, style: spec.style, format: spec.format, palette: P.id, pairing: T.id, layout: layoutName, frame, transform, graphics, ground: P.ground, items, fonts, faces };
+  if (inert?.length) sc.inert = [...new Set(inert)].sort();
+  return sc;
 }
 
 /**
@@ -134,7 +136,7 @@ function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name:
   for (const Q of formsFor(spec, P)) {
     const r = build(spec, m, Q, T, k);
     if (!r) return { first: null, failures: [{ rule: 0, part: '-', msg: 'text does not fit' }] };
-    const sc = sceneOf(spec, r.items, Q, T, name, measured, r.frame, r.transform);
+    const sc = sceneOf(spec, r.items, Q, T, name, measured, r.frame, r.transform, r.inert);
     const f = check(sc, Q === P ? [1, 2, 3, 4, 5] : [4]);
     if (f.length) return { first: null, failures: f };
     if (!first) first = sc;
@@ -178,7 +180,7 @@ export function solve(spec: Spec, m0: Measure, use: Use = {}): Solved {
     if (r.first) return { scene: done(r.first), tried: CANDIDATES + 1, failures: last };
   }
   const r = build(tries[tries.length - 1], m, P, T, -1);
-  return { scene: done(sceneOf(spec, r?.items ?? [], P, T, 'fallback', measured, r?.frame ?? '', r?.transform ?? 'none')), tried: CANDIDATES + 1, failures: last };
+  return { scene: done(sceneOf(spec, r?.items ?? [], P, T, 'fallback', measured, r?.frame ?? '', r?.transform ?? 'none', r?.inert)), tried: CANDIDATES + 1, failures: last };
 }
 
 export function layout(spec: Spec, m: Measure, use: Use = {}): Scene {

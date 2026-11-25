@@ -31,21 +31,28 @@ type Force = { name: string; transform: Transform } | null;
 
 export const brutalLayout: LayoutPart = {
   id: 'brutal', layouts: BRUTAL_LAYOUTS, margin: 49,
-  // spec 10.3 Layout: the layout, the transform, the title size class (the screen and slab layouts set their own)
-  controls: ({ scene }) => [layoutPicker(BRUTAL_LAYOUTS), transformControl(), ...(['screen', 'slab'].includes(scene.frame) ? [] : [sizeControl()])],
+  // spec 10.3 Layout: the layout, the transform (no quarter turn for the title already up the edge), the title size
+  // class (the screen and slab layouts set their own; where no class moves the band, Advanced's trial hides it)
+  controls: ({ scene }) => [
+    layoutPicker(BRUTAL_LAYOUTS), transformControl(scene.frame === 'title-up' ? ['none', 'tilt'] : undefined),
+    ...(['screen', 'slab'].includes(scene.frame) ? [] : [sizeControl()]),
+  ],
   plan(c) {
     // a picked motif needs a band; where the rolled layout and transform leave none (the band never takes the
     // title's own lines, review R8 E1), the plan is made again as the title at the top, untilted, from the same
     // draws (replayed, so the layout stream reads as it did), unless Advanced or a picked layout set them
     const draws: number[] = [], cands: unknown[] = [];
     const rec = { ...c, rf: () => { const v = c.rf(); draws.push(v); return v; }, cand: <V>(l: readonly V[], s?: V) => { const v = c.cand(l, s); cands.push(v); return v; } } as typeof c;
+    const replay = (force: Force) => {
+      let i = 0, j = 0;
+      return planWith({ ...c, rf: () => draws[i++], cand: () => cands[j++] } as unknown as typeof c, force);
+    };
     const p = planWith(rec, null);
     const sp = c.spec, tOn = sp.text.title.on && !!sp.text.title.v.trim();
     if (!p || !sp.pick.motif || p.boxes.graphic || !tOn || sp.pick.layout || TRANSFORMS.includes(sp.params['layout.transform'] as Transform)) return p;
     if (p.frame === 'title-top' && p.transform === 'none') return p;
-    let i = 0, j = 0;
-    const again = { ...c, rf: () => draws[i++], cand: () => cands[j++] } as unknown as typeof c;
-    return planWith(again, { name: 'title-top', transform: 'none' }) ?? p;
+    const out = replay({ name: 'title-top', transform: 'none' }) ?? p;
+    return out;
   },
 };
 
@@ -58,9 +65,10 @@ function planWith(c: Parameters<LayoutPart['plan']>[0], force: Force): ReturnTyp
     if (li < 0 && spec.pick.motif && name === 'screen') name = 'title-top';
     let transform: Transform = (['none', 'none', 'none', 'none', 'tilt', 'quarter'] as Transform[])[Math.floor(ut * 6)];
     if (force) { name = force.name; transform = force.transform; }
-    // a title already up the edge is not turned again (it would read sideways)
-    if (name === 'title-up' && transform === 'quarter') transform = 'none';
     if (TRANSFORMS.includes(prm['layout.transform'] as Transform)) transform = prm['layout.transform'] as Transform;
+    // a title already up the edge is not turned again (it would read sideways): the style rule wins over Advanced,
+    // whose Turn control does not offer it there (review R10 S2)
+    if (name === 'title-up' && transform === 'quarter') transform = 'none';
     let size: SizeClass = (['small', 'small', 'normal', 'normal', 'normal', 'oversize'] as SizeClass[])[Math.floor(us * 6)];
     // a picked motif needs a band: the small title (it leaves the most room), and the screen layout (whose band is
     // thin) gives way; an Advanced size still wins

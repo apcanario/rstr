@@ -120,6 +120,10 @@ function iceType(c: PartCtx, plan: Plan): Item[] | null {
   const first = pos.subtitle === 'over' ? sub : title, second = pos.subtitle === 'over' ? title : sub;
   const parts = [first, second].filter((b): b is Block => !!b);
   const right = pos.title === 'right';
+  // positions this design ignores (review R10 S1): up the side the caption takes the right edge and the info the
+  // right end whatever they say; one block alone has nothing to go over or under, nor (up the side) to align with
+  const inert = [...(up ? ['pos.info', 'pos.caption'] : []), ...(parts.length < 2 ? ['pos.subtitle', ...(up ? ['pos.title'] : [])] : [])];
+  if (inert.length) plan.inert = [...(plan.inert ?? []), ...inert];
   const groupW = Math.max(...parts.map((p) => p.b.w)), groupH = parts.reduce((a, p) => a + p.b.h, 0) + gap * (parts.length - 1);
   if (!force && (groupW > gw + 0.5 || groupH > gh + 0.5)) return null;
   const items: Item[] = [];

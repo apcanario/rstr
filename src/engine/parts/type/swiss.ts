@@ -17,7 +17,7 @@ import { SLOTS } from '../../spec';
 import { fieldColour, inkOn } from '../shared/field';
 import { upper } from '../shared/text';
 import type { SizeClass, TypePart } from '../types';
-import { capControl, paramChoice } from '../../controls';
+import { capControl, paramChoice, type Ranged } from '../../controls';
 
 /** Title case (spec 10.3 Type): Swiss sets the title as typed unless Advanced asks for upper or lower case. */
 export const titleCase = (v: string, k: unknown) => (k === 'upper' ? upper(v) : k === 'lower' ? v.toLocaleLowerCase() : v);
@@ -30,12 +30,20 @@ const SIZE: Record<SizeClass, { k: number; lines: number }> = { small: { k: 0.65
 interface Block { h: number; texts: TextIn[]; rects: { r: Rect; fill: string }[]; }
 const inside = (r: Rect, F: Rect) => r.x >= F.x - 0.5 && r.y >= F.y - 0.5 && r.x + r.w <= F.x + F.w + 0.5 && r.y + r.h <= F.y + F.h + 0.5;
 
+/** The title's tracking in ems (spec 8.1: tight; spec 10.3 Type: tracking), narrowed to what passes 9.2. */
+export const SWISS_TRACK = { def: -0.028, min: -0.06, max: 0.04 };
+const titleTrack = (s: { params: Record<string, unknown> }) => {
+  const v = s.params['type.track'];
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(SWISS_TRACK.min, Math.min(SWISS_TRACK.max, v)) : SWISS_TRACK.def;
+};
+const trackControl = (): Ranged => ({ kind: 'range', id: 'type.track', label: 'Tracking', where: { at: 'params', key: 'type.track' }, facet: 'type', min: SWISS_TRACK.min, max: SWISS_TRACK.max, step: 0.002, shown: SWISS_TRACK.def });
+
 export const swissType: TypePart = {
   id: 'swiss', min: MIN,
   controls: () => {
     const k = paramChoice('type.case', 'Case', ['upper', 'lower'], (v) => (v === 'upper' ? 'Upper' : 'Lower'));
     k.options[0].label = 'As typed';
-    return [k, capControl()];
+    return [k, capControl(), trackControl()];
   },
   set(c, plan) {
     const { W, spec, m, P, T, story } = c;
@@ -139,10 +147,12 @@ export const swissType: TypePart = {
     const mid: Block[] = [];
     const room = yb - y;
     let tb: Block | null = null;
+    // up the edge the title has its own strip: the subtitle has nothing to go over or under (review R10 S1)
+    if (hasT && up) plan.inert = [...(plan.inert ?? []), 'pos.subtitle'];
     if (hasT && up) {
       // reading up the page in its own strip: lines stack rightward, low starts at the strip's foot, top ends at its head
       const S = plan.boxes.title!;
-      const t = fit(m, { text: tx.title.v, font: T.display, maxW: S.h, maxH: S.w, start: W * 0.15 * c.cap * cls.k, min: MIN.title, lh: 0.94, maxLines: Math.min(2, cls.lines), track: -0.028, force });
+      const t = fit(m, { text: tx.title.v, font: T.display, maxW: S.h, maxH: S.w, start: W * 0.15 * c.cap * cls.k, min: MIN.title, lh: 0.94, maxLines: Math.min(2, cls.lines), track: titleTrack(spec), force });
       if (!t) { if (!force) return null; }
       else {
         const lo = pos.title !== 'top';
@@ -158,7 +168,7 @@ export const swissType: TypePart = {
       // a long title in type only may take two more lines, so it grows into the room instead of leaving the lower
       // part of the page bare (review bundle 2 M2)
       const only = plan.frame === 'type-only', kT = cls.k * (only ? 1.75 : 1);
-      const t = maxH > 0 ? fit(m, { text: tx.title.v, font: T.display, maxW: aw, maxH, start: W * 0.15 * c.cap * kT, min: MIN.title, lh: 0.94, maxLines: cls.lines + (only ? 2 : 0), track: -0.028, force }) : null;
+      const t = maxH > 0 ? fit(m, { text: tx.title.v, font: T.display, maxW: aw, maxH, start: W * 0.15 * c.cap * kT, min: MIN.title, lh: 0.94, maxLines: cls.lines + (only ? 2 : 0), track: titleTrack(spec), force }) : null;
       if (!t) { if (!force) return null; }
       else {
         const tInk = inkOn(P, bg, needRatio(t.size));

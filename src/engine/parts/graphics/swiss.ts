@@ -23,7 +23,7 @@ import { mix, pick } from '../../rng';
 import type { Item } from '../../scene';
 import { fieldColour } from '../shared/field';
 import type { GraphicsPart, PartCtx, Plan } from '../types';
-import { cutControl, libraryControls, motifPicker } from '../../controls';
+import { cutControls } from '../../controls';
 
 export const SWISS_GRAPHICS = ['topo', 'blocks', 'bars', 'dots', 'disc', 'lines', 'rules', 'numeral', 'crosshairs', 'lattice', 'rings', 'waves'];
 /** Graphics that read as a field, so they may be drawn reversed out of a plate (shapes are, beside a panel). */
@@ -61,6 +61,18 @@ export function freeOf(V: Rect, B?: Rect): Rect {
 }
 
 type Shape = (typeof CUTS)[number];
+
+/**
+ * The first cut-in's graphic and shape set by hand (spec 10.3 Graphic: the second graphic picker and how it is cut
+ * in): `graphics.second` and `graphics.cutShape`, where they are of the style's lists and the second is not the first.
+ */
+export function pinnedCut(params: Record<string, unknown>, first: string, list: readonly string[] = SWISS_GRAPHICS, cuts: readonly string[] = CUTS): { name: string | null; shape: string | null } {
+  const n = params['graphics.second'], sh = params['graphics.cutShape'];
+  return {
+    name: typeof n === 'string' && list.includes(n) && n !== first ? n : null,
+    shape: typeof sh === 'string' && cuts.includes(sh) ? sh : null,
+  };
+}
 /** One graphic cut into the first: which, its shape, the plate role it sits on, its box, its parameters. */
 export interface Cut { name: string; shape: Shape; role: Role; box: Rect; params: Record<string, number>; }
 /** Everything Swiss graphics decides, in stream order, before any item is made. */
@@ -93,8 +105,10 @@ export function swissDraw(c: PartCtx, plan: Plan): SwissDraw | null {
   }
   const out: SwissDraw = { first, reversed, params: p1, box: MR, drawn: 0, cuts: [] };
   // how many cut in: Advanced sets it, else the stream (about 6 in 10 one, 1 in 10 two)
-  const u = rg(), set = spec.params['graphics.cut'];
+  const u = rg(), set = spec.params['graphics.cut'], pin = pinnedCut(spec.params, first);
   out.drawn = typeof set === 'number' ? Math.max(0, Math.min(2, Math.round(set))) : u < 0.1 ? 2 : u < 0.62 ? 1 : 0;
+  // a second graphic or a cut shape picked by hand (spec 10.3) is cut in: at least one, unless Advanced set none
+  if ((pin.name || pin.shape) && typeof set !== 'number') out.drawn = Math.max(1, out.drawn);
   if (V.w < mod || V.h < mod) return out;
   // the colour the first graphic sits on: a cut-in plate of that colour would only erase it, so it takes another
   const F = plan.boxes.field, fcx = MR.x + MR.w / 2, fcy = MR.y + MR.h / 2;
@@ -102,10 +116,14 @@ export function swissDraw(c: PartCtx, plan: Plan): SwissDraw | null {
   const roles = (['accent', 'ink', 'ground'] as Role[]).filter((r) => c.P[r] !== under);
   const used = new Set([first]);
   for (let k = 0; k < out.drawn; k++) {
-    const name = pick(rg, SWISS_GRAPHICS.filter((n) => !used.has(n)));
+    let name = pick(rg, SWISS_GRAPHICS.filter((n) => !used.has(n)));
+    // the first cut-in's graphic and shape picked by hand win (the stream is read as it would be, so nothing else moves)
+    if (k === 0 && pin.name) name = pin.name;
     used.add(name);
     const shapes = CUTS.filter((s) => (s !== 'block' || (first === 'blocks' && k === 0)) && (s !== 'disc' || name !== 'disc'));
-    const shape = pick(rg, shapes), role = pick(rg, roles.length ? roles : (['accent', 'ink', 'ground'] as Role[]));
+    let shape = pick(rg, shapes);
+    if (k === 0 && pin.shape && (shapes as readonly string[]).includes(pin.shape)) shape = pin.shape as Shape;
+    const role = pick(rg, roles.length ? roles : (['accent', 'ink', 'ground'] as Role[]));
     const a = rg(), b = rg(), mm = Math.min(V.w, V.h);
     let box: Rect;
     if (shape === 'disc' && first === 'blocks') {
@@ -149,8 +167,9 @@ export function swissDraw(c: PartCtx, plan: Plan): SwissDraw | null {
 
 export const swissGraphics: GraphicsPart = {
   id: 'swiss', uses: SWISS_GRAPHICS, vocab: SWISS_GRAPHICS, motifs: SWISS_GRAPHICS,
-  // spec 10.3 Graphic: the first graphic, how many cut into it, and the parameters of each graphic drawn
-  controls: (q) => [motifPicker(SWISS_GRAPHICS, 'Graphic'), cutControl(), ...libraryControls(q, SWISS_GRAPHICS)],
+  // spec 10.3 Graphic: the first graphic, how many cut into it, the second (the first cut-in) and how it is cut in,
+  // and the parameters of each graphic drawn; none of them where the design draws no graphic (review R10 S1)
+  controls: (q) => cutControls(q, SWISS_GRAPHICS, CUTS, (first) => (first === 'blocks' ? CUTS : CUTS.filter((x) => x !== 'block')), { disc: 'Disc', column: 'Column', band: 'Band', block: 'Block' }),
   place(c, plan) {
     const { spec, P, W } = c, mod = plan.module;
     const out: Item[] = [];

@@ -118,10 +118,13 @@ export function copyType(c: PartCtx, plan: Plan): Item[] | null {
       }
     }
   }
-  let capB: { items: Item[]; w: number; h: number } | null = null;
+  let capB: { items: Item[]; w: number; h: number } | null = null, stacked = false;
   if (tx.caption.on && tx.caption.v.trim()) {
     const fs0 = Math.round(W * 0.018);
-    const cf = fitLine(m, upper(tx.caption.v), T.mono, fs0, MIN.caption, area.w * (infoB ? 0.44 : 0.9) - fs0, 0, force);
+    let cf = fitLine(m, upper(tx.caption.v), T.mono, fs0, MIN.caption, area.w * (infoB ? 0.44 : 0.9) - fs0, 0, force);
+    // beside the label the caption may not fit a tilted page's narrower measure: it takes the band's whole width,
+    // under the label (over it at the foot), rather than the design falling back (review R10 S2)
+    if (!cf && infoB && !force) { cf = fitLine(m, upper(tx.caption.v), T.mono, fs0, MIN.caption, area.w * 0.9 - fs0, 0, false); stacked = !!cf; }
     if (!cf) { if (!force) return null; }
     else {
       const fs = cf.size, line = cf.lines[0];
@@ -132,15 +135,16 @@ export function copyType(c: PartCtx, plan: Plan): Item[] | null {
       capB = { items: moveItems(items, { x: -b.x, y: -b.y, rot: 0 }), w: b.w, h: b.h };
     }
   }
-  const bandH = Math.max(infoB?.h ?? 0, capB?.h ?? 0);
+  const sgap = gap * 0.6;
+  const bandH = stacked && infoB && capB ? infoB.h + sgap + capB.h : Math.max(infoB?.h ?? 0, capB?.h ?? 0);
   const bandY = atTop ? area.y : area.y + area.h - bandH;
   const ij = rw();
   if (infoB) {
-    const moved = moveItems(infoB.items, { x: infoRight ? area.x + area.w - infoB.w - ij * W * 0.04 : area.x + ij * W * 0.04, y: atTop ? bandY : bandY + bandH - infoB.h, rot: 0 });
+    const moved = moveItems(infoB.items, { x: infoRight ? area.x + area.w - infoB.w - ij * W * 0.04 : area.x + ij * W * 0.04, y: atTop || stacked ? bandY : bandY + bandH - infoB.h, rot: 0 });
     infoR.push(...moved.filter((i) => i.kind === 'rect'));
     infoT.push(...moved.filter((i) => i.kind === 'text'));
   }
-  if (capB) capT.push(...moveItems(capB.items, { x: infoRight ? area.x : area.x + area.w - capB.w, y: atTop ? bandY : bandY + bandH - capB.h, rot: 0 }));
+  if (capB) capT.push(...moveItems(capB.items, { x: infoRight ? area.x : area.x + area.w - capB.w, y: stacked || !atTop ? bandY + bandH - capB.h : bandY, rot: 0 }));
 
   // the zone left for title and subtitle
   let zy0 = tz.y, zy1 = tz.y + tz.h;

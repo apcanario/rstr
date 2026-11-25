@@ -57,8 +57,11 @@ export const pomoLayout: LayoutPart = {
       const dialect = (v === null ? null : v) as Dialect | null, of = dialect ? OF[dialect] : null;
       return { ...s, pick: { ...s.pick, dialect, layout: of && s.pick.layout && !of.includes(s.pick.layout) ? null : s.pick.layout } };
     };
-    // copy-cover sets its own size class
-    return [d, layoutPicker(spec.pick.dialect ? OF[spec.pick.dialect] : POMO_LAYOUTS), transformControl(), ...(scene.frame === 'copy-cover' ? [] : [sizeControl()])];
+    // copy-cover sets its own size class; a title already up the edge and a staircase take no turn, and a 9:16 page
+    // no quarter turn (the style's rules win over Advanced, so the Turn control offers only what they allow: review R10 S2)
+    const still = ['title-side', 'stairs'].includes(scene.frame), story = scene.format === '9:16';
+    return [d, layoutPicker(spec.pick.dialect ? OF[spec.pick.dialect] : POMO_LAYOUTS),
+      ...(still ? [] : [transformControl(story ? ['none', 'tilt'] : undefined)]), ...(scene.frame === 'copy-cover' ? [] : [sizeControl()])];
   },
   plan(c) {
     const { W, H, spec, story } = c, prm = spec.params;
@@ -69,11 +72,12 @@ export const pomoLayout: LayoutPart = {
     const name = list.includes(spec.pick.layout ?? '') ? spec.pick.layout! : list[Math.floor(ul * list.length)];
     const odds: Transform[] = dialect === 'icecream' ? ['none', 'none', 'none', 'none', 'none', 'tilt'] : ['none', 'none', 'none', 'none', 'none', 'none', 'tilt', 'quarter'];
     let transform = odds[Math.floor(ut * odds.length)];
-    // a title already set up the edge is not turned again, nor is a staircase that needs the page's height
+    if (TRANSFORMS.includes(prm['layout.transform'] as Transform)) transform = prm['layout.transform'] as Transform;
+    // a title already set up the edge is not turned again, nor is a staircase that needs the page's height; these
+    // style rules win over an Advanced value (review R10 S2)
     if (name === 'title-side' || name === 'stairs') transform = 'none';
     // a 9:16 page turned on its side leaves the words small in a band (tuning pass, R6)
     if (story && transform === 'quarter') transform = 'tilt';
-    if (TRANSFORMS.includes(prm['layout.transform'] as Transform)) transform = prm['layout.transform'] as Transform;
     const deg = (ua < 0.5 ? -1 : 1) * (9 + 5 * ((ua * 2) % 1));
     const fr = frameFor(transform, deg, W, H, story), pg = fr.page;
     const M = Math.round(W * 0.0667);
@@ -93,9 +97,10 @@ export const pomoLayout: LayoutPart = {
       pos[s] = set && POMO_POS[s].includes(set) ? set : v;
     }
     plan.emphasis = c.cand([0, 1, 2], 0);
+    // no small title on a tilted or turned page, unless Advanced asks for it (as in Swiss: review R10 S1)
+    if (size === 'small' && transform !== 'none') size = 'normal';
     if (SIZE_CLASSES.includes(prm['layout.size'] as SizeClass)) size = prm['layout.size'] as SizeClass;
     if (name === 'copy-cover') size = 'oversize';
-    if (size === 'small' && transform !== 'none') size = 'normal';
     plan.size = size;
     plan.slant = dialect === 'icecream' ? slant : 0;
     plan.pos = pos;

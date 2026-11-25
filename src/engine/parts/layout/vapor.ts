@@ -15,7 +15,7 @@
 import type { Rect } from '../../geom';
 import { frameFor } from '../frame';
 import { basePlan, SIZE_CLASSES, TRANSFORMS, type LayoutPart, type SizeClass, type Transform } from '../types';
-import { layoutPicker, sizeControl, transformControl } from '../../controls';
+import { layoutPicker, sizeControl, transformControl, type Ranged } from '../../controls';
 
 export const VAPOR_LAYOUTS = ['title-sky', 'title-floor', 'title-window', 'title-band', 'windows', 'tunnel', 'sun-huge', 'orb'];
 /** The layouts with a horizon: the sky gradient above it, the floor below. */
@@ -25,10 +25,16 @@ export const VAPOR_SIZE: Record<SizeClass, number> = { small: 0.72, normal: 1, o
 /** The share of the horizon height the sky text keeps above (see the header). */
 export const SKY_TEXT = 0.47;
 
+/** The horizon's range, as a share of the height (spec 8.4): `layout.horizon`. */
+export const HORIZON_AT = { min: 0.56, max: 0.64 };
+const horizonControl = (): Ranged => ({ kind: 'range', id: 'layout.horizon', label: 'Horizon', where: { at: 'params', key: 'layout.horizon' }, facet: 'layout', min: HORIZON_AT.min, max: HORIZON_AT.max, step: 0.005 });
+
 export const vaporLayout: LayoutPart = {
   id: 'vapor', layouts: VAPOR_LAYOUTS, margin: 72,
-  // spec 10.3 Layout: the layout, the transform (only a layout without a horizon takes one, spec 8.4), the title size class
-  controls: ({ scene }) => [layoutPicker(VAPOR_LAYOUTS), ...(HORIZON.includes(scene.frame) ? [] : [transformControl()]), sizeControl()],
+  // spec 10.3 Layout: the layout, the transform (only a layout without a horizon takes one, spec 8.4), the title size
+  // class, and the horizon where there is one (between 56% and 64% of the height; a 9:16 sky title maps it onto the
+  // upper part of that range, 60% to 64%, for the story zone above it)
+  controls: ({ scene }) => [layoutPicker(VAPOR_LAYOUTS), ...(HORIZON.includes(scene.frame) ? [horizonControl()] : [transformControl()]), sizeControl()],
   plan(c) {
     const { W, H, spec, story } = c, tx = spec.text, prm = spec.params;
     // the layout stream, in a fixed order: layout, transform, tilt angle, size class, horizon, sun x, sun radius,
@@ -69,7 +75,9 @@ export const vaporLayout: LayoutPart = {
 
     if (horizonL) {
       // the horizon; a sky title in 9:16 takes the upper half of the range, for the story zone above it
-      const hz = Math.round(H * (name === 'title-sky' && story ? 0.6 + uh * 0.04 : 0.56 + uh * 0.08));
+      // an Advanced horizon (spec 10.3, 0.56 to 0.64) takes the place of the stream's draw, over the same range
+      const ph = prm['layout.horizon'], vh = typeof ph === 'number' && Number.isFinite(ph) ? Math.max(0, Math.min(1, (ph - HORIZON_AT.min) / (HORIZON_AT.max - HORIZON_AT.min))) : uh;
+      const hz = Math.round(H * (name === 'title-sky' && story ? 0.6 + vh * 0.04 : 0.56 + vh * 0.08));
       plan.horizon = hz;
       B.sky = { x: 0, y: 0, w: W, h: hz };
       B.floor = { x: 0, y: hz, w: W, h: H - hz };
