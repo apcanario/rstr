@@ -14,6 +14,10 @@ export const STORY_TEXT_BOTTOM = 1600;
 /** Export sizes (spec 10.1): 1x, 2x, 3x of the 1080 width, and for A also Print (A3 at 300 dpi). */
 export type Size = '1x' | '2x' | '3x' | 'print';
 export const SIZE_LIST: Size[] = ['1x', '2x', '3x', 'print'];
+/** A size as the sheet and its messages name it (review R16 M2: never the internal key). */
+export const SIZE_LABEL: Record<Size, string> = { '1x': '1x', '2x': '2x', '3x': '3x', print: 'Print' };
+/** Print's density (spec 10.1: A3 at 300 dpi), written into the file where its type can carry it (review R16 S1). */
+export const PRINT_DPI = 300;
 /** A3 at 300 dpi: 297 x 420 mm, which prints A4 and A5 too. */
 export const PRINT: [number, number] = [3508, 4961];
 /** The bleed of spec 10.1: 3 mm each side at 300 dpi; the spec's 3579 x 5032 is 71 px more each way, so 35 on the

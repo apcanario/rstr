@@ -3,8 +3,8 @@ import { describe, expect, test } from 'vitest';
 import { BLEED, exportDims, FORMAT_LIST, FORMATS, PRINT, sizesOf } from '../src/engine/formats';
 import { glitchKernel, grainKernel, grungeKernel, vhsKernel, type Keep } from '../src/engine/finish';
 import { treatPixels, treatReach } from '../src/engine/treat';
-import { bleedSink, exportName } from '../src/engine/export';
-import { crc32, PngWriter } from '../src/engine/png';
+import { bleedSink, exportName, photoShort } from '../src/engine/export';
+import { crc32, PngWriter, tagJpeg, tagPng } from '../src/engine/png';
 import { inflateSync } from 'node:zlib';
 
 const W = 96, H = 160;
@@ -97,6 +97,60 @@ describe('the bleed (mirrored edge) and the PNG writer', () => {
         pr[c] = v;
       }
     }
+  });
+});
+
+/** A PNG's chunks, by type, with their data (CRCs checked). */
+async function pngChunks(b: Blob): Promise<[string, Uint8Array][]> {
+  const buf = new Uint8Array(await b.arrayBuffer()), dv = new DataView(buf.buffer), out: [string, Uint8Array][] = [];
+  for (let o = 8; o < buf.length;) {
+    const n = dv.getUint32(o), type = String.fromCharCode(...buf.subarray(o + 4, o + 8));
+    expect(dv.getUint32(o + 8 + n)).toBe(crc32([buf.subarray(o + 4, o + 8), buf.subarray(o + 8, o + 8 + n)]));
+    out.push([type, buf.subarray(o + 8, o + 8 + n)]);
+    o += 12 + n;
+  }
+  return out;
+}
+
+/** Chunk types in order, a run of IDAT as one (the writer gives one IDAT per compressed part, review R16 M5). */
+const types = (ch: [string, Uint8Array][]) => ch.map((c) => c[0]).filter((t, i, l) => !(t === 'IDAT' && l[i - 1] === 'IDAT'));
+
+describe('print density and colour tags (review R16 S1, M4)', () => {
+  const px = new Uint8ClampedArray(3 * 2 * 4).fill(200);
+  test('the PNG writer tags sRGB always and 300 dpi at Print, after IHDR', async () => {
+    const p = new PngWriter(3, 2, 300);
+    await p.rows(px, 2);
+    const ch = await pngChunks(await p.end());
+    expect(ch.map((c) => c[0]).slice(0, 3)).toEqual(['IHDR', 'sRGB', 'pHYs']);
+    const ph = new DataView(ch[2][1].buffer, ch[2][1].byteOffset);
+    expect([ph.getUint32(0), ph.getUint32(4), ch[2][1][8]]).toEqual([11811, 11811, 1]);
+    const q = new PngWriter(3, 2);
+    await q.rows(px, 2);
+    expect(types(await pngChunks(await q.end()))).toEqual(['IHDR', 'sRGB', 'IDAT', 'IEND']);
+  });
+  test('tagPng splices what a PNG lacks after IHDR and leaves the rest', async () => {
+    const q = new PngWriter(3, 2);
+    await q.rows(px, 2);
+    const tagged = await pngChunks(await tagPng(await q.end(), 300));
+    expect(types(tagged)).toEqual(['IHDR', 'pHYs', 'sRGB', 'IDAT', 'IEND']);
+  });
+  test('tagJpeg sets the JFIF density, or puts in a JFIF APP0', async () => {
+    const jfif = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9]);
+    const a = new Uint8Array(await (await tagJpeg(new Blob([jfif]), 300)).arrayBuffer());
+    expect(a.length).toBe(jfif.length);
+    expect([...a.subarray(13, 18)]).toEqual([1, 1, 44, 1, 44]);
+    expect([...a.subarray(18)]).toEqual([...jfif.subarray(18)]);
+    const bare = new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 0, 2, 0xff, 0xd9]);
+    const b = new Uint8Array(await (await tagJpeg(new Blob([bare]), 300)).arrayBuffer());
+    expect(b.length).toBe(bare.length + 18);
+    expect(String.fromCharCode(...b.subarray(6, 10))).toBe('JFIF');
+    expect([...b.subarray(13, 18)]).toEqual([1, 1, 44, 1, 44]);
+    expect([...b.subarray(20)]).toEqual([...bare.subarray(2)]);
+  });
+  test('a photo short on either axis is flagged (review R16 S3)', () => {
+    expect(photoShort({ has: [3000, 4000], wants: [2900, 4100] })).toBe(true);
+    expect(photoShort({ has: [3000, 4000], wants: [3100, 3900] })).toBe(true);
+    expect(photoShort({ has: [3000, 4000], wants: [3000, 4000] })).toBe(false);
   });
 });
 

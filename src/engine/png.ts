@@ -36,11 +36,64 @@ export function scanlines(d: Uint8ClampedArray | Uint8Array, w: number, n: numbe
   return out;
 }
 
+/** 300 dpi in pixels per metre, as pHYs carries it. */
+export const ppm = (dpi: number) => Math.round(dpi / 0.0254);
+
+/**
+ * The chunks every export PNG carries after IHDR: sRGB (spec 10.1: colour is sRGB; review R16 M4), and at Print its
+ * density as pHYs (review R16 S1), so a print shop opens it at A3, not at 72 or 96 dpi.
+ */
+export function tagChunks(dpi: number | null, skip: Set<string> = new Set()): Uint8Array[] {
+  const out: Uint8Array[] = [];
+  if (!skip.has('sRGB') && !skip.has('iCCP')) out.push(...chunk('sRGB', new Uint8Array([0])));
+  if (dpi && !skip.has('pHYs')) {
+    const d = new Uint8Array(9), v = ppm(dpi);
+    d.set(u32(v), 0); d.set(u32(v), 4); d[8] = 1;
+    out.push(...chunk('pHYs', d));
+  }
+  return out;
+}
+
+/**
+ * A canvas-encoded PNG with the tags of tagChunks spliced in after IHDR (none it already has). The image data is
+ * not copied: the new file is the old one's slices round the new chunks.
+ */
+export async function tagPng(b: Blob, dpi: number | null): Promise<Blob> {
+  const head = new Uint8Array(await b.slice(0, Math.min(b.size, 1 << 16)).arrayBuffer());
+  const type = (o: number) => String.fromCharCode(head[o + 4], head[o + 5], head[o + 6], head[o + 7]);
+  const len = (o: number) => ((head[o] << 24) | (head[o + 1] << 16) | (head[o + 2] << 8) | head[o + 3]) >>> 0;
+  if (head.length < 33 || type(8) !== 'IHDR') return b;
+  const have = new Set<string>();
+  for (let o = 8; o + 8 <= head.length; o += 12 + len(o)) { const t = type(o); if (t === 'IDAT' || t === 'IEND') break; have.add(t); }
+  const add = tagChunks(dpi, have);
+  if (!add.length) return b;
+  const at = 8 + 12 + len(8);
+  return new Blob([b.slice(0, at), ...(add as BlobPart[]), b.slice(at)], { type: 'image/png' });
+}
+
+/**
+ * A canvas-encoded JPEG at a density: its JFIF APP0 set to units 1 (dots per inch) and dpi both ways, or a JFIF
+ * APP0 put in after the SOI where it has none (review R16 S1).
+ */
+export async function tagJpeg(b: Blob, dpi: number): Promise<Blob> {
+  const h = new Uint8Array(await b.slice(0, 18).arrayBuffer());
+  if (h[0] !== 0xff || h[1] !== 0xd8) return b;
+  const dens = [1, (dpi >> 8) & 255, dpi & 255, (dpi >> 8) & 255, dpi & 255];
+  if (h[2] === 0xff && h[3] === 0xe0 && String.fromCharCode(...h.subarray(6, 11)) === 'JFIF\0') {
+    const top = h.slice(0, 18);
+    top.set(dens, 13);
+    return new Blob([top, b.slice(18)], { type: 'image/jpeg' });
+  }
+  const app0 = new Uint8Array([0xff, 0xe0, 0, 16, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, ...dens, 0, 0]);
+  return new Blob([b.slice(0, 2), app0, b.slice(2)], { type: 'image/jpeg' });
+}
+
 export class PngWriter {
   private w: Writable;
   private out: Promise<Uint8Array[]>;
   private seen = 0;
-  constructor(private width: number, private height: number) {
+  /** `dpi`: the density pHYs records (Print), or null for none. */
+  constructor(private width: number, private height: number, private dpi: number | null = null) {
     const cs = new CompressionStream('deflate');
     this.w = cs.writable.getWriter();
     const reader = cs.readable.getReader();
@@ -65,14 +118,9 @@ export class PngWriter {
     const ihdr = new Uint8Array(13);
     ihdr.set(u32(this.width), 0); ihdr.set(u32(this.height), 4);
     ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
-    // IDAT in chunks of at most 4 MB
-    let all = 0;
-    for (const p of z) all += p.length;
-    const flat = new Uint8Array(all);
-    let o = 0;
-    for (const p of z) { flat.set(p, o); o += p.length; }
-    const parts: Uint8Array[] = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), ...chunk('IHDR', ihdr)];
-    for (let i = 0; i < flat.length; i += 4 << 20) parts.push(...chunk('IDAT', flat.subarray(i, Math.min(flat.length, i + (4 << 20)))));
+    const parts: Uint8Array[] = [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), ...chunk('IHDR', ihdr), ...tagChunks(this.dpi)];
+    // each compressed part its own IDAT (at most 4 MB each), so the compressed file is never held twice (review R16 M5)
+    for (const p of z) for (let i = 0; i < p.length; i += 4 << 20) parts.push(...chunk('IDAT', p.subarray(i, Math.min(p.length, i + (4 << 20)))));
     parts.push(...chunk('IEND', new Uint8Array(0)));
     return new Blob(parts as BlobPart[], { type: 'image/png' });
   }

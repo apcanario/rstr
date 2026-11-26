@@ -32,14 +32,18 @@ def webp_size(b):
     return None
 
 
-def header(b64):
-    """(format, size) read from a file's first bytes: PIL for JPEG and PNG, the RIFF header for WebP."""
+def header(b64, info=False):
+    """(format, size) read from a file's first bytes: PIL for JPEG and PNG, the RIFF header for WebP. `info`: also
+    the density PIL reads (pHYs, JFIF; rounded, None if none) and whether a PNG says sRGB (review R16 S1, M4)."""
     b = base64.b64decode(b64)
     w = webp_size(b)
     if w:
-        return 'WEBP', w
+        return ('WEBP', w, None, False) if info else ('WEBP', w)
     im = Image.open(io.BytesIO(b))
-    return im.format, im.size
+    if not info:
+        return im.format, im.size
+    dpi = im.info.get('dpi')
+    return im.format, im.size, (tuple(round(v) for v in dpi) if dpi else None), 'srgb' in im.info
 
 
 def spec(pg, style, fmt, fin='clean', marks='off', i=0, photo=None):
@@ -82,7 +86,7 @@ def run(pg, fail):
     t0 = time.time()
     # every format x size x file type (and Print with and without its bleed): a file of exactly the stated pixels,
     # of the stated type, read by the browser and by PIL
-    ncomb = 0
+    ncomb = ntag = 0
     for fi, fmt in enumerate(FORMATS):
         sizes = pg.evaluate('(f) => f === "A" ? ["1x", "2x", "3x", "print"] : ["1x", "2x", "3x"]', fmt)
         for zi, z in enumerate(sizes):
@@ -98,18 +102,38 @@ def run(pg, fail):
                     if not r['ok']:
                         fail(f'{label}: {r["error"]}', s)
                         continue
-                    hf, hs = header(r['head'])
+                    hf, hs, dpi, srgb = header(r['head'], True)
                     got = (r['w'], r['h'], tuple(r['decoded']), tuple(hs), hf, r['type'])
                     exp = (want['w'], want['h'], (want['w'], want['h']), (want['w'], want['h']), KINDS[k][0], KINDS[k][1])
                     if got != exp:
                         fail(f'{label}: got {got}, want {exp}', s)
+                    # Print says 300 dpi where the type can carry it; every PNG says sRGB (review R16 S1, M4)
+                    if k != 'webp' and dpi != ((300, 300) if z == 'print' else None) and not (z != 'print' and k == 'jpeg'):
+                        fail(f'{label}: density {dpi}, want {(300, 300) if z == "print" else None}', s)
+                    if k == 'png' and not srgb:
+                        fail(f'{label}: no sRGB chunk', s)
+                    ntag += 1
                     name = pg.evaluate('([s, z, b, k]) => window.__rstr.export.name(s, z, b, k)', [s, z, bleed, k])
                     ext = {'jpeg': 'jpg', 'png': 'png', 'webp': 'webp'}[k]
                     if not name.startswith('rstr-') or not name.endswith(f'-{fmt.replace(":", "x")}-{want["w"]}.{ext}'):
                         fail(f'{label}: file name {name}')
                     if z in ('3x', 'print'):
                         print(f'{label}: {r["w"]} x {r["h"]} {r["type"]}, {r["bytes"] / 1e6:.1f} MB, {r["ms"]:.0f} ms ({r["how"]})')
-    print(f'export sizes: {ncomb} files (4 formats x 1x, 2x, 3x, and Print with and without bleed for A, x JPEG, PNG, WebP), each of exactly its pixels and type, decoded by the browser and by PIL; {time.time() - t0:.0f} s')
+    print(f'export sizes: {ncomb} files (4 formats x 1x, 2x, 3x, and Print with and without bleed for A, x JPEG, PNG, WebP), each of exactly its pixels and type, decoded by the browser and by PIL; {ntag} read for their tags; {time.time() - t0:.0f} s')
+    # review R16 S1: Print at 300 dpi on every path to the file (one canvas, strips joined, strips into a PNG)
+    t1 = time.time()
+    s = spec(pg, 'brutal', 'A', 'grain', 'light', 15)
+    seen = []
+    for k, force in [('png', None), ('png', 'strips'), ('png', 'strips-png'), ('jpeg', None), ('jpeg', 'strips')]:
+        r = pg.evaluate(MAKE, [s, 'print', True, k, None, force])
+        if not r['ok']:
+            fail(f'print dpi {k} {force}: {r["error"]}', s)
+            continue
+        hf, hs, dpi, srgb = header(r['head'], True)
+        seen.append(f'{k} {r["how"]} {dpi}')
+        if dpi != (300, 300) or (k == 'png' and not srgb) or r['how'] != (force or 'single'):
+            fail(f'print dpi {k} via {r["how"]}: density {dpi}, sRGB {srgb}', s)
+    print(f'print density: {"; ".join(seen)}; {time.time() - t1:.0f} s')
 
     # a strip-rendered export is pixel-identical to a single-canvas one, at 3x: every finish, every style, marks,
     # the photocopy copier pass, a treated photo (ground, box, turned), a guard that puts an item back
@@ -167,6 +191,20 @@ def run(pg, fail):
     r3 = pg.evaluate(MAKE, [s, '3x', False, 'png', {'maxArea': 1_000_000}, None])
     if r3['ok']:
         fail('failure: a PNG was made where no strip canvas can be', s)
+    # review R16 S2: a canvas that can be made but not encoded (over 10 M px): the 3x JPEG of 3:4 (14 M) fails, the
+    # error offers 2x (6.2 M), and 3x is no longer among the sizes that work
+    fl = {'failEncodeAbove': 10_000_000}
+    s4 = spec(pg, 'vapor', '3:4', 'clean', 'off', 16)
+    r4 = pg.evaluate(MAKE, [s4, '3x', False, 'jpeg', fl, None])
+    w4 = pg.evaluate('([s, k, l]) => window.__rstr.export.working(s, k, ["1x", "2x", "3x"], false, l)', [s4, 'jpeg', fl])
+    if r4['ok'] or r4.get('largest') != '2x' or w4 != ['1x', '2x']:
+        fail(f'failure: a 3x JPEG whose encode fails gave {r4.get("error") or r4.get("how")}, offered {r4.get("largest")}, sizes that work after {w4} (want an error, 2x, ["1x", "2x"])', s4)
+    pg.evaluate('() => window.__rstr.export.forget()')
+    print(f'honest failure on encode: "{r4.get("error")}", offers {r4.get("largest")}, sizes that work after {w4}')
+    # review R16 M2: the messages name sizes as the sheet does
+    for e in (r.get('error') or '', r3.get('error') or '', r4.get('error') or ''):
+        if any(x in e for x in (' print ', ' WEBP', '; PNG can')):
+            fail(f'failure message uses an internal name or says PNG can: {e!r}')
     print(f'honest failure: under 6 M px a 3x JPEG says "{r.get("error")}", JPEG sizes that work {w}, a 3x PNG is written in strips ({r2.get("how")}, {r2.get("ms", 0):.0f} ms); under 1 M px: "{r3.get("error")}"')
 
     # Carried R16 (from R7): marks and finishes drawn at the export size
@@ -214,6 +252,20 @@ def run(pg, fail):
                     fail(f'photo 3x calm {style}: {r["low"]} of {r["masked"]} text pixels over the full-size photo under spec 5 {r["lows"]}', s)
     if meas < 10:
         fail(f'photo 3x: only {meas} text items measured over the full-size photo, want at least 10')
+    # review R16 S3: the photo line at Print, the full 3000 x 4000 photo as ground at scale 2.5 in A: what the size
+    # wants is the photo's cover rect at Print scale, and the photo has fewer pixels on both axes
+    s = spec(pg, 'swiss', 'A', 'clean', 'off', 70, {'id': 'full-portrait', 'treatment': None, 'place': {'role': 'ground', 'scale': 2.5, 'x': 0.5, 'y': 0.5}})
+    g = [i for i in pg.evaluate('(s) => window.__rstr.scene(s)', s)['items'] if i['kind'] == 'graphic' and i['name'] == 'photo']
+    n = pg.evaluate('(s) => window.__rstr.export.photoNeed(s, "print")', s)
+    if not g or not n:
+        fail(f'photo need: no photo drawn ({bool(g)}) or no need ({n})', s)
+    else:
+        P = g[0]['params']
+        # the cover rect at Print scale, to the pixel (JS rounds half up, Python half to even: 1 px of slack)
+        want = [P['w'] * 3508 / 1080, P['h'] * 4961 / 1527]
+        if n['has'] != [3000, 4000] or any(abs(g_ - w_) > 1 for g_, w_ in zip(n['wants'], want)) or not (n['has'][0] < n['wants'][0] and n['has'][1] < n['wants'][1]):
+            fail(f'photo need at Print: {n}, want has [3000, 4000], wants {want}, both short', s)
+        print(f'photo need at Print: has {n["has"]}, wants {n["wants"]} (cover rect {P["w"]:.0f} x {P["h"]:.0f} at Print scale)')
     print(f'photo at 3x over the full-size picture ({info["w"]} x {info["h"]}): {nfp} text items read on pixels ({meas} measured, not plated), none under spec 5; {time.time() - t1:.0f} s')
     print(f'export checks took {time.time() - t0:.0f} s')
 

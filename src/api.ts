@@ -25,7 +25,7 @@ import { photoOf, registerPhoto, registeredIds, testPicture, gridSize } from './
 import { decodePhoto, testBlob } from './engine/photoload';
 import { storedIds } from './photos';
 import { exportDims, type Size } from './engine/formats';
-import { exportName, makeExport, photoNeed, workingSizes, type FileKind, type Limits } from './engine/export';
+import { exportName, forgetFailures, makeExport, photoNeed, workingSizes, type FileKind, type Limits } from './engine/export';
 import { exportBench, exportPaths, scaleProof, stripsSame } from './engine/pixels';
 import { seedCode } from './engine/spec';
 
@@ -168,6 +168,18 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       scale: (raw: unknown, size: Size, wrong = false) => { const s = migrate(raw); return scaleProof(s, useOf(s), size, wrong); },
       bench: (raw: unknown, size: Size, bleed: boolean, k: FileKind, force?: 'strips' | 'strips-png') => { const s = migrate(raw); return exportBench(s, useOf(s), size, bleed, k, force); },
       photoNeed: (raw: unknown, size: Size) => { const s = migrate(raw); return photoNeed(s, useOf(s), size); },
+      /** The pixel hash of a file as made and decoded (review R16 M3: the 1x PNG against the stage's own hash). */
+      async hash(raw: unknown, size: Size, k: FileKind = 'png') {
+        const s = migrate(raw), m = await makeExport(s, useOf(s), size, false, k);
+        const im = await createImageBitmap(m.blob, { colorSpaceConversion: 'none', premultiplyAlpha: 'none' });
+        const c = document.createElement('canvas');
+        c.width = im.width; c.height = im.height;
+        (c.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D).drawImage(im, 0, 0);
+        im.close();
+        return pixelHash(c);
+      },
+      /** Forget the sizes that failed this session (review R16 S2). */
+      forget: () => forgetFailures(),
     },
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),

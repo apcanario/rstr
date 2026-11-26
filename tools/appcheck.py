@@ -1135,3 +1135,76 @@ def run_limits(b, url, fail):
         fail(f'{at}: page errors ' + '; '.join(errors[:3]))
     print(f'{at}: JPEG at 2x and 3x greyed and said so ({info.splitlines()[0] if info else ""}); a 3x PNG made in strips, 3240 x 5760')
     pg.close()
+
+
+def run_fullest(b, url, fail, shots=None):
+    """Review R16 S2, S3, S4, M3, M9 at 360 x 640, on a phone whose encoder fails over 10 M pixels (?failenc): the
+    stage draws the pixels of the 1x PNG; a 3x JPEG of A fails, the sheet offers 2x and greys 3x, the button counts
+    the strips as they are drawn; then the sheet at its fullest (the failure's line, Print with bleed, sRGB and a photo
+    short of what Print wants) holds its layout with every line at 11 px or more. `shots`: write the two screens there."""
+    at = 'app 360x640 failenc 10M'
+    pg, errors = open_app(b, url, 360, 640, query='?failenc=10000000')
+    pg.evaluate('() => window.__rstr.photo.full("full-portrait", 3000, 4000, 7)')
+    base = spec(pg)
+    # review R16 M3: the stage and the 1x file draw the same pixels (a plain design, a finished one with marks and
+    # the copier pass, a treated photo)
+    looks = [{}, {'style': 'pomo', 'finish': 'grunge', 'marks': 'full', 'pick': {**base['pick'], 'dialect': 'photocopy'}},
+             {'style': 'swiss', 'finish': 'grain', 'marks': 'light', 'photo': {'id': 'full-portrait', 'treatment': 'halftone', 'place': None}}]
+    for k, d in enumerate(looks):
+        s = {**base, **d}
+        pg.evaluate('(s) => window.__rstr.app.load(s)', s)
+        idle(pg)
+        st = pg.evaluate('() => window.__rstr.app.stage()')
+        one = pg.evaluate('(s) => window.__rstr.export.hash(s, "1x", "png")', spec(pg))
+        if st != one:
+            fail(f'{at}: look {k}: the stage hashes {st}, its 1x PNG {one}', spec(pg))
+    s = {**base, 'format': 'A', 'photo': {'id': 'full-portrait', 'treatment': None, 'place': {'role': 'ground', 'scale': 2.5, 'x': 0.5, 'y': 0.5}}}
+    pg.evaluate('(s) => window.__rstr.app.load(s)', s)
+    idle(pg)
+    pg.click('[data-testid="export"]')
+    pg.wait_for_selector('[data-testid="export-sheet"]')
+    pg.click('button[data-kind="jpeg"]')
+    pg.click('button[data-size="3x"]')
+    pg.click('[data-testid="save"]')
+    t0, labels = time.time(), set()
+    while time.time() - t0 < 180:
+        labels.add(pg.inner_text('[data-testid="save"]').strip())
+        if 'Largest that works' in pg.inner_text('[data-testid="export-info"]'):
+            break
+        pg.wait_for_timeout(150)
+    info = pg.inner_text('[data-testid="export-info"]')
+    counted = sorted(l for l in labels if ' of ' in l.lower())
+    if not counted:
+        fail(f'{at}: the Save button never counted strips while making 3x in strips (it said {sorted(labels)})')
+    dis3 = pg.get_attribute('button[data-size="3x"]', 'disabled') is not None
+    on = pg.get_attribute('button[data-size="2x"]', 'aria-pressed') == 'true'
+    if 'Largest that works: 2x' not in info or not dis3 or not on:
+        fail(f'{at}: after a failed 3x JPEG the sheet says {info!r}, 3x greyed {dis3}, 2x chosen {on}')
+    pg.evaluate('() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))')
+    for p in pg.evaluate(LAYOUT_JS)[:6]:
+        fail(f'{at}, export sheet after a failure: {p}')
+    if shots:
+        pg.screenshot(path=f'{shots}/screen-360x640-sheet-export-failed.png')
+    first = info
+    pg.click('button[data-size="print"]')
+    pg.click('button[data-bleed="3mm"]')
+    pg.evaluate('() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))')
+    info = pg.inner_text('[data-testid="export-info"]')
+    lines = [l for l in info.splitlines() if l.strip()]
+    need = ['cannot make 3x', '300 dpi', '3579', 'sRGB', 'drawn anyway']
+    if len(lines) > 4 or any(n not in info for n in need):
+        fail(f'{at}: the fullest sheet says {lines}; want at most four lines with {need}')
+    for p in pg.evaluate(LAYOUT_JS)[:6]:
+        fail(f'{at}, export sheet at its fullest: {p}')
+    small = pg.evaluate('() => [...document.querySelectorAll(".expinfo [data-fit]")].map((e) => [e.textContent, parseFloat(getComputedStyle(e).fontSize)]).filter(([, z]) => z < 10.99)')
+    if small:
+        fail(f'{at}: export sheet lines under 11 px: {small}')
+    shortened = pg.evaluate('() => [...document.querySelectorAll(".expinfo [data-fit]")].filter((e) => e.textContent !== e.dataset.fit).map((e) => e.dataset.fit)')
+    if shortened:
+        fail(f'{at}: export sheet lines shortened at 360 wide: {shortened}')
+    if shots:
+        pg.screenshot(path=f'{shots}/screen-360x640-sheet-export-fullest.png')
+    if errors:
+        fail(f'{at}: page errors ' + '; '.join(errors[:3]))
+    print(f'{at}: stage = 1x PNG for {len(looks)} looks; a failed 3x JPEG counted its strips ({counted[-1] if counted else "none"}) and said {first.splitlines()}; the fullest sheet: {lines}')
+    pg.close()

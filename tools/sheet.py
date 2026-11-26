@@ -308,6 +308,11 @@ with served() as url, browser() as b:
             appcheck.goto(pg, 0)
             pg.click('[data-testid="advanced"]')
         pg.close()
+    # review R16 S4: the export sheet just after a failure, and at its fullest (Print, bleed, a photo, a failed size), at 360 x 640
+    probs = []
+    appcheck.run_fullest(b, url, lambda m, *a: probs.append(m), shots=OUT)
+    for m in probs:
+        print('PROBLEM:', m)
     print('wrote shots/screen-*.png')
     if errors:
         print('page errors:', errors)

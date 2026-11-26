@@ -14,7 +14,7 @@
  * that reaches the edge and the finish run on past the trim line, and nothing on the trim moves.
  */
 import type { Ctx } from './graphics/types';
-import { exportDims, FORMATS, type ExportDims, type Format, type Size } from './formats';
+import { exportDims, FORMATS, PRINT_DPI, SIZE_LABEL, SIZE_LIST, sizesOf, type ExportDims, type Format, type Size } from './formats';
 import { cellSums, cleanOf, finishBody, GUARD_ROUNDS, readingOf, readsLow, restoreItems, RING, tooLow, type FinishReport, type Sums } from './finish';
 import { bounds } from './geom';
 import { scene as sceneOf, browserMeasure } from './index';
@@ -23,13 +23,15 @@ import { photoOf } from './photo';
 import type { GraphicItem, Scene, TextItem } from './scene';
 import type { Spec } from './spec';
 import { exportView, setView, surfaceLike, type View } from './view';
-import { PngWriter } from './png';
+import { PngWriter, tagJpeg, tagPng } from './png';
 import { paintFinished } from './finish';
 
 export type FileKind = 'jpeg' | 'png' | 'webp';
 export const FILE_KINDS: FileKind[] = ['jpeg', 'png', 'webp'];
 export const MIME: Record<FileKind, string> = { jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
 export const EXT: Record<FileKind, string> = { jpeg: 'jpg', png: 'png', webp: 'webp' };
+/** A file type as the sheet and its messages name it. */
+export const KIND_LABEL: Record<FileKind, string> = { jpeg: 'JPEG', png: 'PNG', webp: 'WebP' };
 /** JPEG quality of spec 10.1; WebP at the same. */
 export const QUALITY = 0.92;
 /**
@@ -52,19 +54,48 @@ const ctxOf = (c: AnyCanvas) => c.getContext('2d', { willReadFrequently: true } 
 /** Free a canvas's pixels now rather than at the next collection. */
 const free = (c: AnyCanvas | null | undefined) => { if (c) { c.width = 0; c.height = 0; } };
 
-/** Limits for the tools: act as a phone that makes no canvas over `maxArea` pixels (spec 10.1, the honest failure). */
-export interface Limits { maxArea?: number; }
+/**
+ * Limits for the tools (spec 10.1, the honest failure): act as a phone that makes no canvas over `maxArea` pixels,
+ * or one that makes the canvas but cannot encode one over `failEncodeAbove` pixels (review R16 S2).
+ */
+export interface Limits { maxArea?: number; failEncodeAbove?: number; }
+
+/**
+ * Sizes that failed in this session, per format, file type and bleed (review R16 S2): a size that could be made as
+ * a canvas but failed on the way (out of memory, an encoder that gives nothing) is no longer offered or enabled.
+ */
+const failed = new Set<string>();
+const failKey = (f: Format, s: Size, bleed: boolean, k: FileKind) => `${f}|${s}|${bleed && s === 'print' ? 'bleed' : ''}|${k}`;
+export const hasFailed = (f: Format, s: Size, bleed: boolean, k: FileKind) => failed.has(failKey(f, s, bleed, k));
+/** Forget the failures (the tools). */
+export const forgetFailures = () => failed.clear();
 
 /**
  * Whether a canvas of w x h can be made and drawn on here: made, filled at its far corner, read back. A browser
  * that cannot hold it gives no context or reads back nothing.
  */
 const made = new Map<string, boolean>();
-export function canMake(w: number, h: number, lim: Limits = {}): boolean {
+const queued = new Set<string>();
+/**
+ * `now` false: a size not yet probed counts as one that can be made, and is queued for probeQueued (review R16 M6:
+ * the sheet probes after it has painted, not on opening).
+ */
+export function canMake(w: number, h: number, lim: Limits = {}, now = true): boolean {
   if (lim.maxArea != null && w * h > lim.maxArea) return false;
   const key = `${w}x${h}`;
-  if (!made.has(key)) made.set(key, probe(w, h));
+  if (!made.has(key)) {
+    if (!now) { queued.add(key); return true; }
+    made.set(key, probe(w, h));
+  }
   return made.get(key)!;
+}
+/** Probe one queued size; false when none was queued. */
+export function probeQueued(): boolean {
+  const key = queued.values().next().value;
+  if (key === undefined) return false;
+  queued.delete(key);
+  if (!made.has(key)) { const [w, h] = key.split('x').map(Number); made.set(key, probe(w, h)); }
+  return true;
 }
 function probe(w: number, h: number): boolean {
   let c: AnyCanvas | null = null;
@@ -161,7 +192,7 @@ export function canvasSink(x: Ctx): RowSink {
  * strips (its readings summed strip by strip), then the strips are drawn once more with what it put back.
  * Returns how many strips were drawn in all and how many text items the guard put back.
  */
-export async function renderStrips(spec: Spec, sc: Scene, D: ExportDims, rows: number, sink: RowSink, M = BAND): Promise<{ strips: number; drawn: number; restored: number }> {
+export async function renderStrips(spec: Spec, sc: Scene, D: ExportDims, rows: number, sink: RowSink, M = BAND, progress?: Progress): Promise<{ strips: number; drawn: number; restored: number }> {
   if (rows % BAND || M % BAND) throw new Error('strips sit on band lines');
   const W = D.trimW, H = D.trimH, rep: FinishReport = { paint: 0, effect: 0, text: 0, guard: 0, restored: 0 };
   const bands: [number, number][] = [];
@@ -208,22 +239,26 @@ export async function renderStrips(spec: Spec, sc: Scene, D: ExportDims, rows: n
       for (const it of bad) done.add(it);
     }
   }
-  for (const [y0, y1] of bands) {
+  for (const [k, [y0, y1]] of bands.entries()) {
     const s = draw(y0, y1, restores);
     const d = s.x.getImageData(0, y0 - s.top, W, y1 - y0).data;
     free(s.c); if (s.clean) free(s.clean.canvas as AnyCanvas);
     await sink.rows(d, y0, y1 - y0);
+    // a task boundary, so the sheet can paint the count
+    if (progress) { progress(k + 1, bands.length); await new Promise((r) => setTimeout(r, 0)); }
   }
   return { strips: bands.length, drawn, restored: restores.length };
 }
 
-async function blobOf(c: AnyCanvas, k: FileKind): Promise<Blob> {
+async function blobOf(c: AnyCanvas, k: FileKind, dpi: number | null, lim: Limits = {}): Promise<Blob> {
   const type = MIME[k];
+  if (lim.failEncodeAbove != null && c.width * c.height > lim.failEncodeAbove) throw new Error('encode failed');
   const b = 'convertToBlob' in c ? await c.convertToBlob({ type, quality: QUALITY }) : await new Promise<Blob | null>((r) => (c as HTMLCanvasElement).toBlob(r, type, QUALITY));
   if (!b || b.size === 0) throw new Error('encode failed');
   // a browser that cannot write the type gives PNG: never a file of another type under this name
-  if (b.type && b.type !== type) throw new ExportError(`this browser cannot write ${k.toUpperCase()}`, null);
-  return b;
+  if (b.type && b.type !== type) throw new ExportError(`This browser cannot write ${KIND_LABEL[k]}`, null);
+  // sRGB on every PNG, and Print's density on PNG and JPEG; WebP carries neither (the sheet says so at Print)
+  return k === 'png' ? tagPng(b, dpi) : k === 'jpeg' && dpi ? tagJpeg(b, dpi) : b;
 }
 
 /** An export this phone cannot make (spec 10.1: never a silent smaller file). `largest`: the largest size that works, if any. */
@@ -238,38 +273,54 @@ export interface Made { blob: Blob; w: number; h: number; how: 'single' | 'strip
  * otherwise strips joined into one canvas (any file type) or, where no canvas of the size can be made, a PNG written
  * strip by strip. `force`: 'strips' or 'strips-png' to take that path (the tools). Throws ExportError when none works.
  */
-export async function makeExport(spec: Spec, use: Use, size: Size, bleed: boolean, k: FileKind, lim: Limits = {}, force?: 'strips' | 'strips-png'): Promise<Made> {
+export async function makeExport(spec: Spec, use: Use, size: Size, bleed: boolean, k: FileKind, lim: Limits = {}, force?: 'strips' | 'strips-png', progress?: Progress): Promise<Made> {
+  if (force) return makeOne(spec, use, size, bleed, k, lim, force, progress);
+  try { return await makeOne(spec, use, size, bleed, k, lim, undefined, progress); }
+  catch (e) {
+    // any failure on the way is the honest failure: said, and the size not offered again this session
+    failed.add(failKey(spec.format, size, bleed, k));
+    const at = SIZE_LIST.indexOf(size), ok = workingSizes(spec.format, k, sizesOf(spec.format), bleed, lim).filter((z) => SIZE_LIST.indexOf(z) < at);
+    const msg = e instanceof ExportError ? e.message : `This phone cannot make ${SIZE_LABEL[size]} ${KIND_LABEL[k]} for ${spec.format}`;
+    throw new ExportError(msg, ok[ok.length - 1] ?? null);
+  }
+}
+/** Strips drawn of all the final pass draws, as it goes (the sheet's `Making… 4 of 10`, review R16 M9). */
+export type Progress = (done: number, of: number) => void;
+
+async function makeOne(spec: Spec, use: Use, size: Size, bleed: boolean, k: FileKind, lim: Limits, force?: 'strips' | 'strips-png', progress?: Progress): Promise<Made> {
   const t0 = performance.now(), D = exportDims(spec.format, size, bleed), sc = sceneOf(spec, browserMeasure(), use);
+  const dpi = size === 'print' ? PRINT_DPI : null;
   const done = (blob: Blob, how: Made['how'], strips = 1): Made => ({ blob, w: D.w, h: D.h, how, ms: performance.now() - t0, strips });
   const whole = canMake(D.w, D.h, lim);
   if (!force && whole && canMake(D.trimW, D.trimH, lim)) {
     const c = newCanvas(D.w, D.h);
-    try { renderSingle(c, spec, sc, D); return done(await blobOf(c, k), 'single'); }
+    try { renderSingle(c, spec, sc, D); return done(await blobOf(c, k, dpi, lim), 'single'); }
     catch (e) { if (e instanceof ExportError) throw e; /* out of memory on the way: strips */ } finally { free(c); }
   }
   const rows = STRIP_BANDS * BAND;
-  if (!canMake(D.trimW, rows + 2 * BAND, lim)) throw new ExportError(`This phone cannot make ${size} for ${spec.format}`, null);
+  if (!canMake(D.trimW, rows + 2 * BAND, lim)) throw new ExportError(`This phone cannot make ${SIZE_LABEL[size]} for ${spec.format}`, null);
   if (force !== 'strips-png' && whole) {
     const c = newCanvas(D.w, D.h), x = ctxOf(c);
     try {
       if (!x) throw new Error('no canvas');
-      const r = await renderStrips(spec, sc, D, rows, bleedSink(canvasSink(x), D));
-      return done(await blobOf(c, k), 'strips', r.strips);
+      const r = await renderStrips(spec, sc, D, rows, bleedSink(canvasSink(x), D), BAND, progress);
+      return done(await blobOf(c, k, dpi, lim), 'strips', r.strips);
     } catch (e) { if (e instanceof ExportError || force) throw e; } finally { free(c); }
   }
-  if (k !== 'png') throw new ExportError(`This phone cannot make ${size} ${k.toUpperCase()} for ${spec.format}; PNG can`, null);
-  const png = new PngWriter(D.w, D.h);
-  const r = await renderStrips(spec, sc, D, rows, bleedSink({ rows: (d, _y, n) => png.rows(d, n) }, D));
+  if (k !== 'png') throw new ExportError(`This phone cannot make ${SIZE_LABEL[size]} ${KIND_LABEL[k]} for ${spec.format}; PNG may`, null);
+  const png = new PngWriter(D.w, D.h, dpi);
+  const r = await renderStrips(spec, sc, D, rows, bleedSink({ rows: (d, _y, n) => png.rows(d, n) }, D), BAND, progress);
   return done(await png.end(), 'strips-png', r.strips);
 }
 
 /** The sizes that work for a format and file type here, in order (the sheet greys the rest). */
-export function workingSizes(f: Format, k: FileKind, sizes: Size[], bleed: boolean, lim: Limits = {}): Size[] {
+export function workingSizes(f: Format, k: FileKind, sizes: Size[], bleed: boolean, lim: Limits = {}, now = true): Size[] {
   return sizes.filter((s) => {
-    const D = exportDims(f, s, bleed);
-    if (canMake(D.w, D.h, lim)) return true;
+    if (hasFailed(f, s, bleed, k)) return false;
+    const D = exportDims(f, s, bleed && s === 'print');
+    if (canMake(D.w, D.h, lim, now)) return true;
     // no canvas of the size: only a PNG can be written strip by strip
-    return k === 'png' && canMake(D.trimW, (STRIP_BANDS + 2) * BAND, lim);
+    return k === 'png' && canMake(D.trimW, (STRIP_BANDS + 2) * BAND, lim, now);
   });
 }
 
@@ -285,3 +336,5 @@ export function photoNeed(spec: Spec, use: Use, size: Size): { has: [number, num
   const D = exportDims(spec.format, size), [W, H] = FORMATS[spec.format], P = g.params as Record<string, number>;
   return { has: [p.w, p.h], wants: [Math.round((P.w * D.trimW) / W), Math.round((P.h * D.trimH) / H)] };
 }
+/** Whether a photo has fewer pixels than the size draws it at, on either axis (review R16 S3). */
+export const photoShort = (n: { has: [number, number]; wants: [number, number] }) => n.has[0] < n.wants[0] || n.has[1] < n.wants[1];

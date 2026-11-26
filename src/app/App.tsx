@@ -12,8 +12,8 @@ import { pixelHash } from '../engine/pixels';
 import { defaultPairing } from '../data/pairings';
 import { PALETTES } from '../data/palettes';
 import { available, coreFailures, ensure, onFontsChange } from '../fonts';
-import { exportDims, FORMAT_LIST, FORMATS, sizesOf, type Format, type Size } from '../engine/formats';
-import { exportName, ExportError, makeExport, photoNeed, workingSizes, type FileKind, type Limits } from '../engine/export';
+import { exportDims, FORMAT_LIST, FORMATS, SIZE_LABEL, type Format, type Size } from '../engine/formats';
+import { exportName, ExportError, KIND_LABEL, makeExport, photoNeed, photoShort, probeQueued, workingSizes, type FileKind, type Limits } from '../engine/export';
 import { STYLES } from '../engine/styles';
 import type { Scene } from '../engine/scene';
 import { defaultSpec, FACETS, migrate, newSeed, newSeeds, seedCode, STYLE_IDS, type Facet, type Finish, type Marks, type Slot, type Spec, type StyleId } from '../engine/spec';
@@ -61,14 +61,23 @@ const LOG_STEPS = 1000;
 const same = (a: Spec, b: Spec) => JSON.stringify(a) === JSON.stringify(b);
 /** Names of spec 10.1: rstr-<seed>-<format>-<width>.<ext>, the width the file's own (bleed included). */
 export const fileName = (s: Spec, f: Format, size: Size, bleed: boolean, k: Kind) => exportName(seedCode(s.seeds), f, exportDims(f, size, bleed && size === 'print').w, k);
-const SIZE_LABEL: Record<Size, string> = { '1x': '1x', '2x': '2x', '3x': '3x', print: 'Print' };
-const KINDS: [Kind, string][] = [['jpeg', 'JPEG'], ['png', 'PNG'], ['webp', 'WebP']];
-/** The tools act as a phone with a canvas limit (spec 10.1, the honest failure): ?maxpx=<pixels>. */
-const LIMITS: Limits = (() => { try { const v = Number(new URLSearchParams(location.search).get('maxpx')); return v > 0 ? { maxArea: v } : {}; } catch { return {}; } })();
-const px = (w: number, h: number) => `${w} × ${h}`;
+const KINDS: [Kind, string][] = (['jpeg', 'png', 'webp'] as Kind[]).map((k) => [k, KIND_LABEL[k]]);
+/**
+ * The tools act as a phone with a canvas limit (spec 10.1, the honest failure): ?maxpx=<pixels>; or one whose
+ * encoder fails over a size it can draw (review R16 S2): ?failenc=<pixels>.
+ */
+const LIMITS: Limits = (() => {
+  try {
+    const q = new URLSearchParams(location.search), v = Number(q.get('maxpx')), e = Number(q.get('failenc'));
+    return { ...(v > 0 ? { maxArea: v } : {}), ...(e > 0 ? { failEncodeAbove: e } : {}) };
+  } catch { return {}; }
+})();
+const px = (w: number, h: number) => `${w}×${h}`;
+/** The export sheet's lines shrink no smaller than this, then shorten (review R16 S4). */
+const INFO_MIN = 11;
 
-/** A label that shrinks to fit, then shortens (spec 10.1). Its text is set by fitAll, never by Preact. */
-const L = ({ t, c }: { t: string; c?: string }) => <span class={c ? `fit ${c}` : 'fit'} data-fit={t} />;
+/** A label that shrinks to fit (to `min` px at the least, if given), then shortens (spec 10.1). Its text is set by fitAll, never by Preact. */
+const L = ({ t, c, min }: { t: string; c?: string; min?: number }) => <span class={c ? `fit ${c}` : 'fit'} data-fit={t} data-fit-min={min} />;
 
 /**
  * Spec 6: layout waits for the pairing's fonts; if they have not arrived in 4 s, the style's default pairing
@@ -172,6 +181,10 @@ export function App({ ready }: { ready: Promise<void> }) {
   const [saveNote, setSaveNote] = useState('');
   const tall = useMedia(TALL);
   const [busy, setBusy] = useState(false);
+  /** Strips drawn of all, while a big export is made (review R16 M9). */
+  const [making, setMaking] = useState<[number, number] | null>(null);
+  /** Bumped when a size probed after the sheet painted (review R16 M6), so the sheet greys what cannot be made. */
+  const [probed, setProbed] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [note, setNote] = useState('');
   const [scene, setScene] = useState<Scene | null>(null);
@@ -281,12 +294,16 @@ export function App({ ready }: { ready: Promise<void> }) {
       const { use } = await fontsFor(ready, one);
       await ensurePhoto(one.photo?.id);
       try {
-        const m = await makeExport(one, use, z, b, kind, LIMITS);
+        const m = await makeExport(one, use, z, b, kind, LIMITS, undefined, (i, n) => setMaking([i, n]));
+        setMaking(null);
         out.push(new File([m.blob], fileName(s, f, z, b, kind), { type: m.blob.type }));
       } catch (e) {
-        const ok = workingSizes(f, kind, sizesOf(f), b, LIMITS), largest = ok[ok.length - 1];
-        setExpNote(`${(e as Error).message || 'Export failed'}${largest ? ` · largest that works: ${SIZE_LABEL[largest]}` : ''}`);
-        if (largest && e instanceof ExportError) setSize(largest);
+        // the largest size that works, the one that failed left out (review R16 S2)
+        const largest = e instanceof ExportError ? e.largest : null;
+        setMaking(null);
+        // two lines, so neither is shortened at 360 wide; the size moves to the largest, so no sRGB line beside them
+        setExpNote(`${(e as Error).message || 'Export failed'}${largest ? `\nLargest that works: ${SIZE_LABEL[largest]}` : ''}`);
+        if (largest) setSize(largest);
         throw e;
       }
     }
@@ -645,27 +662,41 @@ export function App({ ready }: { ready: Promise<void> }) {
   const panel = advanced ? advPages[tab] : { style: stylePages, text: textPages, look: lookPages, photo: photoPages }[tab as 'style' | 'text' | 'look' | 'photo'];
 
   // the export sheet: which sizes this phone can make for the formats and file chosen, and what the file will be
+  // a size not yet probed counts as one that works until the probe after paint says otherwise (review R16 M6); a size
+  // that failed this session is greyed (review R16 S2)
   const expOk = useMemo(() => {
     if (sheet !== 'export') return [] as Size[];
     const all: Size[] = ['1x', '2x', '3x', 'print'];
-    return all.filter((z) => sizes.every((f) => (z === 'print' && f !== 'A') || workingSizes(f, kind, [z], bleed && z === 'print', LIMITS).length > 0));
-  }, [sheet, sizes, kind, bleed]);
+    return all.filter((z) => sizes.every((f) => (z === 'print' && f !== 'A') || workingSizes(f, kind, [z], bleed && z === 'print', LIMITS, false).length > 0));
+  }, [sheet, sizes, kind, bleed, expNote, probed]);
+  useEffect(() => {
+    if (sheet !== 'export') return;
+    // one probe per idle moment once the sheet has painted, then the sheet again
+    const idle = (f: () => void) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(f, { timeout: 200 }) : setTimeout(f, 30));
+    let alive = true, any = false;
+    const step = () => { if (!alive) return; if (probeQueued()) { any = true; idle(step); } else if (any) setProbed((p) => p + 1); };
+    requestAnimationFrame(() => idle(step));
+    return () => { alive = false; };
+  }, [sheet, expOk]);
   useEffect(() => {
     if (sheet === 'export' && expOk.length && !expOk.includes(size)) setSize(expOk[expOk.length - 1]);
   }, [sheet, expOk]);
+  // at most four lines (review R16 S4): the failure and the largest that works (just after a failure, at a size under
+  // Print), or what cannot be made; the file; sRGB at Print; the photo. A tap on a choice clears the failure's note.
   const expLines = useMemo(() => {
     if (sheet !== 'export') return [] as string[];
     const out: string[] = [];
-    if (expNote) out.push(expNote);
     const first = FORMAT_LIST.find((f) => sizes.includes(f)) ?? spec.format, b = bleed && size === 'print';
     const D = exportDims(first, size === 'print' && first !== 'A' ? '3x' : size, b);
     const cannot = (['1x', '2x', '3x', 'print'] as Size[]).filter((z) => (z !== 'print' || sizes.includes('A')) && !expOk.includes(z));
-    if (cannot.length && !expNote) out.push(`This phone cannot make ${cannot.map((z) => SIZE_LABEL[z]).join(', ')} as ${kind.toUpperCase()}${kind !== 'png' ? '; PNG may' : ''}`);
-    out.push(size === 'print' ? `A3 at 300 dpi, ${px(D.w, D.h)} px${b ? ' with 3 mm bleed' : ''}; also prints A4, A5` : sizes.length > 1 ? `${sizes.length} files, ${D.w} px wide` : `${px(D.w, D.h)} px`);
-    if (size === 'print') out.push('sRGB: saturated colours print duller than on screen');
+    if (expNote) out.push(...expNote.split('\n'));
+    else if (cannot.length) out.push(`This phone cannot make ${cannot.map((z) => SIZE_LABEL[z]).join(', ')} as ${KIND_LABEL[kind]}${kind !== 'png' ? '; PNG may' : ''}`);
+    // WebP carries no density, so its Print file does not open at A3 by itself (review R16 S1)
+    out.push(size === 'print' ? `A3${kind === 'webp' ? ' (WebP holds no dpi)' : ' at 300 dpi'}, ${px(D.w, D.h)} px${b ? ', 3 mm bleed' : ''}` : sizes.length > 1 ? `${sizes.length} files, ${D.w} px wide` : `${px(D.w, D.h)} px`);
+    if (size === 'print') out.push('sRGB: saturated colours print duller');
     if (spec.photo) {
       const n = photoNeed({ ...spec, format: first }, { pairing: drawn.current?.pairing }, size === 'print' && first !== 'A' ? '3x' : size);
-      if (n) out.push(`Photo ${px(...n.has)} px; this size draws it at ${px(...n.wants)}${n.has[0] < n.wants[0] ? ', drawn anyway' : ''}`);
+      if (n) out.push(`Photo ${px(...n.has)}, wants ${px(...n.wants)}${photoShort(n) ? ': drawn anyway' : ''}`);
     }
     return out;
   }, [sheet, sizes, size, bleed, kind, expOk, expNote, spec]);
@@ -722,6 +753,7 @@ export function App({ ready }: { ready: Promise<void> }) {
                 <button class={sizes.includes(f) ? 'on' : ''} aria-pressed={sizes.includes(f)} data-fmt={f} onClick={() => {
                   const next = sizes.includes(f) ? (sizes.length > 1 ? sizes.filter((x) => x !== f) : sizes) : [...sizes, f];
                   setSizes(next);
+                  setExpNote('');
                   // Print is A3: a format other than A takes the largest screen size instead
                   if (size === 'print' && next.some((x) => x !== 'A')) setSize('3x');
                 }}><L t={f} /></button>
@@ -732,25 +764,25 @@ export function App({ ready }: { ready: Promise<void> }) {
             <L t="Size" c="cap" />
             <div class="seg" role="group">
               {(sizes.includes('A') ? (['1x', '2x', '3x', 'print'] as Size[]) : (['1x', '2x', '3x'] as Size[])).map((z) => (
-                <button class={size === z ? 'on' : ''} aria-pressed={size === z} data-size={z} disabled={!expOk.includes(z)} onClick={() => { setSize(z); if (z === 'print') setSizes(['A']); }}><L t={SIZE_LABEL[z]} /></button>
+                <button class={size === z ? 'on' : ''} aria-pressed={size === z} data-size={z} disabled={!expOk.includes(z)} onClick={() => { setExpNote(''); setSize(z); if (z === 'print') setSizes(['A']); }}><L t={SIZE_LABEL[z]} /></button>
               ))}
             </div>
           </div>
           {size === 'print' && (
             <div class="captioned" data-row="bleed">
               <L t="Bleed" c="cap" />
-              {seg([['off', 'Off'], ['3mm', '3 mm']], bleed ? '3mm' : 'off', (v) => setBleed(v === '3mm'), 'data-bleed')}
+              {seg([['off', 'Off'], ['3mm', '3 mm']], bleed ? '3mm' : 'off', (v) => { setExpNote(''); setBleed(v === '3mm'); }, 'data-bleed')}
             </div>
           )}
           <div class="captioned" data-row="file">
             <L t="File" c="cap" />
-            {seg(KINDS, kind, setKind, 'data-kind')}
+            {seg(KINDS, kind, (k) => { setExpNote(''); setKind(k); }, 'data-kind')}
           </div>
           <div class="expinfo" data-testid="export-info">
-            {expLines.map((t, i) => <L t={t} c={i === 0 && expNote ? 'hint warn' : 'hint'} />)}
+            {expLines.map((t, i) => <L t={t} c={i === 0 && expNote ? 'hint warn' : 'hint'} min={INFO_MIN} />)}
           </div>
           <div class="go">
-            <button class="primary" data-testid="save" disabled={busy} onClick={save}><Icon n="save" /><L t={busy ? 'Making…' : `Save ${sizes.length} ${sizes.length === 1 ? 'file' : 'files'}`} /></button>
+            <button class="primary" data-testid="save" disabled={busy} onClick={save}><Icon n="save" /><L t={busy ? (making ? `Making… ${making[0]} of ${making[1]}` : 'Making…') : `Save ${sizes.length} ${sizes.length === 1 ? 'file' : 'files'}`} /></button>
             {canShare && <button class="act" data-testid="share" aria-label="Share" disabled={busy} onClick={share}><Icon n="share" /></button>}
           </div>
         </div>

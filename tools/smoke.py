@@ -486,6 +486,7 @@ with served() as url, browser() as b:
     appcheck.run(b, url, fail)
     appcheck.run_photo(b, url, fail)
     appcheck.run_limits(b, url, fail)
+    appcheck.run_fullest(b, url, fail)
 
 # the summary carries the skipped online checks, so a reader of the last line alone sees the gap (review R3 S1)
 if fails:

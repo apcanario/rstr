@@ -1,6 +1,7 @@
 /**
  * Spec 10.1: text on a tile or button never wraps and never overflows: it shrinks to fit, then shortens.
  * A label is an element with `data-fit` holding its text and no children of its own; fitAll sets its text.
+ * `data-fit-min` (px) raises the smallest size it shrinks to.
  */
 const MIN_SCALE = 0.72;
 
@@ -17,9 +18,11 @@ export function fit(el: HTMLElement): void {
   };
   if (!el.clientWidth || !over()) return;
   const base = parseFloat(getComputedStyle(el).fontSize);
+  // data-fit-min: a floor in px below which the label shortens instead of shrinking (review R16 S4)
+  const floor = Math.min(base, Math.max(base * MIN_SCALE, Number(el.dataset.fitMin) || 0));
   let size = base;
-  while (over() && size > base * MIN_SCALE) {
-    size = Math.max(base * MIN_SCALE, size - 0.5);
+  while (over() && size > floor) {
+    size = Math.max(floor, size - 0.5);
     el.style.fontSize = `${size}px`;
   }
   if (!over()) return;

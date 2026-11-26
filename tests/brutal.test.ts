@@ -262,20 +262,24 @@ describe('R8: the band and the marks (Carried R8 from R13 and from R7)', () => {
     }
     expect(bars).toBeGreaterThan(10);
   });
-  test('light marks: three or more on all but at most one of 600 Brutalist designs, never none', () => {
-    let few = 0, n = 0;
+  // Carried R12 (from R8) (1): one seed set, the full-bleed bar blocking the edge strip, has two light marks in 3:4 and
+  // (since R16) in A. Only it may, in any format, plus at most one other of the 800 (review R16 M1)
+  const KNOWN_FEW = JSON.stringify({ layout: 1479392985, colour: 3433914015, graphic: 1222804819, type: 1236622662 });
+  test('light marks: three or more on every Brutalist design but the known seed set and at most one other of 800, never none', () => {
+    let other = 0, n = 0;
     const fewOf: string[] = [];
     for (const s of specs({ styles: ['brutal'], n: 200, variants: 'cycle', marks: 'light', modes: ['light'] })) {
       n++;
       const sc = solve(s, stubMeasure).scene;
       const kinds = new Set(sc.items.filter((i): i is GraphicItem => i.kind === 'graphic' && i.layer === 'mark' && !['bar', 'card', 'label'].includes(String(i.params.kind))).map((g) => g.params.mark));
       expect(kinds.size, JSON.stringify(s.seeds)).toBeGreaterThan(0);
-      if (kinds.size < 3) { few++; fewOf.push(`${s.format} ${sc.layout} ${sc.transform} ${JSON.stringify(s.seeds)}`); }
+      if (kinds.size < 3) {
+        fewOf.push(`${s.format} ${sc.layout} ${sc.transform} ${JSON.stringify(s.seeds)}`);
+        if (JSON.stringify(s.seeds) !== KNOWN_FEW) other++;
+      }
     }
-    console.log(`R8 marks: ${few} of ${n} Brutalist designs with fewer than three light marks: ${fewOf.join('; ')}`);
+    console.log(`R8 marks: ${fewOf.length} of ${n} Brutalist designs with fewer than three light marks (${other} not the known seed set): ${fewOf.join('; ')}`);
     expect(n).toBe(200 * FORMAT_LIST.length);
-    // one in the 600 of the three screen formats (Carried R12 from R8 (1)); the A format of R16 adds one more of the
-    // same kind (the full-bleed bar blocking the edge strip)
-    expect(few).toBeLessThanOrEqual(2);
+    expect(other).toBeLessThanOrEqual(1);
   }, 120000);
 });

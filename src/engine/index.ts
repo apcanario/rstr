@@ -25,12 +25,23 @@ export function render(canvas: HTMLCanvasElement | OffscreenCanvas, spec: Spec, 
   const [W, H] = FORMATS[spec.format];
   if (canvas.width !== W) canvas.width = W;
   if (canvas.height !== H) canvas.height = H;
-  const ctx = canvas.getContext('2d') as Ctx;
+  // the same context as an export's (review R16 M3): the stage and the 1x file draw the same pixels
+  const ctx = canvas.getContext('2d', { willReadFrequently: true } as CanvasRenderingContext2DSettings) as Ctx;
   const sc = scene(spec, browserMeasure(), use);
-  // paint and finish (spec 4 stages 2 and 3): the finish needs the Scene for its two passes and its guard
-  paintFinished(ctx, sc, spec, t);
+  // paint and finish (spec 4 stages 2 and 3): the finish needs the Scene for its two passes and its guard. An HTML
+  // canvas (the stage) is drawn on an offscreen one, as every export is, and its pixels copied over: Chrome
+  // rasterises some edges of the same drawing differently on the two kinds (review R16 M3: 5 of 16 designs differed)
+  if (typeof OffscreenCanvas !== 'undefined' && !(canvas instanceof OffscreenCanvas)) {
+    work ??= new OffscreenCanvas(W, H);
+    // setting the size clears the canvas and its state, as a new one
+    work.width = W; work.height = H;
+    const w = work.getContext('2d', { willReadFrequently: true } as CanvasRenderingContext2DSettings) as Ctx;
+    paintFinished(w, sc, spec, t);
+    ctx.putImageData(w.getImageData(0, 0, W, H), 0, 0);
+  } else paintFinished(ctx, sc, spec, t);
   return sc;
 }
+let work: OffscreenCanvas | null = null;
 
 let full: HTMLCanvasElement | OffscreenCanvas | null = null;
 /**
