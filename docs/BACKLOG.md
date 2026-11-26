@@ -37,6 +37,10 @@ Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they 
 - **R10 (from R10).** 25 Nov 2026, found by R10. Smoke's offline font check "network off, unused sw-hanken picked: drawn with the default, note shown" is flaky offline: it can fail once and pass on a rerun with nothing changed. Find why (the service worker cache or the 4 s wait racing the pick) and make it deterministic.
 - **R12 (from bundle 4).** 25 Nov 2026, found by the bundle 4 viewer. Pedro to say from the phone whether they matter; fix with his Notes. (1) The refs' Vaporwave, the slit sun over the perspective grid floor, is rare unpinned: in the 48 cells of `sheet-vapor-*` and `variety-vapor` the two never appear together; spec 8.4 allows every sky and floor, so whether the classic pairing is weighted up is a taste call (review bundle 4 M2). (2) Vaporwave dark forms on the field layouts (windows, `palettes-vapor.jpg` bottom row: sunset, miami, mint) are saturated mid-tones as bright as the light forms; on the horizon layouts the dark skies are dark. Whether the field layouts take the dark sky in dark mode (review bundle 4 M8). (3) Brutalist one-word titles (`text-brutal.jpg` cells 1 to 3): the title is one stretched line of about a fifth of the height at 3:4 and a sixth at 9:16, the band the rest. The fix applied (review bundle 4 S4) draws a band taller than the title with its first graphic alone, no cut-in; the title's height is still capped by the least tall bundled face at the 1.9 stretch of spec 8.3, so that every face fills it. Whether a short title should take more of the page (a stretch above 1.9, or the band capped) is Pedro's call or a Fable chat's, since it changes 8.3.
 
+- **R15 (from R14).** 25 Nov 2026, found by review R14 M4. The pixel check of text over a photo (`src/engine/pixels.ts`) leaves out the copier pass: photocopy text over a photo is not read after the pass. R15 brings the copier pass over a photo; it reads text pixels with the pass on.
+- **R16 (from R14).** 25 Nov 2026, found by review R14 M5. The test photo is decoded at the contrast grid's size (768 x 1024, drawn as 3000 x 4000), so the pixel check never meets detail finer than the grid, where `MEASURE_MARGIN` 1.15 could be too small. R16 (2x, 3x export) reads text pixels over a full-size test photo at 3x.
+- **R14 (spec).** 25 Nov 2026, added by the R14 fixer (review R14 S1). Spec 8.9 gained an "It shows" rule: at least 35% of the photo's box shows once text, plates and graphics are drawn; where no placement reaches it the placement that shows most is drawn. Swiss misses the floor 2 times in 100 even unpinned; with the role pinned Brutalist misses it 23 to 32 times in 100 (its page is full of type), and Ground shows less than before. Pedro to say from the phone whether the rule, its 35% and the Brutalist photo matter; fix with his Notes.
+
 ## By hand (Pedro)
 
 - **H3. Run the online type checks.** Where Google Fonts is reachable (your computer): `npm ci`, `npm run smoke`, `python3 tools/fetch_fonts.py --check`, `npm run sheet`; report the output or send it as `Notes:`. Detail in Carried R3. Open until done.
@@ -55,15 +59,6 @@ Read spec 5, 8.0, 8.3, 8.4 and 10.3.
 ## Bundle 5: photo and export
 
 Read spec 3 (formats), 8.9, 9.4 and 10.1 (export sheet).
-
-### R14. Photo
-
-- Choose a photo from the phone; keep it on the device as spec 8.9 says; Remove.
-- Roles and crop decided by the layout stream in every style; Layout lock holds them; New crop.
-- Text over a photo: plate, scrim, or measured contrast.
-- Simple and Advanced Photo tabs.
-
-**Done when:** with a test photo, 9.2 passes for every style, format and role (tested); 30 shuffles give at least 10 distinct role-and-crop results per style (tested); the photo survives reload (tested); no network request carries image data (tested); a portrait and a landscape photo both cover every box they are given (tested).
 
 ### R15. Photo treatments
 
@@ -122,6 +117,7 @@ Read spec 7.1 and `docs/design/elements.md`; look at `docs/design/refs/v2-grunge
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **R14. Photo.** 25 Nov 2026, 1 chat (bundle 5; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R14 applied (fix: 2 errors, 7 should-fix, 6 minor; 13 applied by the fixer, M4 and M5 to Carried (R15, R16), none rejected); spec 8.9 gained the 'It shows' rule; see `docs/CHANGELOG.md` and `docs/reviews/R14.md`.
 - **Bundle 4 viewer check.** 25 Nov 2026. Fix: 1 error, 4 should-fix, 8 minor; 11 applied by the fixer, E1 and M1 (README) by the main chat, M2 and M8 to Carried, S4 applied in part and the rest to Carried, 0 rejected. `docs/reviews/bundle-4.md`.
 - **R10. Advanced mode.** 25 Nov 2026, 1 chat (bundle 4; builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R10 applied (fix: 2 errors, 5 should-fix, 8 minor; all 15 applied by the fixer, none rejected, two narrowed: the graphic share range and the Turn options); Carried R10, R10 (from R4), (from R6), (from R7) and (from R9) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R10.md`.
 - **R9. Vaporwave, finished.** 25 Nov 2026, 1 chat (bundle 4; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R9 applied (fix: 0 errors, 5 should-fix, 9 minor; S1 to S5 and M1 to M8 by the fixer, M9 by the main chat at close, none rejected); Carried R9, R9 (from R13) and the R1 refs line cleared; see `docs/CHANGELOG.md` and `docs/reviews/R9.md`.
