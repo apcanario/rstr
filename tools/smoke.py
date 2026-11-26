@@ -130,7 +130,8 @@ with served() as url, browser() as b:
         fallback_check(f'9.2 pomo {fmt} paper edge off', r, 0)
         for f in r['failures'][:5]:
             fail(f'9.2 pomo {fmt} paper edge off: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
-    # review bundle 3 M5: the copier pass keeps photocopy title words legible, read on pixels. Each title word's
+    # review bundle 3 M5: the copier pass keeps photocopy text legible, read on pixels (every text item since review
+    # R15 S3: the caption's faintest copy, title words before). Each item's
     # fill, in cells, against its paper halo (or a boxed word's paper against its toner box), on the Clean render
     # (pass included) and on the Scene drawn without the pass: no cell at needRatio without the pass may fall under
     # it with the pass. Cells already under it without the pass are counted and reported (colliding words, Carried
@@ -149,8 +150,8 @@ with served() as url, browser() as b:
             ncell += r['cells']
             nbefore += len(r['before'])
             if r['low']:
-                fail(f'copier {fmt}: title words under their ratio after the copier pass: {r["low"][:3]}', spec)
-        print(f'copier pass {fmt:4}  {nd} photocopy designs, {nw} title words, {ncell} cells read with and without the pass; {nbefore} cells under their ratio before the pass (reported, Carried R12 from bundle 3)' + ('' if not fails else ' (failures above)'))
+                fail(f'copier {fmt}: text under its ratio after the copier pass: {r["low"][:3]}', spec)
+        print(f'copier pass {fmt:4}  {nd} photocopy designs, {nw} text items, {ncell} cells read with and without the pass; {nbefore} cells under their ratio before the pass (reported, Carried R12 from bundle 3)' + ('' if not fails else ' (failures above)'))
     nwash = 0
     for i in range(3):
         spec = pg.evaluate('(i) => { const x = window.__rstr.spec(); x.style = "pomo"; x.format = "1:1"; x.pick.dialect = "photocopy"; x.seeds = {layout: 70 + i, colour: 71 + i, graphic: 72 + i, type: 73 + i}; return x; }', i)
@@ -369,8 +370,9 @@ with served() as url, browser() as b:
                 if r['low']:
                     fail(f'photo pixels {style} {role}: {r["low"]} of {r["masked"]} text pixels over the photo under the ratio of spec 5 {r["lows"]}', spec)
                 if i == 0 and k == 0:
-                    a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
-                    if a != pg.evaluate('(s) => window.__rstr.pixels(s)', spec):
+                    # each draw treats the photo afresh (review R15 S2: the second reused the first's treated box)
+                    a = pg.evaluate('(s) => window.__rstr.pixels(s, true)', spec)
+                    if a != pg.evaluate('(s) => window.__rstr.pixels(s, true)', spec):
                         fail(f'photo determinism {style}: the same spec and photo drew different pixels', spec)
     print(f'photo pixels: {npx} text items over the photo read on pixels ({meas} measured, {plat} on a plate), none under spec 5; determinism per style; {time.time() - t1:.0f} s')
     # row R15 (spec 8.9, 9.4): 9.2 in every treatment, every style, real fonts, no fallback; text over the photo on
@@ -397,8 +399,8 @@ with served() as url, browser() as b:
                 ntp += r['items']
                 if r['low']:
                     fail(f'photo pixels {style} {t}: {r["low"]} of {r["masked"]} text pixels over the photo under the ratio of spec 5 {r["lows"]}', spec)
-            a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
-            if a != pg.evaluate('(s) => window.__rstr.pixels(s)', spec):
+            a = pg.evaluate('(s) => window.__rstr.pixels(s, true)', spec)
+            if a != pg.evaluate('(s) => window.__rstr.pixels(s, true)', spec):
                 fail(f'photo determinism {style} {t}: the same spec, photo and treatment drew different pixels', spec)
     print(f'photo treatments: 9.2 on {ntr} designs (4 styles x 7 treatments), {ntp} text items over a treated photo read on pixels, determinism per style and treatment; {time.time() - t1:.0f} s')
     t1 = time.time()
@@ -429,7 +431,7 @@ with served() as url, browser() as b:
         ms = sorted(r['ms'] for r in rs)[2]
         rd = sorted(r['render'] for r in rs)[2]
         times[t] = (ms, rd, rs[0]['w'], rs[0]['h'])
-    print('treatment time at 1080 x 1920 (ground photo, median of 5, ms; in brackets the whole render, its treated box kept from the run before): ' + ', '.join(f'{t} {v[0]:.0f} ({v[1]:.0f})' for t, v in times.items()) + (f'; box {list(times.values())[0][2]} x {list(times.values())[0][3]}' if times else ''))
+    print('treatment time at 1080 x 1920 (ground photo, median of 5, ms; in brackets the whole first render, the treated box made afresh, review R15 M3): ' + ', '.join(f'{t} {v[0]:.0f} ({v[1]:.0f})' for t, v in times.items()) + (f'; box {list(times.values())[0][2]} x {list(times.values())[0][3]}' if times else ''))
     # review R14 S7: text over the test photo's calm sky and its hills (ground, close in, at the top and lower down),
     # so the measured path is read on pixels often, not a handful of times
     PH = '([s, k, i, sc, y]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][i % 3]; x.mode = (i >> 1) % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 9100 + k * 37 + i, colour: 9200 + i, graphic: 9300 + k + i, type: 9400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: "colour", place: sc ? {role: "ground", scale: sc, x: 0.5, y: y} : (k < 5 ? {role: ["ground", "box", "disc", "column", "band"][k]} : null)}; return x; }'

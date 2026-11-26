@@ -70,6 +70,28 @@ export function treatPairs(P: Form): string[] {
   return out.length ? out : best ? [best] : [];
 }
 
+/** Roles that are not a palette's ground or ink (review R15 M1: a duotone of the two neutrals reads as monochrome). */
+const NEUTRAL: readonly string[] = ['ground', 'ink', 'paper', 'toner', 'window', 'windowInk'];
+/**
+ * The pairs the graphic stream draws a duotone from (review R15 M1): those of `treatPairs` with an accent in them
+ * first; only where none reaches 3:1, every pair. A pair picked by hand (`photo.duo`) may still be any of `treatPairs`.
+ */
+export function duoPairs(P: Form): string[] {
+  const all = treatPairs(P), acc = all.filter((id) => {
+    const [a, b] = id.split('+') as Role[];
+    return (!NEUTRAL.includes(a) || !NEUTRAL.includes(b)) && contrast(P[a] as string, P[b] as string) >= 3;
+  });
+  return acc.length ? acc : all;
+}
+
+/** Posterise takes three colours at least (spec 8.9: three to five). */
+export const POSTERISE_MIN = 3;
+/**
+ * Whether a treatment can be drawn with a palette (review R15 S1): posterise only where the palette has three
+ * distinct colours or more; the rest always. Where it cannot, the tile is disabled and `treatOf` draws another.
+ */
+export const treatOffered = (t: Treatment, P: Form): boolean => t !== 'posterise' || paletteColours(P).length >= POSTERISE_MIN;
+
 const num = (v: unknown, a: number, b: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? Math.max(a, Math.min(b, v)) : undefined);
 
 /** What layout records on the photo item: the treatment, its values and its colours (darkest first, by luminance). */
@@ -98,11 +120,13 @@ export function treatOf(spec: Spec, P: Form, list: TreatList = ALL_TREATMENTS): 
   let x = u[0] * sum;
   for (const t of allow) if ((x -= weight(t)) < 0) { name = t; break; }
   if (isTreatment(spec.photo?.treatment)) name = spec.photo!.treatment as Treatment;
+  // a palette with fewer than three colours cannot posterise (review R15 S1): the style's favourite, else threshold
+  if (!treatOffered(name, P)) name = treatOffered(list.favourite, P) ? list.favourite : 'threshold';
   const p = spec.params, R = TREAT_RANGE, lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const out: Treat = { name, colours: [] };
   const byLum = (a: string, b: string) => luminance(a) - luminance(b);
   if (TWO_COLOUR.includes(name)) {
-    const pairs = treatPairs(P), asked = typeof p['photo.duo'] === 'string' && pairs.includes(p['photo.duo'] as string) ? (p['photo.duo'] as string) : null;
+    const all = treatPairs(P), pairs = name === 'duotone' ? duoPairs(P) : all, asked = typeof p['photo.duo'] === 'string' && all.includes(p['photo.duo'] as string) ? (p['photo.duo'] as string) : null;
     const duo = asked ?? pairs[Math.min(pairs.length - 1, Math.floor(u[1] * pairs.length))];
     if (duo) {
       const [a, b] = duo.split('+') as Role[];
@@ -120,7 +144,7 @@ export function treatOf(spec: Spec, P: Form, list: TreatList = ALL_TREATMENTS): 
   if (name === 'posterise') {
     const cs = paletteColours(P).map((c) => c.hex).sort(byLum);
     const want = Math.round(num(p['photo.levels'], R.levels.min, R.levels.max) ?? R.levels.min + Math.floor(u[6] * 3));
-    const n = Math.max(2, Math.min(want, cs.length));
+    const n = Math.max(POSTERISE_MIN, Math.min(want, cs.length));
     out.levels = n;
     // the darkest and the lightest always, the rest spread evenly between them by luminance
     out.colours = Array.from({ length: n }, (_, i) => cs[Math.round((i * (cs.length - 1)) / (n - 1))]);
@@ -165,7 +189,11 @@ export function treatFills(name: unknown, cols: string[]): string[] {
 }
 
 const lum8 = (r: number, g: number, b: number) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-/** How far a measured tone may sit from the pixels drawn (the grid is read from a smaller copy): threshold and posterise jump, so their bands are widened by it. */
+/**
+ * How far a measured tone may sit from the pixels drawn (the grid is read from a smaller copy): threshold and
+ * posterise jump, so their bands are widened by it; mono and duotone ranges are widened by it too, before the
+ * mapping, so mono's contrast stretches the slack with the tones (review R15 M6).
+ */
 export const TONE_SLACK = 0.06;
 
 /**
@@ -176,19 +204,20 @@ export const TONE_SLACK = 0.06;
 export function treatedRange(g: Pick<GraphicItem, 'params' | 'colours'>, lo: string, hi: string): { lo: string; hi: string } {
   const name = g.params.treat, cols = treatColours(g);
   const tl = lum8(...parseHex(lo)), th = lum8(...parseHex(hi));
+  const sl = Math.max(0, tl - TONE_SLACK), sh = Math.min(1, th + TONE_SLACK);
   if (name === 'mono') {
     const k = Number(g.params.contrast) || 1, grey = (t: number) => { const v = Math.max(0, Math.min(1, (t - 0.5) * k + 0.5)) * 255; return toHex([v, v, v]); };
-    return { lo: grey(tl), hi: grey(th) };
+    return { lo: grey(sl), hi: grey(sh) };
   }
   if (!paletteTreat(name) || cols.length < 2) return { lo, hi };
   const sorted = (a: string, b: string) => (luminance(a) <= luminance(b) ? { lo: a, hi: b } : { lo: b, hi: a });
-  if (name === 'duotone') return sorted(mixHex(cols[0], cols[1], tl), mixHex(cols[0], cols[1], th));
+  if (name === 'duotone') return sorted(mixHex(cols[0], cols[1], sl), mixHex(cols[0], cols[1], sh));
   if (name === 'halftone' || name === 'dither') return sorted(cols[0], cols[cols.length - 1]);
   const band = (t: number) => {
     if (name === 'threshold') return t >= Number(g.params.level) ? 1 : 0;
     return Math.max(0, Math.min(cols.length - 1, Math.floor(t * cols.length)));
   };
-  const b0 = band(Math.max(0, tl - TONE_SLACK)), b1 = band(Math.min(1, th + TONE_SLACK));
+  const b0 = band(sl), b1 = band(sh);
   const seen = cols.slice(Math.min(b0, b1), Math.max(b0, b1) + 1);
   let a = seen[0], z = seen[0];
   for (const c of seen) { if (luminance(c) < luminance(a)) a = c; if (luminance(c) > luminance(z)) z = c; }

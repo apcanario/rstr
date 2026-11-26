@@ -1,5 +1,5 @@
 /** Row R15: photo treatments (spec 8.9), their picks, their colours, their determinism and 9.2 with each. */
-import { beforeAll, describe, expect, test } from 'vitest';
+import { afterEach, beforeAll, describe, expect, test } from 'vitest';
 import { solve, choosePalette } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { contains } from '../src/engine/geom';
@@ -13,8 +13,11 @@ import { advancedOf } from '../src/engine/advanced';
 import { allControls } from '../src/engine/advanced';
 import { apply, facetOfParam, setColour } from '../src/engine/controls';
 import { STYLES } from '../src/engine/styles';
-import { parseHex } from '../src/engine/colour';
-import { FAV_WEIGHT, paletteColours, treatColours, treatedRange, treatOf, treatPairs, treatPixels, TREATMENTS, type Treatment } from '../src/engine/treat';
+import { parseHex, toHex } from '../src/engine/colour';
+import { duoPairs, FAV_WEIGHT, paletteColours, POSTERISE_MIN, TONE_SLACK, treatColours, treatedRange, treatOf, treatOffered, treatPairs, treatPixels, TREATMENTS, type Treatment } from '../src/engine/treat';
+import { clearTreated, treatedBox, treatedKept, TREATED_KEEP } from '../src/engine/paint';
+import { treatmentControl } from '../src/engine/controls';
+import { COPY_LAYOUTS, ICE_LAYOUTS } from '../src/engine/parts/layout/pomo';
 import { PALETTES } from '../src/data/palettes';
 import { formOf } from '../src/data/palettes/types';
 import type { GraphicItem, Scene } from '../src/engine/scene';
@@ -104,8 +107,11 @@ describe('duotone and posterise use only palette colours (spec 8.9, R15 Done whe
         const s0 = withTreat({ ...defaultSpec({ graphic: 77 }), style, mode, pick: { ...defaultSpec().pick, palette: p.id } }, 'posterise');
         const s = levels ? { ...s0, params: { 'photo.levels': levels } } : s0;
         const it = treated(s), cols = treatColours(it);
+        // a palette of fewer than three colours does not posterise (review R15 S1): checked below
+        if (pal.length < POSTERISE_MIN) { expect(it.params.treat).not.toBe('posterise'); continue; }
+        expect(it.params.treat).toBe('posterise');
         expect(cols.length).toBe(Math.min(levels ?? cols.length, pal.length));
-        expect(cols.length).toBeGreaterThanOrEqual(Math.min(3, pal.length));
+        expect(cols.length).toBeGreaterThanOrEqual(3);
         expect(cols.length).toBeLessThanOrEqual(5);
         for (const c of cols) expect(pal).toContain(c.toLowerCase());
         const allowed = new Set(cols.map((c) => parseHex(c).join()));
@@ -116,6 +122,23 @@ describe('duotone and posterise use only palette colours (spec 8.9, R15 Done whe
       }
     }
     expect(n).toBeGreaterThan(100);
+  });
+  test('posterise is not offered where the palette has fewer than three colours (Swiss yellow light); the stream and a pick by hand draw another', () => {
+    const P = formOf(PALETTES.swiss.find((p) => p.id === 'yellow')!, 'light');
+    expect(paletteColours(P).length).toBeLessThan(POSTERISE_MIN);
+    expect(treatOffered('posterise', P)).toBe(false);
+    expect(TREATMENTS.filter((t) => !treatOffered(t, P))).toEqual(['posterise']);
+    expect(treatmentControl(undefined, P).options.map((o) => o.v)).not.toContain('posterise');
+    expect(treatmentControl().options.map((o) => o.v)).toContain('posterise');
+    const L = STYLES.swiss.parts.graphics.treatments;
+    for (let g = 0; g < 20; g++) {
+      const s = withTreat({ ...defaultSpec({ graphic: 300 + g }), style: 'swiss', mode: 'light', pick: { ...defaultSpec().pick, palette: 'yellow' } }, 'posterise');
+      const t = treatOf(s, P, L);
+      expect(t.name).toBe(L.favourite);
+      expect(treated(s).params.treat).toBe(L.favourite);
+    }
+    // a list whose favourite is posterise falls back to threshold
+    expect(treatOf(withTreat(defaultSpec(), 'posterise'), P, { allow: ['posterise'], favourite: 'posterise' }).name).toBe('threshold');
   });
   test('threshold, halftone and dither draw only their two palette colours (and, for the halftone, the edge between)', () => {
     for (const style of STYLE_IDS) for (const t of ['threshold', 'dither', 'halftone'] as const) {
@@ -132,6 +155,30 @@ describe('duotone and posterise use only palette colours (spec 8.9, R15 Done whe
       }
       expect(seen.has(A.join()) && seen.has(B.join()), `${style} ${t} draws both colours`).toBe(true);
     }
+  });
+});
+
+describe('duotone takes an accent where one pairs at 3:1 (review R15 M1)', () => {
+  test('the stream\'s duotone pair has an accent in it wherever the palette has such a pair; by hand any pair', () => {
+    const NEUTRAL = ['ground', 'ink', 'paper', 'toner', 'window', 'windowInk'];
+    let withAccent = 0;
+    for (const style of STYLE_IDS) for (const p of PALETTES[style]) for (const mode of ['light', 'dark'] as const) {
+      const P = formOf(p, mode), all = treatPairs(P), acc = duoPairs(P);
+      const hasAcc = all.some((id) => id.split('+').some((r) => !NEUTRAL.includes(r)));
+      for (const id of acc) expect(all).toContain(id);
+      for (let g = 0; g < 6; g++) {
+        const s = withTreat({ ...defaultSpec({ graphic: 700 + g }), style, mode, pick: { ...defaultSpec().pick, palette: p.id } }, 'duotone');
+        const duo = String(treated(s).params.duo);
+        expect(acc).toContain(duo);
+        if (hasAcc) { expect(duo.split('+').some((r) => !NEUTRAL.includes(r)), `${style} ${p.id} ${mode}: ${duo}`).toBe(true); withAccent++; }
+      }
+      // a pair picked by hand is drawn even where it is ground + ink
+      if (all.includes('ground+ink')) {
+        const s = { ...withTreat({ ...defaultSpec({ graphic: 700 }), style, mode, pick: { ...defaultSpec().pick, palette: p.id } }, 'duotone'), params: { 'photo.duo': 'ground+ink' } };
+        expect(treated(s).params.duo).toBe('ground+ink');
+      }
+    }
+    expect(withAccent).toBeGreaterThan(50);
   });
 });
 
@@ -157,8 +204,22 @@ describe('picked by the graphic stream from the style\'s list, or by hand (spec 
       expect(G.treatmentsOf![d]!.allow).toContain(treated(s).params.treat);
     }
   });
+  test('Postmodern unpinned: every scene\'s treatment is in the list of the dialect it drew (review R15 M4)', () => {
+    const G = STYLES.pomo.parts.graphics, seen = new Set<string>();
+    for (let i = 0; i < 80; i++) {
+      const s = withTreat({ ...defaultSpec({ graphic: 1900 + i * 31, layout: 2900 + i * 17 }), style: 'pomo' }, null);
+      const sc = solve(s, stubMeasure).scene, d = COPY_LAYOUTS.includes(sc.frame) ? 'photocopy' : 'icecream';
+      if (d === 'icecream') expect(ICE_LAYOUTS).toContain(sc.frame);
+      seen.add(d);
+      expect(G.treatmentsOf![d]!.allow, `${d} ${i}`).toContain(photoOfScene(sc)!.params.treat);
+    }
+    expect(seen.size).toBe(2);
+  });
   test('a treatment picked by hand is drawn in every style, allowed or not; an unknown one is dropped on load', () => {
-    for (const style of STYLE_IDS) for (const t of TREATMENTS) expect(treated(withTreat({ ...defaultSpec(), style }, t)).params.treat).toBe(t);
+    for (const style of STYLE_IDS) for (const t of TREATMENTS) {
+      const s = withTreat({ ...defaultSpec(), style }, t);
+      if (treatOffered(t, choosePalette(s))) expect(treated(s).params.treat).toBe(t);
+    }
     expect(migrate({ ...defaultSpec(), photo: { id: 'x', treatment: 'sepia', place: null } }).photo!.treatment).toBeNull();
     expect(migrate({ ...defaultSpec(), photo: { id: 'x', treatment: 'dither', place: null } }).photo!.treatment).toBe('dither');
   });
@@ -234,6 +295,23 @@ describe('text over a treated photo (spec 8.9, 9.4)', () => {
       }
     }
   });
+  test('mono at contrast 1.8 and duotone: a pixel off the grid\'s read by the slack still lies in what is measured (review R15 M6)', () => {
+    const g = (treat: string, colours: string[], extra: Record<string, number> = {}) => ({ params: { treat, ...extra }, colours: Object.fromEntries(colours.map((c, i) => ['t' + i, c])) });
+    const L = (h: string) => { const [r, gg, b] = parseHex(h); return 0.2126 * r + 0.7152 * gg + 0.0722 * b; };
+    const S = Math.floor(TONE_SLACK * 255);
+    for (const it of [g('mono', [], { contrast: 1.8 }), g('mono', [], { contrast: 0.6 }), g('duotone', ['#102030', '#F0E0C0'])]) {
+      for (const [lo, hi] of [[40, 60], [100, 140], [180, 200], [0, 30], [230, 255]]) {
+        const m = treatedRange(it, toHex([lo, lo, lo]), toHex([hi, hi, hi]));
+        for (let v = Math.max(0, lo - S); v <= Math.min(255, hi + S); v++) {
+          const d = new Uint8ClampedArray([v, v, v, 255]);
+          treatPixels(d, 1, 1, it.params, treatColours(it), 1);
+          const y = 0.2126 * d[0] + 0.7152 * d[1] + 0.0722 * d[2];
+          expect(y, `${JSON.stringify(it.params)} ${lo}..${hi} at ${v}`).toBeGreaterThanOrEqual(L(m.lo) - 1.5);
+          expect(y, `${JSON.stringify(it.params)} ${lo}..${hi} at ${v}`).toBeLessThanOrEqual(L(m.hi) + 1.5);
+        }
+      }
+    }
+  });
   test('9.2 with the test photo in every treatment, every style (stub measure)', () => {
     for (const style of STYLE_IDS) for (const t of TREATMENTS) {
       const r = runInvariants(stubMeasure, { styles: [style], n: 7, variants: 'cycle', photo: { id: t.length % 2 ? PORTRAIT : LANDSCAPE, treatment: t, place: null } });
@@ -265,5 +343,42 @@ describe('text over a treated photo (spec 8.9, 9.4)', () => {
       expect(after).toEqual(before.map((c) => (c === ink ? '#7f00ff' : c)));
       sc.items.forEach((x, k) => { if (x.kind === 'text' && !x.waive?.includes(4) && lowContrast(sc, k)) expect(sc.colourWarn ?? []).toContain(`${x.slot}.${x.part}`); });
     }
+  });
+});
+
+describe('the treated box is kept between paints (review R15 M2)', () => {
+  const G = globalThis as unknown as { OffscreenCanvas?: unknown };
+  const had = G.OffscreenCanvas;
+  afterEach(() => { G.OffscreenCanvas = had; clearTreated(); });
+  test('a second paint of the same box does not treat again; the stage and four style tiles all stay kept', () => {
+    let made = 0, treatedN = 0;
+    G.OffscreenCanvas = class {
+      constructor(public width: number, public height: number) { made++; }
+      getContext() {
+        const w = this.width, h = this.height, canvas = this;
+        return { canvas, drawImage() {}, getImageData: () => ({ data: new Uint8ClampedArray(w * h * 4).fill(128) }), putImageData() { treatedN++; }, set imageSmoothingEnabled(_: boolean) {}, set imageSmoothingQuality(_: string) {} };
+      }
+    };
+    clearTreated();
+    expect(TREATED_KEEP).toBeGreaterThanOrEqual(6);
+    // a photo with a picture (the stub draws nothing from it)
+    registerPhoto({ ...testPhoto('test-img', 400, 300, 3), img: {} as CanvasImageSource });
+    const g0 = treated(withTreat({ ...defaultSpec({ graphic: 5 }), style: 'swiss' }, 'threshold'));
+    // five boxes, as the stage and the Style tab's four tiles make per Shuffle
+    const boxes = [0, 1, 2, 3, 4].map((k): GraphicItem => ({ ...g0, params: { ...g0.params, id: 'test-img' }, box: { x: 0, y: 0, w: 12 + k, h: 10 } }));
+    const first = boxes.map((b) => treatedBox(b, 1));
+    expect(treatedN).toBe(5);
+    expect(treatedKept()).toBe(5);
+    const again = boxes.map((b) => treatedBox(b, 1));
+    expect(treatedN, 'the second paint treated again').toBe(5);
+    again.forEach((c, k) => expect(c).toBe(first[k]));
+    // fresh (the timing) treats again and keeps nothing new
+    treatedBox(boxes[0], 1, true);
+    expect(treatedN).toBe(6);
+    clearTreated();
+    expect(treatedKept()).toBe(0);
+    treatedBox(boxes[0], 1);
+    expect(treatedN).toBe(7);
+    expect(made).toBe(7);
   });
 });

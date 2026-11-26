@@ -173,9 +173,16 @@ function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, n
   ctx.drawImage(L.canvas as CanvasImageSource, 0, 0);
 }
 
-/** Treated pictures kept for the next paint of the same design (a finish paints a Scene more than once): a few only. */
-const TREATED_KEEP = 3;
+/**
+ * Treated pictures kept for the next paint of the same design (a finish paints a Scene more than once): the stage and
+ * the Style tab's four tiles make five per Shuffle, so six (review R15 M2).
+ */
+export const TREATED_KEEP = 6;
 const treated = new Map<string, CanvasImageSource>();
+/** Forget every kept treated picture (review R15 S2, M3: the determinism check and the timing treat afresh). */
+export const clearTreated = (): void => treated.clear();
+/** How many treated pictures are kept (tests). */
+export const treatedKept = (): number => treated.size;
 
 /**
  * The photo's box as its treatment draws it (spec 8.9, R15): the picture drawn into a canvas of the box's size in

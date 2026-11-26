@@ -57,7 +57,9 @@ export function coverOf(k: Ink, over: Ink[]): number {
 }
 
 /** The contrast the caption's faintest copy fades to on the paper: 4.5:1 (spec 5) with room for the copier pass. */
-export const CAPTION_FAINT = 5.4;
+export const CAPTION_FAINT = 7;
+/** The middle copy's contrast on the paper: a step stronger than the faintest. */
+export const CAPTION_MID = 9;
 /** The mix of a toward b with the least share of b that reaches the ratio on a (so the copy fades as far as it may). */
 function fadeTo(a: string, b: string, ratio: number): string {
   let lo = 0, hi = 1;
@@ -131,8 +133,9 @@ export function copyType(c: PartCtx, plan: Plan): Item[] | null {
     else {
       const fs = cf.size, line = cf.lines[0];
       // three copies, the strongest at the bottom; the faintest still 4.5:1 on the paper (spec 5) once the copier pass
-      // has run over it: at 4.6 the pass's streaks took it to 3.99 in cells (R15, read over a photo); 5.4 holds
-      const cols = [toner, fadeTo(paper, toner, 7), fadeTo(paper, toner, CAPTION_FAINT)];
+      // has run over it: at 4.6 the pass's streaks took it to 3.99 in cells (R15, read over a photo); at 5.4 to 3.52
+      // and at 6.2 to 4.22 on paper with no photo (review R15 S3, every text item read); 7 holds over 600 designs
+      const cols = [toner, fadeTo(paper, toner, CAPTION_MID), fadeTo(paper, toner, CAPTION_FAINT)];
       const items = cols.map((col, i) => mkText(m, { slot: 'caption', part: i ? 'copy' + i : 'line0', font: T.mono, size: fs, runs: [{ s: line, x: i * fs * 0.5, y: -i * fs * 1.22 }], fill: col, ink: [col], min: MIN.caption }));
       const b = boxOf(items);
       capB = { items: moveItems(items, { x: -b.x, y: -b.y, rot: 0 }), w: b.w, h: b.h };

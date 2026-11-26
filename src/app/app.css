@@ -25,6 +25,8 @@ header { display: flex; align-items: center; gap: 6px; height: 48px; flex: none;
 /* segmented rows: the chosen one is a lighter plate with a thin light edge, never a colour */
 .seg { display: flex; flex: none; gap: 3px; background: #141417; border-radius: 12px; padding: 0; min-width: 0; }
 .seg button { flex: 1 1 0; min-width: 48px; height: 48px; padding: 0 4px; font-size: 14px; font-weight: 500; color: #f1efe9a0; }
+/* the treatment Auto draws (review R15 M7): a dashed edge, not the plate of a choice */
+.seg button.drawn { outline: 1.5px dashed #f1efe970; outline-offset: -5px; }
 .seg button.on { background: #2a2a30; color: #f1efe9; font-weight: 700; box-shadow: inset 0 0 0 1.5px #f1efe970; }
 /* not yet available (Finish and Marks until R7): visibly out of reach, not just another unchosen option */
 .seg button:disabled { color: #f1efe930; font-weight: 400; }

@@ -4,7 +4,7 @@ import { FORMATS } from './formats';
 import { bounds, contains, overlaps } from './geom';
 import type { Ctx } from './graphics/types';
 import { behind, haloOf, inkOf } from './invariants';
-import { knockText, paint, paintText, treatedBox } from './paint';
+import { clearTreated, knockText, paint, paintText, treatedBox } from './paint';
 import { CELL, CELL_MIN, CELL_PX, RING, paintFinished, textContrast, tooLow } from './finish';
 import { contrast, needRatio, toHex } from './colour';
 import { browserMeasure, scene as sceneOf } from './index';
@@ -227,7 +227,8 @@ export function finishProof(spec: Spec, use: Use = {}): { items: number; inkPx: 
 }
 
 /**
- * The copier pass keeps photocopy title words legible (review bundle 3 M5): each title word's fill read in cells
+ * The copier pass keeps photocopy text legible (review bundle 3 M5; every text item since review R15 S3, which found
+ * the caption's faintest copy taken under by the pass on paper, with no photo): each text item's fill read in cells
  * (as the finish guard reads them) against its paper halo, or a boxed word's paper against the toner box round it
  * (a ring of 3 px), on the Clean render (which includes the pass) and on the same Scene drawn without the pass.
  * `low`: cells at `needRatio` of the word's size or more without the pass and under it with the pass (the copier
@@ -248,7 +249,7 @@ export function copierProof(spec: Spec, use: Use = {}, wash = 0): { words: numbe
   const low: { part: string; cell: number; ratio: number; need: number }[] = [], before: typeof low = [];
   let words = 0, cells = 0;
   texts.forEach((it, k) => {
-    if (it.slot !== 'title' || it.waive?.includes(4)) return;
+    if (it.waive?.includes(4)) return;
     words++;
     const B = bounds(it.quad), x0 = Math.max(0, Math.floor(B.x) - 6), y0 = Math.max(0, Math.floor(B.y) - 6);
     const x1 = Math.min(W, Math.ceil(B.x + B.w) + 6), y1 = Math.min(H, Math.ceil(B.y + B.h) + 6), w = x1 - x0, h = y1 - y0;
@@ -426,10 +427,13 @@ export function photoCopier(spec: Spec, use: Use = {}): { items: number; cells: 
 /**
  * Row R15 (Done when: treatment time at 1080 x 1920 recorded): the time to draw the photo's box in its treatment, the
  * picture drawn at the box's size and the treatment run on its pixels, nothing kept from an earlier draw; and the
- * whole render (Scene, paint, finish) of the same spec. ms. Null when the design draws no photo or it has no picture.
+ * whole first render (Scene, paint, finish) of the same spec, the kept treated pictures forgotten first so it pays
+ * for the treatment as a first render or an export does (review R15 M3). ms. Null when the design draws no photo or
+ * it has no picture.
  */
 export function treatBench(spec: Spec, use: Use = {}): { treat: string; w: number; h: number; ms: number; render: number } | null {
   const [W, H] = FORMATS[spec.format];
+  clearTreated();
   const t0 = performance.now();
   const sc = sceneOf(spec, browserMeasure(), use);
   const g = sc.items.find((i) => i.kind === 'graphic' && i.name === 'photo') as import('./scene').GraphicItem | undefined;

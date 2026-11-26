@@ -13,7 +13,7 @@ import { GRAPHICS } from './graphics';
 import { paramKey } from './graphics/params';
 import type { Scene } from './scene';
 import { COLOUR_ROLES, type ColourRole, type Facet, type Slot, type Spec } from './spec';
-import { isTreatment, paletteColours, TREAT_PARAMS, TREAT_RANGE, TREATMENT_LABEL, TREATMENTS, treatPairs, TWO_COLOUR, type Treatment } from './treat';
+import { isTreatment, paletteColours, TREAT_PARAMS, TREAT_RANGE, TREATMENT_LABEL, treatOffered, TREATMENTS, treatPairs, TWO_COLOUR, type Treatment } from './treat';
 
 const paletteCount = (P: Form) => paletteColours(P).length;
 
@@ -182,9 +182,12 @@ export function libraryControls(q: ControlQuery, uses: readonly string[]): Range
 /**
  * The treatment (spec 8.9, 10.2 Treatment tiles, R15): Auto and the seven, any of them by hand (the style's list is
  * what the graphic stream draws from). Graphic's facet: the graphic stream picks it (spec 3). `drawn`: the one drawn.
+ * `form`: the palette form drawn; a treatment it cannot draw (posterise with fewer than three colours, review R15 S1)
+ * is not offered.
  */
-export function treatmentControl(drawn?: string): Choice {
-  return withDrawn(choice('photo.treatment', 'Treatment', { at: 'treatment' }, 'graphic', TREATMENTS, (v) => TREATMENT_LABEL[v as Treatment] ?? String(v)), drawn);
+export function treatmentControl(drawn?: string, form?: Form): Choice {
+  const list = form ? TREATMENTS.filter((t) => treatOffered(t, form)) : TREATMENTS;
+  return withDrawn(choice('photo.treatment', 'Treatment', { at: 'treatment' }, 'graphic', list, (v) => TREATMENT_LABEL[v as Treatment] ?? String(v)), drawn);
 }
 
 /**
@@ -236,7 +239,7 @@ export function photoControls(q: ControlQuery, form?: Form): Control[] {
   const range = (key: 'scale' | 'x' | 'y', label: string, min: number, max: number, shown: number | undefined, log = false): Ranged =>
     ({ kind: 'range', id: 'photo.' + key, label, where: { at: 'photo', key }, facet: 'layout', min, max, step: (max - min) / 100, ...(shown !== undefined && Number.isFinite(shown) ? { shown: Math.max(min, Math.min(max, shown)) } : {}), ...(log ? { log: true } : {}) });
   return [role, range('scale', 'Scale', 1, 2.5, Number(P.scale), true), range('x', 'Across', 0, 1, sx), range('y', 'Down', 0, 1, sy),
-    treatmentControl(String(P.treat)), ...(form ? treatControls(g, form) : [])];
+    treatmentControl(String(P.treat), form), ...(form ? treatControls(g, form) : [])];
 }
 
 /** The style's pairings by full name (spec 6; the Type lock shows only the display family, review R4 M6). */

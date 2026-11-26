@@ -922,9 +922,22 @@ def run_photo(b, url, fail):
                 fail(f'{at}: the Threshold tile drew the same pixels')
             if pg.get_attribute('button[data-treat="threshold"]', 'aria-pressed') != 'true':
                 fail(f'{at}: the Threshold tile is not shown as on')
+            # review R15 M7: with Threshold on, no tile is marked as drawn by Auto
+            if pg.evaluate('() => document.querySelectorAll("button[data-drawn]").length'):
+                fail(f'{at}: a tile is marked as drawn by Auto while Threshold is picked by hand')
             tap(pg, 'button[data-treat="auto"]')
             if spec(pg)['photo']['treatment'] is not None:
                 fail(f'{at}: Auto did not give the treatment back to the graphic stream')
+            # review R15 M7: while Auto is on, the tile of the treatment drawn is marked, and only it
+            t5 = [i for i in pg.evaluate('(s) => window.__rstr.scene(s)', spec(pg))['items'] if i['kind'] == 'graphic' and i['name'] == 'photo'][0]['params'].get('treat')
+            marked = pg.evaluate('() => [...document.querySelectorAll("button[data-drawn]")].map((b) => b.dataset.treat)')
+            if marked != [t5]:
+                fail(f'{at}: with Auto on, the tiles marked as drawn are {marked}, the design draws {t5}')
+            # review R15 S5: each row of Treatment tiles sets its labels at one size
+            sizes = pg.evaluate('() => [...document.querySelectorAll("[data-fit-row]")].map((r) => [...new Set([...r.querySelectorAll("[data-fit]")].map((l) => getComputedStyle(l).fontSize))])')
+            for k, z in enumerate(sizes):
+                if len(z) > 1:
+                    fail(f'{at}: Treatment tile row {k} sets its labels at {len(z)} sizes {z}')
             goto(pg, 0)
         # Advanced: the Photo tab carries role, scale and offset, the treatment tiles and its parameters
         pg.click('[data-testid="advanced"]')
@@ -936,7 +949,7 @@ def run_photo(b, url, fail):
             for p in pg.evaluate(LAYOUT_JS)[:6]:
                 fail(f'{at}, Advanced Photo tab page {i + 1}: {p}')
         goto(pg, 0)
-        want = {'photo-file', 'photo-crop', 'photo-treat-0', 'photo-treat-1', 'photo.role', 'photo.scale', 'photo.x', 'photo.y'}
+        want = {'photo-file', 'photo-crop', 'photo-treat-0', 'photo-treat-1', 'photo-treat-2', 'photo.role', 'photo.scale', 'photo.x', 'photo.y'}
         if not want <= ids:
             fail(f'{at}: the Advanced Photo tab lacks {sorted(want - ids)}')
         pg.click('[data-testid="advanced"]')

@@ -15,6 +15,7 @@ import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
 import { bench, copierProof, photoCopier, photoPixels, photoShows, treatBench, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
 import { labelsOf, markOverlaps } from './engine/marks';
+import { clearTreated } from './engine/paint';
 import { thumb } from './engine';
 import { withStyle } from './app/state';
 import { migrate, type Spec, type StyleId } from './engine/spec';
@@ -63,8 +64,9 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       const [w, h] = FORMATS[spec.format];
       return { url: c.toDataURL(type, 0.92), w, h };
     },
-    /** Raw pixels of a render, for the determinism check. */
-    pixels(raw: unknown): string {
+    /** Raw pixels of a render, for the determinism check. `fresh`: forget the kept treated photos first, so the photo is treated again (review R15 S2). */
+    pixels(raw: unknown, fresh = false): string {
+      if (fresh) clearTreated();
       const c = document.createElement('canvas'), s = migrate(raw);
       render(c, s, null, useOf(s));
       return pixelHash(c);

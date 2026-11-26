@@ -61,7 +61,8 @@ export const pomoGraphics: GraphicsPart = {
   vocabOf: { icecream: SHAPE_NAMES, photocopy: FOUND },
   motifs: [...FOUND, ...SHAPE_NAMES],
   // spec 8.9 (R15): ice cream takes the photo loud and flat (posterise first), photocopy as a copier takes it
-  // (threshold first); the style's list is both
+  // (threshold first). The style's list (both) is read only where a plan has no dialect: no Postmodern plan today
+  // (every one names its dialect, so compose reads treatmentsOf), a mix part from R18 (review R15 M4)
   treatments: { allow: ['colour', 'duotone', 'posterise', 'halftone', 'mono', 'threshold', 'dither'], favourite: 'posterise' },
   treatmentsOf: {
     icecream: { allow: ['colour', 'duotone', 'posterise', 'halftone'], favourite: 'posterise' },

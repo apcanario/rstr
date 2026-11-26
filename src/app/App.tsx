@@ -7,7 +7,7 @@ import type { ComponentChildren } from 'preact';
 import { installApi } from '../api';
 import { choosePairing, render, scene as sceneOf, thumb, type Use } from '../engine';
 import { varietyKey } from '../engine/proof';
-import { resolvePairing } from '../engine/layout';
+import { choosePalette, resolvePairing } from '../engine/layout';
 import { pixelHash } from '../engine/pixels';
 import { defaultPairing } from '../data/pairings';
 import { PALETTES } from '../data/palettes';
@@ -23,7 +23,7 @@ import { addPhoto, ensurePhoto, prune } from '../photos';
 import { photoOf, releasePhotos } from '../engine/photo';
 import { advancedOf, type Advanced } from '../engine/advanced';
 import { apply, human, read, setColour, treatmentControl, type Control, type DesignColour, type Value } from '../engine/controls';
-import { TREATMENT_LABEL, TREATMENTS } from '../engine/treat';
+import { TREATMENT_LABEL, TREATMENTS, treatOffered, type Treatment } from '../engine/treat';
 
 /** What the stage drew: the pairing asked for, the one used, and the note (spec 6). */
 export interface Drawn { wanted: string; pairing: string; note: string; }
@@ -571,6 +571,9 @@ export function App({ ready }: { ready: Promise<void> }) {
   const shown = photoOf(spec.photo?.id);
   const photoHint = photoState === 'reading' ? 'Reading photo' : photoState === 'failed' ? 'Could not read that photo'
     : !has ? 'Kept on this phone only' : photoGone ? 'Photo not on this phone' : shown ? `${shown.w} × ${shown.h} px` : '';
+  // the palette form drawn (which treatments it can take) and the treatment the design draws (review R15 S1, M7)
+  const form = choosePalette(spec);
+  const drawnTreat = (scene?.items.find((i) => i.kind === 'graphic' && i.name === 'photo') as { params?: Record<string, unknown> } | undefined)?.params?.treat;
   const photoRows = [
     <div class="seg" role="group" data-row="photo-file">
       <button data-testid="photo-add" disabled={photoState === 'reading'} onClick={() => fileIn.current?.click()}><Icon n="photo" /><L t={has ? 'Change' : 'Add photo'} /></button>
@@ -580,12 +583,15 @@ export function App({ ready }: { ready: Promise<void> }) {
       <L t={photoHint} c={photoState === 'failed' || photoGone ? 'hint warn' : 'hint'} />
       <div class="seg rerolls one" role="group"><button data-testid="photo-crop" disabled={!has} aria-label="New crop" onClick={() => commit((s) => newCrop(s))}><Icon n="reroll" /><L t="New crop" /></button></div>
     </div>,
-    // Treatment tiles (spec 10.2): Auto (the graphic stream's) and the seven, four to a row
-    ...chunk([null, ...TREATMENTS] as (string | null)[], 4).map((part, k) => (
-      <div class="seg" role="group" data-row={'photo-treat-' + k}>
+    // Treatment tiles (spec 10.2): Auto (the graphic stream's) and the seven, three to a row, each row at one label
+    // size (review R15 S5); a treatment the palette cannot draw is disabled (S1); while Auto is on, the tile of the
+    // treatment drawn is marked (M7)
+    ...chunk([null, ...TREATMENTS] as (string | null)[], 3).map((part, k) => (
+      <div class="seg" role="group" data-row={'photo-treat-' + k} data-fit-row="">
         {part.map((v) => {
-          const on = (spec.photo?.treatment ?? null) === v;
-          return <button class={on ? 'on' : ''} aria-pressed={on} disabled={!has} data-treat={v ?? 'auto'} onClick={() => commit((s) => apply(s, treatmentControl(), v))}><L t={v ? TREATMENT_LABEL[v as keyof typeof TREATMENT_LABEL] : 'Auto'} /></button>;
+          const on = (spec.photo?.treatment ?? null) === v, can = v === null || treatOffered(v as Treatment, form);
+          const drawnHere = !on && v !== null && spec.photo?.treatment == null && drawnTreat === v;
+          return <button class={on ? 'on' : drawnHere ? 'drawn' : ''} aria-pressed={on} data-drawn={drawnHere ? '' : undefined} disabled={!has || !can} data-treat={v ?? 'auto'} onClick={() => commit((s) => apply(s, treatmentControl(), v))}><L t={v ? TREATMENT_LABEL[v as keyof typeof TREATMENT_LABEL] : 'Auto'} /></button>;
         })}
       </div>
     )),

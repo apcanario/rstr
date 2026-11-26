@@ -36,4 +36,11 @@ export function fit(el: HTMLElement): void {
 
 export function fitAll(root: ParentNode = document): void {
   root.querySelectorAll<HTMLElement>('[data-fit]').forEach(fit);
+  // a row marked data-fit-row sets every label at the size its smallest needed (review R15 S5: the Treatment tiles)
+  root.querySelectorAll<HTMLElement>('[data-fit-row]').forEach((row) => {
+    const ls = [...row.querySelectorAll<HTMLElement>('[data-fit]')];
+    if (ls.length < 2 || !ls.some((l) => l.style.fontSize)) return;
+    const min = Math.min(...ls.map((l) => parseFloat(getComputedStyle(l).fontSize)));
+    for (const l of ls) if (parseFloat(getComputedStyle(l).fontSize) > min) l.style.fontSize = `${min}px`;
+  });
 }

@@ -140,7 +140,8 @@ export function brutalDraw(spec: { pick: { motif: string | null }; params: Recor
 
 export const brutalGraphics: GraphicsPart = {
   id: 'brutal', uses: BRUTAL_GRAPHICS, vocab: BRUTAL_GRAPHICS, motifs: BRUTAL_GRAPHICS,
-  // spec 8.9 (R15): two colours and one accent (8.3): hard two-tone pictures, threshold first
+  // spec 8.9 (R15): two colours and one accent (8.3): hard two-tone pictures, threshold first. A taste call for
+  // Pedro to veto (review R15 M5): no full colour, and mono's greys are allowed though they are not palette colours
   treatments: { allow: ['mono', 'threshold', 'halftone', 'dither', 'duotone'], favourite: 'threshold' },
   // spec 10.3 Graphic: the first graphic, how many cut into it, the second (the first cut-in) and how it is cut in,
   // and the parameters of each graphic drawn (a value set by hand wins over the heavy end); only the first graphic
