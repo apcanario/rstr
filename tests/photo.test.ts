@@ -78,7 +78,7 @@ describe('9.2 with a test photo, every style, format and role (spec 9.4)', () =>
   test('every text item over the photo is on a plate or reads against the measured pixels', () => {
     let over = 0, measured = 0, plated = 0;
     for (const style of STYLE_IDS) for (const role of ['ground', 'box'] as PhotoRole[]) for (let i = 0; i < 6; i++) {
-      const s = { ...defaultSpec({ layout: 10 + i, colour: 20 + i, graphic: 30 + i, type: 40 + i }), style, format: FORMAT_LIST[i % 3], mode: i % 2 ? 'dark' as const : 'light' as const, photo: withRole(PORTRAIT, role) };
+      const s = { ...defaultSpec({ layout: 10 + i, colour: 20 + i, graphic: 30 + i, type: 40 + i }), style, format: FORMAT_LIST[i % FORMAT_LIST.length], mode: i % 2 ? 'dark' as const : 'light' as const, photo: withRole(PORTRAIT, role) };
       const sc = solve(s, stubMeasure).scene, at = sc.items.findIndex((x) => x.kind === 'graphic' && x.name === 'photo'), g = sc.items[at] as GraphicItem;
       sc.items.forEach((t, k) => {
         if (k <= at || t.kind !== 'text') return;
@@ -101,7 +101,7 @@ describe('text over calm areas of the photo is measured, not only plated (review
   test('ground, close in on the sky and on the hills: at least 50 text items read against the pixels, every one passing', () => {
     let over = 0, measured = 0;
     for (const style of STYLE_IDS) for (let i = 0; i < 12; i++) for (const y of [0, 0.7]) {
-      const s: Spec = { ...defaultSpec(), seeds: seedSet(7000 + i), style, format: FORMAT_LIST[i % 3], mode: (i >> 1) % 2 ? 'dark' : 'light', finish: 'clean', marks: 'off', photo: { id: i % 2 ? LANDSCAPE : PORTRAIT, treatment: 'colour', place: { role: 'ground', scale: 2.5, x: 0.5, y } } };
+      const s: Spec = { ...defaultSpec(), seeds: seedSet(7000 + i), style, format: FORMAT_LIST[i % FORMAT_LIST.length], mode: (i >> 1) % 2 ? 'dark' : 'light', finish: 'clean', marks: 'off', photo: { id: i % 2 ? LANDSCAPE : PORTRAIT, treatment: 'colour', place: { role: 'ground', scale: 2.5, x: 0.5, y } } };
       const sc = solve(s, stubMeasure).scene, at = sc.items.findIndex((x) => x.kind === 'graphic' && x.name === 'photo'), g = sc.items[at] as GraphicItem;
       sc.items.forEach((t, k) => {
         if (k <= at || t.kind !== 'text') return;
@@ -225,7 +225,7 @@ describe('the spec and the controls', () => {
   test('a colour edit on a design with a photo: text measured over it that the edit fails is repaired, rule 4 passing (review R14 M6)', () => {
     let tried = 0, plated = 0;
     for (const style of STYLE_IDS) for (let i = 0; i < 12 && plated < 8; i++) {
-      const s: Spec = { ...defaultSpec(), seeds: seedSet(500 + i), style, format: FORMAT_LIST[i % 3], mode: i % 2 ? 'dark' : 'light', photo: withRole(PORTRAIT, 'ground') };
+      const s: Spec = { ...defaultSpec(), seeds: seedSet(500 + i), style, format: FORMAT_LIST[i % FORMAT_LIST.length], mode: i % 2 ? 'dark' : 'light', photo: withRole(PORTRAIT, 'ground') };
       const sc = solve(s, stubMeasure).scene, g = photoOfScene(sc)!;
       const k = sc.items.findIndex((t) => t.kind === 'text' && g.regions?.some((r) => contains(r.quad, t.quad)));
       if (k < 0) continue;
@@ -253,7 +253,7 @@ describe('the spec and the controls', () => {
     // (a page full of type); each pinned role is drawn at the placement of it that shows most
     const under: Record<string, number> = {};
     for (const style of STYLE_IDS) for (let i = 0; i < 100; i++) {
-      const s: Spec = { ...defaultSpec(), seeds: seedSet(2000 + i), style, format: FORMAT_LIST[i % 3], mode: i % 2 ? 'dark' : 'light' };
+      const s: Spec = { ...defaultSpec(), seeds: seedSet(2000 + i), style, format: FORMAT_LIST[i % FORMAT_LIST.length], mode: i % 2 ? 'dark' : 'light' };
       const share = (place: Spec['photo']) => +photoOfScene(solve({ ...s, photo: place }, stubMeasure).scene)!.params.share;
       const pinned = PHOTO_ROLES.map((r) => share(withRole(i % 2 ? PORTRAIT : LANDSCAPE, r)));
       for (const [k, v] of pinned.entries()) if (v < PHOTO_FLOOR) under[`${style} ${PHOTO_ROLES[k]}`] = (under[`${style} ${PHOTO_ROLES[k]}`] ?? 0) + 1;

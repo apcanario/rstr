@@ -620,10 +620,10 @@ export function App({ ready }: { ready: Promise<void> }) {
       <L t={photoHint} c={photoState === 'failed' || photoGone ? 'hint warn' : 'hint'} />
       <div class="seg rerolls one" role="group"><button data-testid="photo-crop" disabled={!has} aria-label="New crop" onClick={() => commit((s) => newCrop(s))}><Icon n="reroll" /><L t="New crop" /></button></div>
     </div>,
-    // Treatment tiles (spec 10.2): Auto (the graphic stream's) and the seven, three to a row, each row at one label
-    // size (review R15 S5); a treatment the palette cannot draw is disabled (S1); while Auto is on, the tile of the
-    // treatment drawn is marked (M7)
-    ...chunk([null, ...TREATMENTS] as (string | null)[], 3).map((part, k) => (
+    // Treatment tiles (spec 10.2): Auto (the graphic stream's) and the seven, four to a row (SEG_MAX), so the eight fill
+    // two rows and no page holds a short row alone (review bundle 5 M7), each row at one label size (review R15 S5); a
+    // treatment the palette cannot draw is disabled (S1); while Auto is on, the tile of the treatment drawn is marked (M7)
+    ...chunk([null, ...TREATMENTS] as (string | null)[], SEG_MAX).map((part, k) => (
       <div class="seg" role="group" data-row={'photo-treat-' + k} data-fit-row="">
         {part.map((v) => {
           const on = (spec.photo?.treatment ?? null) === v, can = v === null || treatOffered(v as Treatment, form);

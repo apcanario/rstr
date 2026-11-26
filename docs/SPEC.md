@@ -55,10 +55,9 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
 | 1:1 | 1080 x 1080 | |
 | 3:4 | 1080 x 1440 | Default |
 | 9:16 | 1080 x 1920 | Text stays between y 260 and y 1600: the top 250 px and bottom 320 px belong to the story interface. Ground, graphics and marks may fill them. Same zones Pedro has used on his story posts. |
-
 | A | 1080 x 1527 on screen | The paper ratio, 1 to root 2. Prints as A5, A4 or A3. Print export is section 10.1 |
 
-One spec, every format: the same palette, pairing, motif and words, laid out again for the ratio. It should read as one design in three sizes, not three designs.
+One spec, every format: the same palette, pairing, motif and words, laid out again for the ratio. It should read as one design in four sizes, not four designs.
 
 ## 4. The engine
 
@@ -281,7 +280,7 @@ One photo per design, chosen from the phone. It never leaves the phone.
 - **Treatments,** picked by the graphic stream unless chosen: colour, monochrome, duotone (two palette roles), halftone, threshold, posterise (three to five palette colours), dither. Each style lists the treatments it allows and its favourite. That list governs only the graphic stream's pick: a treatment picked by hand (the Treatment tiles, `photo.treatment`) may be any of the seven, except posterise on a palette of fewer than three colours, where it is not offered.
 - Finishes and the copier pass apply to the photo like any graphic.
 - **Text over a photo** sits on a plate or a scrim unless the measured contrast against the actual pixels behind it passes section 5.
-- **It shows** (review R14 S1). Wherever it sits, at least 35% of the photo's box shows once text, plates and the graphics over it are drawn (read on the Scene: text, plates, fields and graphics on a plate cover it, an open graphic counts as half; the smoke reads it on pixels). A placement that shows less tries the next placement of its role, then the next role from the layout stream; where none does (a role pinned in Advanced, or a page full of type) the placement that shows most is drawn. `ground` lies over every ground-layer item and every field or graphic that covers more than 80% of the canvas, and, as its second placement, over every field.
+- **It shows** (review R14 S1). Wherever it sits, at least 35% of the photo's box shows once text, plates and the graphics over it are drawn (read on the Scene: text, plates, fields and graphics on a plate cover it, an open graphic counts as half, the copier pass is a surface, not a cover; the smoke reads it on pixels). A placement that shows less tries the next placement of its role, then the next role from the layout stream; where none does (a role pinned in Advanced, or a page full of type) the placement that shows most is drawn. `ground` lies over every ground-layer item and every field or graphic that covers more than 80% of the canvas, and, as its second placement, over every field.
 - Graphics still draw: a photo is one more graphic the combination rule of 8.0 can use, not a replacement for them.
 - Print: a photo smaller than the export needs is drawn anyway; the export sheet says how many pixels it has against how many the size wants.
 
@@ -291,7 +290,7 @@ One photo per design, chosen from the phone. It never leaves the phone.
 
 - `npm run check`: types, unit tests (seeded generator, palette contrast maths, spec migration, stream independence on a stub measure), build.
 - `npm run smoke`: headless Chrome on the built app. Walks every tab in both modes at 360 x 640 and 412 x 915, taps Shuffle, exports, and runs 9.2 and 9.3.
-- `npm run sheet`: contact sheets to `shots/`: per style, 12 designs across the three formats, in light and dark, plus one sheet per finish. Also saves every screen of the app.
+- `npm run sheet`: contact sheets to `shots/`: per style, 12 designs across the four formats, in light and dark, plus one sheet per finish. Also saves every screen of the app.
 
 ### 9.2 Invariants, checked on the Scene
 
@@ -302,7 +301,7 @@ For every style x format x mode, over 200 seed sets, with short, typical and lon
 3. No graphic is drawn over a text item (a plate under text is fine).
 4. Every text item meets the contrast rule of section 5.
 5. No text item is below its style's minimum size.
-6. The export is a JPEG or PNG of exactly the format's pixels.
+6. The export is a JPEG, PNG or WebP of exactly the format's pixels.
 
 Any failure prints the spec that caused it, so it can be opened in the app.
 
@@ -355,7 +354,7 @@ Same on every tab, both modes, nothing scrolls:
 - Every size is drawn at that size from the spec, never scaled up from a smaller canvas. Finishes are generated at the export size so grain stays fine.
 - **Big renders:** if a canvas of the asked size cannot be made on the device, the engine draws it in horizontal strips and joins them. If that fails too, the sheet says which sizes this phone cannot make and offers the largest that works. Never a silent smaller file.
 - Colour is sRGB. The sheet says so beside Print, with one line: saturated colours print duller than they look on screen.
-- Before R16 the sheet has formats, JPEG or PNG, at 1x.
+- Before R16 the sheet had formats, JPEG or PNG, at 1x.
 - Built at R16. Print is A3 and takes the A format alone: ticking another format moves the size to 3x. The A3 trim is the 1080 x 1527 Scene drawn at 3508 x 4961 (3.248 across, 3.249 down). The bleed's 71 px each way are 35 on the left and top and 36 on the right and bottom, filled with the trim's own edge mirrored outward, so ground, graphics and finish run past the trim and nothing on it moves. Every size is the Scene drawn through a transform at that size, so finishes, the copier pass and a photo's treatment run on the export's own pixels. From 2x up, vector drawing is done in bands of 512 rows, because Chrome cuts a path where its drawing area ends and the cut edge can land up to a pixel off. A strip render keeps one band and draws one more above and below. Its strips are joined into one canvas where one of the size can be made (any file type), or written straight into a PNG where none can. JPEG and WebP need a canvas of the whole size: where none can be made, the sheet greys those sizes and says PNG may. The sheet's photo line gives the photo's pixels against the size it is drawn at in the file.
 
 ### 10.2 Simple

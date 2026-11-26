@@ -133,7 +133,7 @@ with served() as url, browser() as b:
         cells = []
         for k, role in enumerate(['ground', 'box', 'disc', 'column', 'band']):
             n = si * 5 + k
-            spec = pg.evaluate('([s, r, n]) => { const x = window.__rstr.spec(); ' + PH + ' x.style = s; x.format = ["1:1", "3:4", "9:16"][n % 3]; x.mode = n % 2 ? "dark" : "light"; x.seeds = {layout: 8100 + n * 7919, colour: 8200 + n * 104729, graphic: 8300 + n * 1299709, type: 8400 + n * 31}; x.photo = {id: n % 2 ? "test-landscape" : "test-portrait", treatment: null, place: {role: r}}; return x; }', [style, role, n])
+            spec = pg.evaluate('([s, r, n]) => { const x = window.__rstr.spec(); ' + PH + ' x.style = s; x.format = ["1:1", "3:4", "9:16", "A"][n % 4]; x.mode = n % 2 ? "dark" : "light"; x.seeds = {layout: 8100 + n * 7919, colour: 8200 + n * 104729, graphic: 8300 + n * 1299709, type: 8400 + n * 31}; x.photo = {id: n % 2 ? "test-landscape" : "test-portrait", treatment: null, place: {role: r}}; return x; }', [style, role, n])
             sol = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
             cells.append((img(pg, spec), f'{style} {spec["format"]} {spec["mode"]} {role} {sol["layout"]}'))
         rows.append(cells)
@@ -167,7 +167,7 @@ with served() as url, browser() as b:
             cells = []
             for i in range(6):
                 n = row * 6 + i
-                spec = pg.evaluate('([s, n]) => { const x = window.__rstr.spec(); ' + PH + ' x.style = s; x.format = ["1:1", "3:4", "9:16"][n % 3]; x.mode = n % 4 === 3 ? "dark" : "light"; x.seeds = {layout: 9100 + n * 7919, colour: 9200 + n * 104729, graphic: 9300 + n * 1299709, type: 9400 + n * 31}; x.photo = {id: n % 2 ? "test-landscape" : "test-portrait", treatment: null, place: null}; return x; }', [style, n])
+                spec = pg.evaluate('([s, n]) => { const x = window.__rstr.spec(); ' + PH + ' x.style = s; x.format = ["1:1", "3:4", "9:16", "A"][n % 4]; x.mode = n % 4 === 3 ? "dark" : "light"; x.seeds = {layout: 9100 + n * 7919, colour: 9200 + n * 104729, graphic: 9300 + n * 1299709, type: 9400 + n * 31}; x.photo = {id: n % 2 ? "test-landscape" : "test-portrait", treatment: null, place: null}; return x; }', [style, n])
                 sc = pg.evaluate('(s) => { const c = window.__rstr.scene(s); const g = c.items.find((i) => i.name === "photo"); return [c.frame, c.layout, g ? g.params.role : "none"].join(" "); }', spec)
                 cells.append((img(pg, spec), f'{spec["format"]} {spec["mode"]} {sc}'))
             rows.append(cells)
@@ -184,6 +184,15 @@ with served() as url, browser() as b:
                 sol = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
                 cells.append((img(pg, spec), f'A {style} {mode} {sol["layout"]}'))
         rows.append(cells)
+    # review bundle 5 S2: a photo in A, on the ground and cut into a disc, in two treatments, light and dark
+    cells = []
+    for si, style in enumerate(STYLES):
+        for j, (role, t) in enumerate([('ground', 'duotone'), ('disc', 'halftone')]):
+            n = 16 + si * 2 + j
+            spec = pg.evaluate('([s, n, r, t]) => { const x = window.__rstr.spec(); ' + PH + ' x.style = s; x.format = "A"; x.mode = n % 2 ? "dark" : "light"; x.seeds = {layout: 6100 + n * 7919, colour: 6200 + n * 104729, graphic: 6300 + n * 1299709, type: 6400 + n * 31}; x.photo = {id: n % 4 < 2 ? "test-portrait" : "test-landscape", treatment: t, place: {role: r}}; return x; }', [style, n, role, t])
+            sol = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
+            cells.append((img(pg, spec), f'A {style} {spec["mode"]} photo {role} {t} {sol["layout"]}'))
+    rows.append(cells)
     strip(rows).save(os.path.join(OUT, 'format-A.jpg'), quality=85)
     print('wrote shots/format-A.jpg')
     # row R16: export at size. Left: a 300 px corner of the 1x file, blown up three times; right: the same corner of
@@ -249,11 +258,15 @@ with served() as url, browser() as b:
             pg.evaluate('([s, st, pk]) => { const x = JSON.parse(s); x.style = st; x.marks = "light"; x.finish = "grain"; x.params = {}; x.pick = { palette: null, pairing: null, motif: null, layout: null, dialect: null, colours: null, ...JSON.parse(pk) }; for (const k of Object.keys(x.text)) x.text[k].pos = null; window.__rstr.app.load(x); }', [cur, name, pk])
             idle(pg)
             for t in appcheck.ADV_TABS:
+                # the Photo tab per style is taken with a photo on the design, below (review bundle 5 S3); one empty
+                # state is kept, on the Swiss design
+                if t == 'photo' and name != 'swiss':
+                    continue
                 pg.click(f'[data-tab="{t}"]')
                 for i in range(appcheck.npages(pg)):
                     appcheck.goto(pg, i)
                     pg.wait_for_timeout(150)
-                    pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-adv-{name}-{t}-{i + 1}.png'))
+                    pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-adv-{name}-{t}{"-empty" if t == "photo" else ""}-{i + 1}.png'))
                 appcheck.goto(pg, 0)
         pg.click('[data-tab="style"]')
         pg.click('[data-testid="advanced"]')
@@ -306,6 +319,18 @@ with served() as url, browser() as b:
                 pg.wait_for_timeout(150)
                 pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-adv-photo-{i + 1}.png'))
             appcheck.goto(pg, 0)
+            # review bundle 5 S3: the Photo tab and the photo under every style, as the app reaches each design
+            withp = pg.evaluate('() => JSON.stringify(window.__rstr.spec())')
+            for name, pk in [('swiss', '{}'), ('brutal', '{}'), ('pomo', '{"dialect": "photocopy"}'), ('vapor', '{"layout": "title-sky"}')]:
+                pg.evaluate('([s, st, pk]) => { const x = JSON.parse(s); x.style = st; x.marks = "light"; x.finish = "grain"; x.params = {}; x.pick = { palette: null, pairing: null, motif: null, layout: null, dialect: null, colours: null, ...JSON.parse(pk) }; for (const k of Object.keys(x.text)) x.text[k].pos = null; x.photo = { ...x.photo, treatment: null, place: null }; window.__rstr.app.load(x); }', [withp, name, pk])
+                idle(pg)
+                pg.wait_for_function('() => !!window.__rstr.spec().photo', timeout=15000)
+                pg.click('[data-tab="photo"]')
+                for i in range(appcheck.npages(pg)):
+                    appcheck.goto(pg, i)
+                    pg.wait_for_timeout(150)
+                    pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-adv-{name}-photo-{i + 1}.png'))
+                appcheck.goto(pg, 0)
             pg.click('[data-testid="advanced"]')
         pg.close()
     # review R16 S4: the export sheet just after a failure, and at its fullest (Print, bleed, a photo, a failed size), at 360 x 640

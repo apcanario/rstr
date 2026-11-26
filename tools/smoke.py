@@ -357,12 +357,12 @@ with served() as url, browser() as b:
                     fallback_check(f'9.2 photo {style} {fmt} {role or "unpinned"} {pid}', r, 0)
                     for f in r['failures'][:3]:
                         fail(f'9.2 photo {style} {fmt} {role} {pid}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
-    print(f'photo 9.2: {nph} designs over 4 styles x 3 formats x 5 roles and unpinned x 2 test photos x 2 modes, real fonts')
+    print(f'photo 9.2: {nph} designs over {len(STYLES)} styles x {len(FORMATS)} formats x 5 roles and unpinned x 2 test photos x 2 modes, real fonts')
     npx = meas = plat = 0
     for style in STYLES:
         for k, role in enumerate(['ground', 'box', 'disc', 'column', 'band']):
             for i in range(3):
-                spec = pg.evaluate('([s, r, k, i]) => { const TR = ["colour", "mono", "duotone", "halftone", "threshold", "posterise", "dither"]; const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][(k + i) % 3]; x.mode = i % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 7100 + k * 31 + i, colour: 7200 + i, graphic: 7300 + k + i, type: 7400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: TR[(k * 3 + i) % TR.length], place: {role: r}}; return x; }', [style, role, k, i])
+                spec = pg.evaluate('([s, r, k, i]) => { const TR = ["colour", "mono", "duotone", "halftone", "threshold", "posterise", "dither"]; const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16", "A"][(k + i) % 4]; x.mode = i % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 7100 + k * 31 + i, colour: 7200 + i, graphic: 7300 + k + i, type: 7400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: TR[(k * 3 + i) % TR.length], place: {role: r}}; return x; }', [style, role, k, i])
                 r = pg.evaluate('(s) => window.__rstr.photo.pixels(s)', spec)
                 npx += r['items']
                 meas += r['measured']
@@ -374,7 +374,7 @@ with served() as url, browser() as b:
                     a = pg.evaluate('(s) => window.__rstr.pixels(s, true)', spec)
                     if a != pg.evaluate('(s) => window.__rstr.pixels(s, true)', spec):
                         fail(f'photo determinism {style}: the same spec and photo drew different pixels', spec)
-    print(f'photo pixels: {npx} text items over the photo read on pixels ({meas} measured, {plat} on a plate), none under spec 5; determinism per style; {time.time() - t1:.0f} s')
+    print(f'photo pixels: {npx} text items over the photo read on pixels ({meas} measured, {plat} on a plate, {npx - meas - plat} on neither; every one read on pixels), none under spec 5; determinism per style; {time.time() - t1:.0f} s')
     # row R15 (spec 8.9, 9.4): 9.2 in every treatment, every style, real fonts, no fallback; text over the photo on
     # pixels in every treatment; photocopy text over the photo read with the copier pass on (Carried R15 from R14);
     # the treatment's time at 1080 x 1920
@@ -389,7 +389,7 @@ with served() as url, browser() as b:
             fallback_check(f'9.2 photo {style} {t}', r, 0)
             for f in r['failures'][:3]:
                 fail(f'9.2 photo {style} {t}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
-    TS = '([s, t, i, d]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][i % 3]; x.mode = (i >> 1) % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: d}; x.seeds = {layout: 6100 + i * 37, colour: 6200 + i, graphic: 6300 + i, type: 6400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: t, place: {role: ["ground", "box", "disc", "column", "band"][i % 5]}}; return x; }'
+    TS = '([s, t, i, d]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16", "A"][(i + ["colour", "mono", "duotone", "halftone", "threshold", "posterise", "dither"].indexOf(t)) % 4]; x.mode = (i >> 1) % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: d}; x.seeds = {layout: 6100 + i * 37, colour: 6200 + i, graphic: 6300 + i, type: 6400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: t, place: {role: ["ground", "box", "disc", "column", "band"][i % 5]}}; return x; }'
     ntp = ntl = 0
     for style in STYLES:
         for t in TREATS:
@@ -434,7 +434,7 @@ with served() as url, browser() as b:
     print('treatment time at 1080 x 1920 (ground photo, median of 5, ms; in brackets the whole first render, the treated box made afresh, review R15 M3): ' + ', '.join(f'{t} {v[0]:.0f} ({v[1]:.0f})' for t, v in times.items()) + (f'; box {list(times.values())[0][2]} x {list(times.values())[0][3]}' if times else ''))
     # review R14 S7: text over the test photo's calm sky and its hills (ground, close in, at the top and lower down),
     # so the measured path is read on pixels often, not a handful of times
-    PH = '([s, k, i, sc, y]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][i % 3]; x.mode = (i >> 1) % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 9100 + k * 37 + i, colour: 9200 + i, graphic: 9300 + k + i, type: 9400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: "colour", place: sc ? {role: "ground", scale: sc, x: 0.5, y: y} : (k < 5 ? {role: ["ground", "box", "disc", "column", "band"][k]} : null)}; return x; }'
+    PH = '([s, k, i, sc, y]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16", "A"][i % 4]; x.mode = (i >> 1) % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 9100 + k * 37 + i, colour: 9200 + i, graphic: 9300 + k + i, type: 9400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: "colour", place: sc ? {role: "ground", scale: sc, x: 0.5, y: y} : (k < 5 ? {role: ["ground", "box", "disc", "column", "band"][k]} : null)}; return x; }'
     t1 = time.time()
     n2 = meas2 = 0
     for k, style in enumerate(STYLES):

@@ -321,8 +321,8 @@ describe('text over a treated photo (spec 8.9, 9.4)', () => {
   }, 600000);
   test('every text item over a treated photo passes rule 4, on a plate or measured; both happen', () => {
     let measured = 0, over = 0;
-    for (const style of STYLE_IDS) for (const t of TREATMENTS) for (let i = 0; i < 3; i++) {
-      const s: Spec = { ...defaultSpec({ layout: 60 + i, colour: 70 + i, graphic: 80 + i, type: 90 + i }), style, format: FORMAT_LIST[i % 3], mode: i % 2 ? 'dark' : 'light', photo: { id: PORTRAIT, treatment: t, place: { role: 'ground', scale: 2.5, x: 0.5, y: i / 2 } } };
+    for (const style of STYLE_IDS) for (const t of TREATMENTS) for (let i = 0; i < 4; i++) {
+      const s: Spec = { ...defaultSpec({ layout: 60 + i, colour: 70 + i, graphic: 80 + i, type: 90 + i }), style, format: FORMAT_LIST[i % FORMAT_LIST.length], mode: i % 2 ? 'dark' : 'light', photo: { id: PORTRAIT, treatment: t, place: { role: 'ground', scale: 2.5, x: 0.5, y: i / 2 } } };
       const sc = solve(s, stubMeasure).scene, at = sc.items.findIndex((x) => x.kind === 'graphic' && x.name === 'photo'), g = sc.items[at] as GraphicItem;
       sc.items.forEach((x, k) => {
         if (k <= at || x.kind !== 'text') return;

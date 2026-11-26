@@ -987,7 +987,7 @@ def run_photo(b, url, fail):
             for p in pg.evaluate(LAYOUT_JS)[:6]:
                 fail(f'{at}, Advanced Photo tab page {i + 1}: {p}')
         goto(pg, 0)
-        want = {'photo-file', 'photo-crop', 'photo-treat-0', 'photo-treat-1', 'photo-treat-2', 'photo.role', 'photo.scale', 'photo.x', 'photo.y'}
+        want = {'photo-file', 'photo-crop', 'photo-treat-0', 'photo-treat-1', 'photo.role', 'photo.scale', 'photo.x', 'photo.y'}
         if not want <= ids:
             fail(f'{at}: the Advanced Photo tab lacks {sorted(want - ids)}')
         pg.click('[data-testid="advanced"]')
