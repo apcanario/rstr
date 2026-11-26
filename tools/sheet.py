@@ -105,10 +105,22 @@ with served() as url, browser() as b:
         cells = []
         for k, title in enumerate(['Signal', 'Eight plain words make a long poster title']):
             for fmt in FORMATS:
-                spec = pg.evaluate('([s, f, t, k]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.text.title.v = t; x.seeds = {layout: 77 + k, colour: 88 + k, graphic: 99 + k, type: 5}; return x; }', [style, fmt, title, k])
+                spec = pg.evaluate('([s, f, t, k]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.text.find((l) => l.level === "headline").v = t; x.seeds = {layout: 77 + k, colour: 88 + k, graphic: 99 + k, type: 5}; return x; }', [style, fmt, title, k])
                 cells.append((img(pg, spec), f'{fmt} {len(title.split())} words'))
         strip([cells], h=480).save(os.path.join(OUT, f'text-{style}.jpg'), quality=85)
     print('wrote shots/text-*.jpg')
+    # row R17: text layers, 1 to 8 in a mix of levels (proof's layerMix), per style across the formats; a flagged layer
+    # is named under its cell
+    for style in STYLES:
+        cells = []
+        for i in [1, 3, 5, 7, 50, 52, 54, 55, 60, 63, 69, 71]:
+            fmt = FORMATS[i % len(FORMATS)]
+            spec = pg.evaluate('([s, f, i]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i % 2 ? "dark" : "light"; x.text = window.__rstr.layerMix(i); x.seeds = {layout: 300 + i, colour: 400 + i, graphic: 500 + i, type: 6}; return x; }', [style, fmt, i])
+            sc = pg.evaluate('(s) => window.__rstr.scene(s)', spec)
+            fl = sc.get('flagged') or []
+            cells.append((img(pg, spec), f'{fmt} {len(spec["text"])} layers' + (f', flagged {",".join(fl)}' if fl else '')))
+        strip([cells[:6], cells[6:]], h=460).save(os.path.join(OUT, f'layers-{style}.jpg'), quality=85)
+    print('wrote shots/layers-*.jpg')
     # the spike's reference specs next to the approved refs
     rows, row = [], []
     for name, spec in ref_specs():

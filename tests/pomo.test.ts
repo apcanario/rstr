@@ -17,7 +17,7 @@ import { blendDist } from '../src/engine/pixels';
 import { rng } from '../src/engine/rng';
 import { seedSet, shuffleSeeds, specs } from '../src/engine/proof';
 import type { GraphicItem, Scene, TextItem } from '../src/engine/scene';
-import { defaultSpec, migrate, type Dialect, type Spec } from '../src/engine/spec';
+import { lead, slotsOf, defaultSpec, migrate, type Dialect, type Slot, type Spec } from '../src/engine/spec';
 
 const show = (fs: unknown[]) => fs.slice(0, 3).map((f) => JSON.stringify(f)).join('\n');
 const texts = (sc: Scene) => sc.items.filter((i): i is TextItem => i.kind === 'text');
@@ -102,7 +102,7 @@ describe('ice cream (spec 8.2)', () => {
       if (!subs.length) continue;
       if (subs.length === 1) { one++; continue; }
       two++;
-      if (s.text.subtitle.v.trim().split(/\s+/).length >= 3) expect(subs[subs.length - 1].runs[0].s.trim().split(/\s+/).length, JSON.stringify(s)).toBeGreaterThanOrEqual(2);
+      if (slotsOf(s.text).subtitle.v.trim().split(/\s+/).length >= 3) expect(subs[subs.length - 1].runs[0].s.trim().split(/\s+/).length, JSON.stringify(s)).toBeGreaterThanOrEqual(2);
     }
     console.log(`ice cream subtitle: ${one} on one line, ${two} on two`);
     expect(one).toBeGreaterThan(two);
@@ -353,7 +353,7 @@ describe('positions per slot (spec 8.5): text.<slot>.pos overrides the stream', 
   test('caption on the right edge, info on the left', () => {
     for (let i = 0; i < 30; i++) for (const d of ['icecream', 'photocopy'] as const) {
       const s = pomo(i, d);
-      s.text.caption.pos = 'right'; s.text.info.pos = 'left';
+      lead(s.text, 'caption').pos = 'right'; lead(s.text, 'info').pos = 'left';
       const sc = solve(s, stubMeasure).scene;
       if (sc.layout === 'fallback' || sc.transform !== 'none') continue;
       const cap = bounds(texts(sc).find((t) => t.slot === 'caption')!.quad), info = bounds(texts(sc).find((t) => t.slot === 'info')!.quad);
@@ -366,7 +366,7 @@ describe('positions per slot (spec 8.5): text.<slot>.pos overrides the stream', 
     for (const [slot, list] of Object.entries(POMO_POS)) for (const p of list) for (const d of ['icecream', 'photocopy'] as const) {
       for (let i = 0; i < 6; i++) for (const f of ['1:1', '3:4', '9:16'] as const) {
         const s = { ...pomo(i, d, f), seeds: seedSet(i) };
-        (s.text as any)[slot].pos = p;
+        lead(s.text, slot as Slot).pos = p;
         const sc = solve(s, stubMeasure).scene;
         const fl = check(sc);
         if (fl.length || sc.layout === 'fallback') bad.push({ slot, p, d, f, layout: sc.layout, fl });

@@ -20,15 +20,28 @@ import type { Measure } from '../../measure';
 import type { FontRef } from '../../scene';
 import { fitLines, upper } from '../shared/text';
 import type { TypePart } from '../types';
+import { lv } from '../shared/layers';
+import type { LevelSets } from '../types';
+/** Text layers beyond the slots (spec 8.6): centred, upper case where 8.4 sets it, inside window-colour plates. */
+export const VAPOR_LEVELS: LevelSets = {
+  headline: lv('display', true, 0.08, 40, 1.08, 3, 0, 'top', 'centre', 'window'),
+  subhead: lv('text', true, 0.03, 16, 1.2, 2, 0.3, 'top', 'centre', 'window'),
+  body: lv('text', false, 0.028, 16, 1.3, 5, 0, 'top', 'centre', 'window'),
+  label: lv('pixel', true, 0.02, 16, 1, 1, 0.1, 'top', 'centre', 'window'),
+  caption: lv('mono', true, 0.019, 16, 1, 1, 0.2, 'bottom', 'centre', 'window'),
+  data: lv('pixel', false, 0.024, 16, 1.2, 1, 0, 'bottom', 'centre', 'window'),
+};
+
 
 const MIN = { title: 40, subtitle: 16, info: 16, caption: 16 };
 
 export const vaporType: TypePart = {
+  levels: VAPOR_LEVELS,
   id: 'vapor', min: MIN,
   controls: () => [capControl()],
   set(c, plan, below) {
-    const { W, spec, m, P, T } = c;
-    const tx = spec.text, force = c.fallback, B = plan.boxes, xf = plan.xf;
+    const { W, m, P, T } = c;
+    const tx = c.tx, force = c.fallback, B = plan.boxes, xf = plan.xf;
     const sky = P.gradient ?? [P.ground, P.ground];
     const chrome = P.chrome ?? P.window ?? P.ground, win = P.window ?? P.ground, winInk = P.windowInk ?? P.ink;
     const A2 = P.accent2 ?? P.accent, A3 = P.accent3 ?? P.accent, sky1 = sky[1] ?? sky[0];

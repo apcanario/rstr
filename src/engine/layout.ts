@@ -6,7 +6,8 @@ import { check, type Failure } from './invariants';
 import type { Measure } from './measure';
 import { counted, mix, pick, rng } from './rng';
 import type { FontRef, GraphicItem, Item, Scene, TextItem } from './scene';
-import type { Spec } from './spec';
+import { extrasOf, hasContent, pairsOf, slotsOf, stringOf, type Spec } from './spec';
+import { roomFor } from './parts/shared/layers';
 import { STYLES } from './styles';
 import { textArea, type PartCtx } from './parts/types';
 import { compose5 } from './styles/compose';
@@ -49,11 +50,15 @@ interface Built { items: Item[]; frame: string; transform: string; inert?: strin
 export function partCtx(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, margin = STYLES[spec.style].margin): PartCtx {
   const [W, H] = FORMATS[spec.format];
   const story = spec.format === '9:16';
-  const { top, bot } = textArea(story, H, margin);
+  const area = textArea(story, H, margin);
+  // room kept at the foot of the text area for the layers beyond the slots (spec 8.6); none for a v1 design's four
+  const extras = extrasOf(spec.text);
+  const keep = extras.length ? roomFor(extras, STYLES[spec.style].parts.type.levels, W, W - 2 * margin, area.bot - area.top, k) : 0;
+  const top = area.top, bot = area.bot - keep;
   const rf = rng(spec.seeds.layout);
   const rc = k > 0 ? rng(mix(spec.seeds.layout, k)) : null;
   return {
-    spec, W, H, story, top, bot, m, P, T, rf, k, fallback: k < 0, cap: capFor(k) * typeCap(spec), rg: counted(rng(spec.seeds.graphic)),
+    spec, tx: slotsOf(spec.text), W, H, story, top, bot, m, P, T, rf, k, fallback: k < 0, cap: capFor(k) * typeCap(spec), ...(keep ? { top0: area.top, bot0: area.bot } : {}), rg: counted(rng(spec.seeds.graphic)),
     cand<V>(list: readonly V[], safe?: V): V {
       const v = list[Math.floor(rf() * list.length)];
       if (k === 0) return v;
@@ -78,7 +83,24 @@ function sceneOf(spec: Spec, items: Item[], P: Form, T: Pairing, layoutName: str
   const graphics = [...gs.filter((g) => g.lead), ...gs.filter((g) => !g.lead)].map((g) => g.tag ?? g.name);
   const sc: Scene = { w: W, h: H, style: spec.style, format: spec.format, palette: P.id, pairing: T.id, layout: layoutName, frame, transform, graphics, ground: P.ground, items, fonts, faces };
   if (inert?.length) sc.inert = [...new Set(inert)].sort();
+  const fl = flaggedOf(spec, items);
+  if (fl.length) sc.flagged = fl;
   return sc;
+}
+
+/**
+ * Text layers that are on, with words, and not drawn in full (spec 8.6: nothing is dropped silently): no item draws
+ * them, or what is drawn was shortened (an ellipsis the words do not have). Their rows are flagged on the Text tab.
+ */
+export function flaggedOf(spec: Spec, items: Item[]): string[] {
+  const out: string[] = [];
+  for (const L of spec.text) {
+    if (!hasContent(L)) continue;
+    const its = items.filter((i): i is TextItem => i.kind === 'text' && i.lid === L.id);
+    const words = L.level === 'data' ? pairsOf(L).map((p) => p.k + ' ' + p.v).join(' ') : stringOf(L);
+    if (!its.length || (!words.includes('…') && its.some((i) => i.runs.some((r) => r.s.includes('…'))))) out.push(L.id);
+  }
+  return out;
 }
 
 /**
@@ -167,11 +189,25 @@ export function solve(spec: Spec, m0: Measure, use: Use = {}): Solved {
     for (const [k, f] of measured) if (!faces.has(k)) { faces.add(k); if (!sc.fonts.includes(f.family)) out.fonts = [...out.fonts, f.family].sort(); }
     return { ...out, faces: [...faces].sort() };
   };
+  // with layers beyond the four slots (spec 8.6), a candidate that flags a layer is kept only as a stand-by: a later
+  // one that draws every layer wins, else the one that flags fewest. A v1 design's four slots never flag here.
+  const many = extrasOf(spec.text).length > 0;
+  let best: { sc: Scene; k: number; n: number } | null = null;
   for (let k = 0; k < CANDIDATES; k++) {
+    if (many && best) {
+      const pre = build(spec, m, P, T, k);
+      if (!pre || flaggedOf(spec, pre.items).length >= best.n) continue;
+    }
     const r = passesAll(spec, m, P, T, k, 'c' + k, measured);
-    if (r.first) return { scene: done(r.first), tried: k + 1, failures: [] };
+    if (r.first) {
+      const n = many ? r.first.flagged?.length ?? 0 : 0;
+      if (!n) return { scene: done(r.first), tried: k + 1, failures: [] };
+      if (!best || n < best.n) best = { sc: r.first, k, n };
+      continue;
+    }
     last = r.failures;
   }
+  if (best) return { scene: done(best.sc), tried: best.k + 1, failures: [] };
   const tries: Spec[] = [spec];
   if (spec.pick.layout) tries.push({ ...spec, pick: { ...spec.pick, layout: null } });
   if (spec.pick.motif) tries.push({ ...spec, pick: { ...spec.pick, layout: null, motif: null } });

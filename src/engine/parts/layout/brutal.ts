@@ -48,7 +48,7 @@ export const brutalLayout: LayoutPart = {
       return planWith({ ...c, rf: () => draws[i++], cand: () => cands[j++] } as unknown as typeof c, force);
     };
     const p = planWith(rec, null);
-    const sp = c.spec, tOn = sp.text.title.on && !!sp.text.title.v.trim();
+    const sp = c.spec, tOn = c.tx.title.on && !!c.tx.title.v.trim();
     if (!p || !sp.pick.motif || p.boxes.graphic || !tOn || sp.pick.layout || TRANSFORMS.includes(sp.params['layout.transform'] as Transform)) return p;
     if (p.frame === 'title-top' && p.transform === 'none') return p;
     const out = replay({ name: 'title-top', transform: 'none' }) ?? p;
@@ -57,7 +57,7 @@ export const brutalLayout: LayoutPart = {
 };
 
 function planWith(c: Parameters<LayoutPart['plan']>[0], force: Force): ReturnType<LayoutPart['plan']> {
-    const { W, H, spec, m, story } = c, prm = spec.params, tx = spec.text;
+    const { W, H, spec, m, story } = c, prm = spec.params, tx = c.tx;
     // the layout stream, in a fixed order: layout, transform, tilt angle, size class, then the emphasised line
     const li = BRUTAL_LAYOUTS.indexOf(spec.pick.layout ?? '');
     const ul = c.rf(), ut = c.rf(), ua = c.rf(), us = c.rf();

@@ -18,7 +18,8 @@ const SNAPSHOT: Partial<Record<StyleId, string>> = {
   vapor: 'cabbe2a2',
 };
 
-const round = (_k: string, v: unknown) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v);
+// `lid` (the layer an item draws, R17) is new data on the same items: a v1 design must draw as it did (spec 8.6)
+const round = (k: string, v: unknown) => (k === 'lid' ? undefined : typeof v === 'number' ? Math.round(v * 1000) / 1000 : v);
 export function sceneHash(style: StyleId): string {
   let h = 2166136261;
   for (const s of specs({ styles: [style], formats: ['1:1', '3:4', '9:16'], n: 40, variants: 'cycle' })) {

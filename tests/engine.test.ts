@@ -7,7 +7,7 @@ import { layout } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { mix, rng } from '../src/engine/rng';
 import type { Scene } from '../src/engine/scene';
-import { defaultSpec, migrate, validate } from '../src/engine/spec';
+import { lead, slotsOf, defaultSpec, migrate, validate } from '../src/engine/spec';
 import { fit } from '../src/engine/text';
 
 describe('seeded generator', () => {
@@ -45,16 +45,16 @@ describe('contrast maths', () => {
 describe('spec schema', () => {
   test('migrates the spike shape', () => {
     const s = migrate({ style: 'swiss', format: '1:1', seeds: { layout: 5, colour: 6, motif: 7 }, motif: 'topo', palette: 4, layout: 1, text: { title: { on: true, v: 'Hi' } } });
-    expect(s.v).toBe(1);
+    expect(s.v).toBe(2);
     expect(s.seeds).toEqual({ layout: 5, colour: 6, graphic: 7, type: 4 });
     expect(s.pick).toEqual({ palette: '4', colours: null, pairing: null, motif: 'topo', layout: '1', dialect: null });
-    expect(s.text.title.v).toBe('Hi');
-    expect(s.text.caption.on).toBe(true);
+    expect(slotsOf(s.text).title.v).toBe('Hi');
+    expect(slotsOf(s.text).caption.on).toBe(true);
   });
   test('never throws, ignores unknown fields, takes defaults for bad values', () => {
     for (const raw of [null, 3, 'nope', '{bad json', [], { style: 'gothic', format: '2:3', seeds: 'x', text: 5, extra: { a: 1 } }]) {
       const s = migrate(raw);
-      expect(s.v).toBe(1);
+      expect(s.v).toBe(2);
       expect(s.style).toBe('swiss');
       expect(s.format).toBe('3:4');
       expect((s as any).extra).toBeUndefined();
@@ -170,8 +170,8 @@ describe('fallback', () => {
         for (let i = 0; i < 6; i++) {
           const s = defaultSpec({ layout: 100 + i, colour: 200 + i, graphic: 300 + i, type: 400 + i });
           s.style = style; s.format = format;
-          s.text.title.v = long; s.text.subtitle.v = long; s.text.caption.v = long;
-          s.text.info.v = [{ k: long, v: long }, { k: 'When', v: long }, { k: 'X', v: 'Y' }];
+          lead(s.text, 'title').v = long; lead(s.text, 'subtitle').v = long; lead(s.text, 'caption').v = long;
+          lead(s.text, 'info').v = [{ k: long, v: long }, { k: 'When', v: long }, { k: 'X', v: 'Y' }];
           const r = solve(s, stubMeasure);
           if (r.scene.layout === 'fallback') fallbacks++;
           expect(check(r.scene), JSON.stringify(s)).toEqual([]);

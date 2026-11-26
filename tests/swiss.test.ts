@@ -12,7 +12,7 @@ import { GRAPHICS } from '../src/engine/graphics';
 import { CUTS, SWISS_GRAPHICS, swissDraw } from '../src/engine/parts/graphics/swiss';
 import { SWISS_LAYOUTS, SWISS_POS, swissLayout } from '../src/engine/parts/layout/swiss';
 import { overlaps } from '../src/engine/geom';
-import { SLOTS } from '../src/engine/spec';
+import { lead, SLOTS } from '../src/engine/spec';
 import { shuffleSeeds } from '../src/engine/proof';
 import { rng } from '../src/engine/rng';
 import type { RectItem, TextItem } from '../src/engine/scene';
@@ -126,7 +126,7 @@ describe('Swiss draws over 600 shuffles (spec 8.0, 8.1)', () => {
     const px = (s: Spec) => (solve(s, stubMeasure).scene.items.find((i) => i.kind === 'text' && i.slot === 'title') as TextItem).px;
     let grew = 0, n = 0;
     for (let i = 0; i < 40; i++) {
-      const at = (size: string) => { const s = defaultSpec(shuffleSeeds(i)); s.text.title.v = 'Signal'; s.params = { 'layout.size': size, 'layout.transform': 'none' }; return px(s); };
+      const at = (size: string) => { const s = defaultSpec(shuffleSeeds(i)); lead(s.text, 'title').v = 'Signal'; s.params = { 'layout.size': size, 'layout.transform': 'none' }; return px(s); };
       const [a, b, c] = [at('small'), at('normal'), at('oversize')];
       n++;
       expect(a, `seed ${i}: small ${a} < normal ${b}`).toBeLessThan(b);
@@ -170,7 +170,7 @@ describe('R5: Swiss finished (spec 8.1, 8.5)', () => {
       expect(SWISS_POS[slot].length).toBeGreaterThanOrEqual(2);
       for (const want of SWISS_POS[slot]) for (let i = 0; i < 20; i++) {
         const s = defaultSpec(shuffleSeeds(i));
-        s.text[slot].pos = want;
+        lead(s.text, slot).pos = want;
         expect(swissLayout.plan(partCtx(s, stubMeasure, choosePalette(s), choosePairing(s), 0))!.pos![slot]).toBe(want);
       }
     }

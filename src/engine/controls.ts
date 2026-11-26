@@ -7,6 +7,7 @@
  *
  * Nothing here draws or chooses at random; reading and writing a control are pure functions of the spec.
  */
+import { leadsOf } from './spec';
 import { PAIRINGS } from '../data/pairings';
 import type { Form } from '../data/palettes';
 import { GRAPHICS } from './graphics';
@@ -65,7 +66,7 @@ export function read(s: Spec, w: Where): Value {
   if (w.at === 'pick') return s.pick[w.key] ?? null;
   if (w.at === 'photo') return s.photo?.place?.[w.key] ?? null;
   if (w.at === 'treatment') return s.photo?.treatment ?? null;
-  return s.text[w.slot].pos ?? null;
+  return leadsOf(s.text)[w.slot]?.pos ?? null;
 }
 
 /** The spec with one control's value set; null clears it. Never touches anything else. */
@@ -83,7 +84,10 @@ export function write(s: Spec, w: Where, v: Value): Spec {
     return { ...s, photo: { ...s.photo, place: Object.keys(place).length ? (place as never) : null } };
   }
   if (w.at === 'treatment') return s.photo ? { ...s, photo: { ...s.photo, treatment: v === null ? null : String(v) } } : s;
-  return { ...s, text: { ...s.text, [w.slot]: { ...s.text[w.slot], pos: v === null ? null : String(v) } } };
+  // a position belongs to the lead layer of the slot's level (spec 8.6)
+  const lead = leadsOf(s.text)[w.slot];
+  if (!lead) return s;
+  return { ...s, text: s.text.map((l) => (l.id === lead.id ? { ...l, pos: v === null ? null : String(v) } : l)) };
 }
 
 export const apply = (s: Spec, c: Control, v: Value): Spec => (c.set ? c.set(s, v) : write(s, c.where, v));

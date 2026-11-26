@@ -93,7 +93,7 @@ export const pomoLayout: LayoutPart = {
     let size: SizeClass = c.cand(['small', 'normal', 'normal', 'oversize'] as SizeClass[], 'normal');
     const pos: Partial<Record<Slot, string>> = {};
     for (const s of SLOTS) {
-      const v = c.cand(POS_ODDS[s], POMO_POS[s][0]), set = spec.text[s].pos;
+      const v = c.cand(POS_ODDS[s], POMO_POS[s][0]), set = c.tx[s].pos;
       pos[s] = set && POMO_POS[s].includes(set) ? set : v;
     }
     plan.emphasis = c.cand([0, 1, 2], 0);

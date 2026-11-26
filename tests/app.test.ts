@@ -4,7 +4,7 @@ import { varietyKey } from '../src/engine/proof';
 import { STYLES } from '../src/engine/styles';
 import { choosePalette, choosePairing, layout } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
-import { defaultSpec, FACETS, migrate, type Spec } from '../src/engine/spec';
+import { slotsOf, defaultSpec, FACETS, migrate, type Spec } from '../src/engine/spec';
 
 /** A seeded seed source, so the tests are reproducible. */
 function counter(start = 1000) {
@@ -118,8 +118,8 @@ describe('Back (spec 10.1)', () => {
       (s) => withStyle(s, 'pomo'),
       (s) => ({ ...s, format: '9:16' }),
       (s) => ({ ...s, mode: 'dark' }),
-      (s) => ({ ...s, text: { ...s.text, title: { ...s.text.title, v: 'Changed\ntitle' } } }),
-      (s) => ({ ...s, text: { ...s.text, info: { ...s.text.info, on: false } } }),
+      (s) => ({ ...s, text: s.text.map((l) => (l.id === 't1' ? { ...l, v: 'Changed\ntitle' } : l)) }),
+      (s) => ({ ...s, text: s.text.map((l) => (l.id === 't3' ? { ...l, on: false } : l)) }),
       (s) => reroll(s, 'type', seed),
       (s) => shuffle(s, { ...NO_LOCKS, colour: true }, seed),
     ];
@@ -156,11 +156,11 @@ describe('saved on the phone (spec 10.1)', () => {
   test('nothing saved, broken JSON or junk give the defaults and never throw', () => {
     for (const raw of [null, '', '{', '[]', '42', JSON.stringify({ spec: 'x', back: 'y', kept: [null, 5], locks: 3, advanced: 'yes' })]) {
       const r = restore(raw, () => defaultSpec({ layout: 123 }));
-      expect(r.back.every((s) => s.v === 1)).toBe(true);
-      expect(r.kept.every((s) => s.v === 1)).toBe(true);
+      expect(r.back.every((s) => s.v === 2)).toBe(true);
+      expect(r.kept.every((s) => s.v === 2)).toBe(true);
       expect(r.advanced).toBe(false);
       expect(r.locks).toEqual(NO_LOCKS);
-      expect(r.spec.v).toBe(1);
+      expect(r.spec.v).toBe(2);
     }
     expect(restore(null, () => defaultSpec({ layout: 123 })).spec.seeds.layout).toBe(123);
   });
@@ -193,7 +193,7 @@ describe('saved on the phone (spec 10.1)', () => {
 
 describe('the Info field', () => {
   test('round trip of label: value pairs, at most three', () => {
-    const v = defaultSpec().text.info.v;
+    const v = slotsOf(defaultSpec().text).info.v;
     expect(parseInfo(infoText(v))).toEqual(v);
     expect(parseInfo('Where: Lisboa · When: Today · A: 1 · B: 2')).toHaveLength(3);
     expect(parseInfo('Just a value')).toEqual([{ k: '', v: 'Just a value' }]);

@@ -2,6 +2,7 @@
  * Advanced mode's controls for the design on screen (spec 10.3), gathered per tab from the parts' own lists, the
  * finish's and the marks layer's, and the photo's (R14): the app draws whatever this returns. Mix (R18) comes later.
  */
+import { hasContent, leadsOf } from './spec';
 import { choosePalette } from './layout';
 import { apply, designColours, photoControls, pairingPicker, palettePicker, positionControls, read, type AdvTab, type Control, type DesignColour, type Value } from './controls';
 import { finishControls } from './finish';
@@ -79,8 +80,8 @@ export function advancedOf(spec: Spec, scene: Scene, trial?: Trial): Advanced {
 
 /** A slot that is on and has something in it. */
 function hasText(s: Spec, slot: Slot): boolean {
-  if (!s.text[slot].on) return false;
-  return slot === 'info' ? s.text.info.v.slice(0, 3).some((p) => p.k.trim() || p.v.trim()) : !!s.text[slot as Exclude<Slot, 'info'>].v.trim();
+  const L = leadsOf(s.text)[slot];
+  return !!L && hasContent(L);
 }
 
 /** Every generated control of the design, all tabs. */

@@ -8,18 +8,23 @@ import type { Rect, Xf } from '../geom';
 import type { Measure } from '../measure';
 import type { Rng } from '../rng';
 import type { Item } from '../scene';
-import type { Dialect, Slot, Spec } from '../spec';
+import type { Dialect, Level, Slot, SlotText, Spec } from '../spec';
 import type { Control, ControlQuery } from '../controls';
 import type { TreatList } from '../treat';
 
 /** What every part is called with for one candidate. */
 export interface PartCtx {
   spec: Spec;
+  /** The four slots the type part sets: the lead layer of each slot's level (spec 8.6, `slotsOf`). Parts read text here, never spec.text. */
+  tx: SlotText;
   W: number;
   H: number;
   story: boolean;
   top: number;         // text area, y (world, untransformed)
   bot: number;
+  /** The text area before room was kept at its foot for the layers beyond the slots (spec 8.6); absent: top and bot. */
+  top0?: number;
+  bot0?: number;
   m: Measure;
   /** The palette's form for the spec's mode: roles only. */
   P: Form;
@@ -175,9 +180,25 @@ export interface GraphicsPart {
   /** The same per dialect, where the style has more than one (spec 8.2). */
   treatmentsOf?: Partial<Record<Dialect, TreatList>>;
 }
+/**
+ * How a style sets a text layer of one level beyond the four slots (spec 8.6): face (a pairing role), case, start size
+ * (share of the canvas width), minimum, line pitch, most lines, tracking (em), which end of the text area it is looked
+ * for from, alignment, and the plate it sits on (a palette role; the ground where the form has none).
+ */
+export interface LevelSet {
+  font: 'display' | 'text' | 'label' | 'serif' | 'mono' | 'pixel' | 'heavy';
+  upper: boolean; size: number; min: number; lh: number; lines: number; track: number;
+  from: 'top' | 'bottom'; align: 'left' | 'centre'; plate: 'ground' | 'paper' | 'window';
+}
+export type LevelSets = Record<Level, LevelSet>;
+
 export interface TypePart {
   id: string;
   min: Record<Slot, number>;
+  /** Every level's treatment and places for the layers it does not set itself (spec 8.6). */
+  levels: LevelSets;
+  /** The same per dialect, where the style has more than one. */
+  levelsOf?: Partial<Record<Dialect, LevelSets>>;
   /** Text items and their plates in the plan's local frame, or null if this candidate cannot hold the text. `below` is the Scene so far (world). */
   set(c: PartCtx, plan: Plan, below: Item[]): Item[] | null;
   /** Its Advanced controls (spec 10.3), shown on the Type tab. */

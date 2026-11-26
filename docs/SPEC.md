@@ -46,6 +46,7 @@ A design is one JSON document, the **spec**. The image is never stored; it is dr
 - **A pick overrides its seed.** `pick.palette` set means the colour seed is ignored for palette choice, and so on.
 - **Format, mode, finish, marks, Postmodern's dialect (`pick.dialect`) and the photo itself are not seeded choices of Shuffle.** Shuffle never changes them; the dialect is a setting of the Look tab like Light/Dark (review R6 M1). Where the photo sits and how it is cropped is seeded (layout stream); its treatment is seeded (graphic stream).
 - **The same spec draws the same design** on the same device and build (tested).
+- From row R17 the spec is `"v": 2` and `text` is the layer list of 8.6; the shape above is v1, which migrates on load.
 - A spec with an unknown field or an older `v` is migrated or the unknown part ignored; it never crashes the app.
 
 ### Formats
@@ -246,6 +247,7 @@ The four slots become a list Pedro edits.
 - One headline is the anchor of the layout. With two, the first in the list leads.
 - The solver and the invariants of 9.2 apply unchanged. If the layers cannot all fit legally, the lowest levels shrink first; nothing is dropped silently, and a layer that cannot fit is flagged on its row.
 - A v1 spec migrates on load: title to headline, subtitle to subhead, info to data, caption to caption.
+- Built at R17. The spec is `"v": 2` with `text` the layer list (ids `t1` to `t4` for a migrated v1 design, `pos` kept on each layer). The lead layer of each slot's level (the first headline, subhead, data and caption that is on) is set by the style's own slot rules of 8.1 to 8.5 exactly as before, so a v1 design draws the same Scene (tested against Scenes recorded before R17). Every other layer that is on is set by one shared placer from the treatment the style's type part gives its level (face, case, start size, minimum, lines, which end it is looked for from, alignment) on a plate of the style's plate colour (Swiss, Brutalist and ice cream: ground; photocopy: paper; Vaporwave: window), in the room the lead layers leave: first clear of the graphics, then over them on its plate. Before the style lays out, room at the foot of the text area is kept for those layers, estimated from their words and level sizes only (never a face, so the type seed moves no graphic); candidates try more and less of it, the fallback none. Highest levels are placed first and no lower level starts larger than a higher one placed before it, so the lowest shrink first. A layer that is on and is not drawn, or is drawn shortened, is listed in the Scene's `flagged` and its row on the Text tab is marked; with layers beyond the four slots the solver prefers a candidate that flags none, else the one that flags fewest. Data layers keep up to three pairs. Text tab: one row per layer (level button, which steps through the six levels; field; on/off; in Advanced, Move up; Remove) and an Add row with one button per level, off at eight; the slots' positions (Advanced) follow the lead layer's row.
 
 ### 8.7 Parts
 
@@ -326,7 +328,7 @@ Whether it looks good. The reviewer looks at the sheets and lists seeds that are
 
 Same on every tab, both modes, nothing scrolls:
 
-1. **Header:** RSTR wordmark, the seed as a chip (tap copies it), Kept, the Simple/Advanced switch.
+1. **Header:** the wordmark, set in lower case as `rstr` (Pedro, 26 Nov 2026; the browser tab title too), the seed as a chip (tap copies it), Kept, the Simple/Advanced switch.
 2. **Stage:** the design, as large as fits.
 3. **Format** (1:1, 3:4, 9:16, A) and, once motion exists, Still/Motion.
 4. **Locks:** Layout, Colour, Graphic, Type. A locked facet survives Shuffle.

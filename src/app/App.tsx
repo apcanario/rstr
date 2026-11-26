@@ -16,10 +16,10 @@ import { exportDims, FORMAT_LIST, FORMATS, SIZE_LABEL, type Format, type Size } 
 import { exportName, ExportError, KIND_LABEL, makeExport, photoNeed, photoShort, probeQueued, workingSizes, type FileKind, type Limits } from '../engine/export';
 import { STYLES } from '../engine/styles';
 import type { Scene } from '../engine/scene';
-import { defaultSpec, FACETS, migrate, newSeed, newSeeds, seedCode, STYLE_IDS, type Facet, type Finish, type Marks, type Slot, type Spec, type StyleId } from '../engine/spec';
+import { defaultSpec, FACETS, migrate, newSeed, newSeeds, seedCode, STYLE_IDS, type Facet, type Finish, type Level, type Marks, type Spec, type StyleId, type TextLayer, LEVELS, MAX_LAYERS, leadsOf, LEVEL_SLOT } from '../engine/spec';
 import { fitAll } from './fit';
 import { Icon } from './icons';
-import { addKept, infoText, newCrop, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withPhoto, withStyle, type Locks, type Saved } from './state';
+import { addKept, addLayer, infoText, layerText, moveLayer, removeLayer, setLayerText, setLevel, toggleLayer, newCrop, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withPhoto, withStyle, type Locks, type Saved } from './state';
 import { addPhoto, ensurePhoto, prune } from '../photos';
 import { photoOf, releasePhotos } from '../engine/photo';
 import { advancedOf, type Advanced } from '../engine/advanced';
@@ -42,7 +42,9 @@ const FINISHES: [Finish, string][] = [['clean', 'Clean'], ['grain', 'Grain'], ['
 const MARKS: [Marks, string][] = [['off', 'Off'], ['light', 'Light'], ['full', 'Full']];
 /** Postmodern's Dialect control (spec 8.2, 10.2): Either lets the layout stream pick. */
 const DIALECT: [string, string][] = [['either', 'Either'], ['icecream', 'Ice cream'], ['photocopy', 'Photocopy']];
-const SLOT_LABEL: Record<Slot, string> = { title: 'Title', subtitle: 'Subtitle', info: 'Info', caption: 'Caption' };
+/** The six levels of spec 8.6: the row's level button (short) and the field's name. */
+const LEVEL_SHORT: Record<Level, string> = { headline: 'Head', subhead: 'Sub', body: 'Body', label: 'Label', caption: 'Cap', data: 'Data' };
+const LEVEL_NAME: Record<Level, string> = { headline: 'Headline', subhead: 'Subhead', body: 'Body', label: 'Label', caption: 'Caption', data: 'Data (Label: value · …)' };
 const KEPT_PAGE = 6;
 /** Screens this tall hold four 48 px rows in the panel; the same query sets the panel's height in app.css. */
 const TALL = '(min-height: 760px)';
@@ -116,13 +118,14 @@ function load(): Saved {
 }
 
 /** Text on the field while it is typed; follows the spec when the spec changes from elsewhere (Back, Kept). */
-function Field({ slot, spec, onText }: { slot: Slot; spec: Spec; onText: (slot: Slot, v: string) => void }) {
-  const value = slot === 'info' ? infoText(spec.text.info.v) : (spec.text[slot].v as string);
+function Field({ layer, onText }: { layer: TextLayer; onText: (id: string, v: string) => void }) {
+  const data = layer.level === 'data';
+  const value = layerText(layer);
   const [draft, setDraft] = useState(value);
-  const shown = slot === 'info' ? (infoText(parseInfo(draft)) === value ? draft : value) : value;
-  const onInput = (e: Event) => { const v = (e.target as HTMLInputElement).value; setDraft(v); onText(slot, v); };
-  const props = { class: 'field', value: shown, 'data-field': slot, 'aria-label': SLOT_LABEL[slot], onInput, spellcheck: false };
-  return slot === 'title' ? <textarea rows={1} {...props} /> : <input type="text" {...props} />;
+  const shown = data ? (infoText(parseInfo(draft)) === value ? draft : value) : value;
+  const onInput = (e: Event) => { const v = (e.target as HTMLInputElement).value; setDraft(v); onText(layer.id, v); };
+  const props = { class: 'field', value: shown, 'data-field': layer.id, 'data-level': layer.level, 'aria-label': LEVEL_NAME[layer.level], placeholder: LEVEL_NAME[layer.level], onInput, spellcheck: false };
+  return layer.level === 'headline' ? <textarea rows={1} {...props} /> : <input type="text" {...props} />;
 }
 
 /** A panel with fixed height and page chips when a tab does not fit one page (spec 10.1). */
@@ -170,6 +173,10 @@ export function App({ ready }: { ready: Promise<void> }) {
   const [pages, setPages] = useState<Record<Tab, number>>({ style: 0, text: 0, look: 0, layout: 0, graphic: 0, type: 0, colour: 0, photo: 0 });
   /** Graphic tab: whose parameters are shown, of the graphics the design draws. */
   const [tune, setTune] = useState(0);
+  /** Text tab: the layer whose row shows its edit controls (Move up and down, Remove), or none. */
+  const [editing, setEditing] = useState<string | null>(null);
+  /** Text tab: the level the Add button adds. */
+  const [addLevel, setAddLevel] = useState<Level>('body');
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sizes, setSizes] = useState<Format[]>([init.current.spec.format]);
   const [kind, setKind] = useState<Kind>('jpeg');
@@ -256,11 +263,7 @@ export function App({ ready }: { ready: Promise<void> }) {
   });
   const pickStyle = (id: StyleId) => commit((s) => preferAvailable(withStyle(s, id), locksRef.current.type));
   const set = (p: Partial<Spec>) => commit((s) => ({ ...s, ...p }));
-  const onText = (slot: Slot, v: string) => commit((s) => ({
-    ...s,
-    text: { ...s.text, [slot]: { ...s.text[slot], v: slot === 'info' ? parseInfo(v) : v } },
-  }), 'text:' + slot);
-  const toggleSlot = (slot: Slot) => commit((s) => ({ ...s, text: { ...s.text, [slot]: { ...s.text[slot], on: !s.text[slot].on } } }));
+  const onText = (id: string, v: string) => commit((s) => setLayerText(s, id, v), 'text:' + id);
   const keep = () => {
     const s = docRef.current.spec;
     setKept((k) => addKept(k, s));
@@ -461,11 +464,38 @@ export function App({ ready }: { ready: Promise<void> }) {
       ))}
     </div>,
   ];
-  const textRow = (slot: Slot) => (
-    <div class="slot">
-      <L t={SLOT_LABEL[slot]} c="cap" />
-      <Field slot={slot} spec={spec} onText={onText} />
-      <button class={spec.text[slot].on ? 'switch on' : 'switch'} role="switch" aria-checked={spec.text[slot].on} aria-label={`${SLOT_LABEL[slot]} on`} data-slot={slot} onClick={() => toggleSlot(slot)}><i /></button>
+  // a text layer's row (spec 8.6, 10.2, 10.3): its level (a tap steps to the next), its words, on/off and More, which
+  // turns the row to its edit controls (in Advanced Up and Down, then Remove and Done) so the field keeps its width at
+  // 360 px; a layer the design cannot fit is flagged on its row
+  const textRow = (l: TextLayer, i: number) => {
+    const flagged = !!scene?.flagged?.includes(l.id);
+    const next = LEVELS[(LEVELS.indexOf(l.level) + 1) % LEVELS.length];
+    const lvl = <button class="lvl" data-level-of={l.id} aria-label={`${LEVEL_NAME[l.level]}${flagged ? ', does not fit' : ''}: change to ${LEVEL_NAME[next]}`} onClick={() => commit((s) => setLevel(s, l.id, next))}><L t={flagged ? LEVEL_SHORT[l.level] + ' !' : LEVEL_SHORT[l.level]} /></button>;
+    const cls = (flagged ? 'slot layer flagged' : 'slot layer') + (editing === l.id ? ' editing' : '');
+    if (editing === l.id) return (
+      <div class={cls} data-layer={l.id} data-flagged={flagged ? '' : undefined}>
+        {lvl}
+        {advanced && <button class="icon up" data-up={l.id} aria-label="Move up" disabled={i === 0} onClick={() => commit((s) => moveLayer(s, l.id, -1))}><Icon n="prev" /></button>}
+        {advanced && <button class="icon down" data-down={l.id} aria-label="Move down" disabled={i === spec.text.length - 1} onClick={() => commit((s) => moveLayer(s, l.id, 1))}><Icon n="prev" /></button>}
+        <button class="icon wide" data-remove={l.id} aria-label={`Remove ${LEVEL_NAME[l.level]}`} onClick={() => { setEditing(null); commit((s) => removeLayer(s, l.id)); }}><Icon n="close" />{!advanced && <L t="Remove" />}</button>
+        <button class="icon" data-done={l.id} aria-label="Done" onClick={() => setEditing(null)}><Icon n="check" /></button>
+      </div>
+    );
+    return (
+      <div class={cls} data-layer={l.id} data-flagged={flagged ? '' : undefined}>
+        {lvl}
+        <Field key={l.id + l.level} layer={l} onText={onText} />
+        <button class={l.on ? 'switch on' : 'switch'} role="switch" aria-checked={l.on} aria-label={`${LEVEL_NAME[l.level]} on`} data-layer-on={l.id} onClick={() => commit((s) => toggleLayer(s, l.id))}><i /></button>
+        <button class="icon" data-more={l.id} aria-label={`More for ${LEVEL_NAME[l.level]}`} onClick={() => setEditing(l.id)}><Icon n="more" /></button>
+      </div>
+    );
+  };
+  // add a layer, up to eight (spec 8.6): the level button steps through the six levels, Add adds one of it; the panel
+  // turns to the page the new row is on
+  const addRow = (
+    <div class="slot layer" data-row="layer-add">
+      <button class="lvl" data-add-level={addLevel} aria-label={`Adds ${LEVEL_NAME[addLevel]}: change level`} onClick={() => setAddLevel(LEVELS[(LEVELS.indexOf(addLevel) + 1) % LEVELS.length])}><L t={LEVEL_SHORT[addLevel]} /></button>
+      <button class="icon wide" data-add={addLevel} disabled={spec.text.length >= MAX_LAYERS} aria-label={`Add ${LEVEL_NAME[addLevel]}`} onClick={() => { commit((s) => addLayer(s, addLevel)); setPages((p) => ({ ...p, text: 99 })); }}><Icon n="add" /><L t={spec.text.length >= MAX_LAYERS ? 'Eight layers' : 'Add layer'} /></button>
     </div>
   );
   /** Rows two to a page, or all on one page where four 48 px rows fit (spec 10.1: page chips only when they do not fit). */
@@ -481,7 +511,7 @@ export function App({ ready }: { ready: Promise<void> }) {
     const of = dialect && STYLES.pomo.parts.layout.layoutsOf?.[dialect];
     return { ...s, pick: { ...s.pick, dialect, layout: of && s.pick.layout && !of.includes(s.pick.layout) ? null : s.pick.layout } };
   });
-  const textPages = paged((['title', 'subtitle', 'info', 'caption'] as Slot[]).map(textRow));
+  const textPages = paged([...spec.text.map(textRow), addRow]);
   const modeRow = seg([['light', 'Light'], ['dark', 'Dark']], spec.mode, (m) => set({ mode: m }), 'data-mode');
   const finishRow = seg(FINISHES, spec.finish, (f) => set({ finish: f }), 'data-finish');
   const marksRow = <div class="captioned"><L t="Marks" c="cap" />{seg(MARKS, spec.marks, (m) => set({ marks: m }), 'data-marks')}</div>;
@@ -654,7 +684,11 @@ export function App({ ready }: { ready: Promise<void> }) {
         <div class="seg rerolls one" role="group">{rerollBtn('colour')}</div>
       </div>,
     ]),
-    text: paged((['title', 'subtitle', 'info', 'caption'] as Slot[]).flatMap((k) => [textRow(k), ...(adv?.positions[k] ? [ctlRow(adv.positions[k]!)] : [])])),
+    // the position of each slot's lead layer follows its row (spec 8.5, 8.6)
+    text: paged([...spec.text.flatMap((l, i) => {
+      const k = LEVEL_SLOT[l.level], lead = leadsOf(spec.text)[k];
+      return [textRow(l, i), ...(lead?.id === l.id && l.level !== 'body' && l.level !== 'label' && adv?.positions[k] ? [ctlRow(adv.positions[k]!)] : [])];
+    }), addRow]),
     look: lookPages,
     // the treatment is on its tiles; the generated list adds the rest
     photo: paged([...photoRows, ...(adv?.tabs.photo ?? []).filter((c) => c.id !== 'photo.treatment').map(ctlRow)]),
@@ -705,7 +739,7 @@ export function App({ ready }: { ready: Promise<void> }) {
   return (
     <div class={sheet ? 'app sheeted' : 'app'}>
       <header>
-        <div class="wm" aria-label="RSTR">RS<b>T</b>R</div>
+        <div class="wm" aria-label="rstr">rs<b>t</b>r</div>
         <button class="seedchip" data-testid="seed" aria-label="Copy seed" onClick={copySeed}><L t={flash === 'copied' ? 'Copied' : flash === 'copyfail' ? 'Copy failed' : `#${seedCode(spec.seeds)}`} /></button>
         <button class="kept" data-testid="kept" aria-label="Kept" onClick={() => setSheet('kept')}><Icon n="kept" /><L t={String(kept.length)} /></button>
         <button class="adv" data-testid="advanced" aria-pressed={advanced} onClick={() => { setAdvanced((a) => !a); setTab((t) => (advanced ? (SIMPLE_TABS.includes(t) ? t : 'style') : t === 'look' ? 'style' : t)); }}><L t="Advanced" /></button>

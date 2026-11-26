@@ -81,11 +81,11 @@ export const swissLayout: LayoutPart = {
     const band = c.rf();
     const pos: Partial<Record<Slot, string>> = {};
     for (const s of SLOTS) {
-      const v = c.cand(POS_ODDS[s], SWISS_POS[s][0]), set = spec.text[s].pos;
+      const v = c.cand(POS_ODDS[s], SWISS_POS[s][0]), set = c.tx[s].pos;
       pos[s] = set && SWISS_POS[s].includes(set) ? set : v;
     }
     // with info and caption both at the head, a title at the top too would leave the foot bare: it goes low (tuning)
-    if (pos.info === 'head' && pos.caption === 'head' && !spec.text.title.pos) pos.title = 'low';
+    if (pos.info === 'head' && pos.caption === 'head' && !c.tx.title.pos) pos.title = 'low';
     const pt = prm['layout.transform'], ps = prm['layout.size'];
     if (name === 'vertical' && transform === 'quarter') transform = 'none';
     if (TRANSFORMS.includes(pt as Transform)) transform = pt as Transform;
@@ -98,7 +98,7 @@ export const swissLayout: LayoutPart = {
     const fr = frameFor(transform, deg, W, H, story), pg = fr.page;
     const M = Math.round(W * 0.0667), G = Math.round(W * 0.028), mod = (pg.w - 2 * M) / 6;
     const top = transform === 'none' ? c.top : M, bot = transform === 'none' ? c.bot : pg.h - M, innerH = bot - top, innerW = pg.w - 2 * M;
-    const any = SLOTS.some((s) => spec.text[s].on);
+    const any = SLOTS.some((s) => c.tx[s].on);
     const turned = transform !== 'none', tilted = transform === 'tilt';
     const tall = story && transform === 'none', square = Math.abs(pg.h / pg.w - 1) < 0.05;
     /** The graphic's share of the text area's height. */
@@ -143,7 +143,7 @@ export const swissLayout: LayoutPart = {
           if (turned) TR = { x: M * 0.6, y: M * 0.6, w: pg.w - M * 1.2, h: pg.h - M * 1.2 };
           break;
         case 'vertical': {
-          const on = spec.text.title.on && !!spec.text.title.v.trim();
+          const on = c.tx.title.on && !!c.tx.title.v.trim();
           const sw = on ? (band < 0.5 && !turned ? 1.5 : 2) * mod : 0, x0 = M + (on ? sw + G : 0);
           const gh = snap(innerH * (tall ? 0.7 : square ? 0.64 : 0.7), mod);
           if (on) { title = { x: M, y: top, w: sw, h: innerH }; titleUp = true; }

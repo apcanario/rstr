@@ -77,6 +77,18 @@ header { display: flex; align-items: center; gap: 6px; height: 48px; flex: none;
 .switch i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #f1efe970; transition: left 0.12s; }
 .switch.on i { background: #f1efe9; }
 .switch.on i::after { left: 19px; background: #0a0a0c; }
+/* text layers (R17): the level button steps through the six levels; up and remove are 48 px icon buttons */
+.layer .lvl { width: 56px; height: 100%; min-height: 48px; flex: none; padding: 0 4px; border-radius: 10px; background: #0e0e10; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #f1efe9b0; }
+.layer .icon { width: 48px; height: 100%; min-height: 48px; flex: none; background: #0e0e10; border-radius: 10px; color: #f1efe9a0; }
+.layer .icon svg { width: 20px; height: 20px; }
+.layer .icon.up svg { transform: rotate(90deg); }
+.layer .icon.down svg { transform: rotate(-90deg); }
+.layer .icon.wide { flex: 1; min-width: 0; gap: 6px; font-size: 14px; font-weight: 500; }
+.layer .icon:disabled { color: #f1efe930; }
+/* a layer the design cannot fit (spec 8.6): its level reads warn, its field gets an edge */
+.layer.flagged .lvl { background: #f1efe9; color: #0a0a0c; }
+.layer.flagged .field { box-shadow: inset 0 0 0 1.5px #f1efe9; }
+.field::placeholder { color: #f1efe940; }
 
 .actions { display: flex; gap: 6px; flex: none; height: 56px; }
 .act { width: 56px; height: 56px; background: #141417; color: #f1efe9; flex: none; }
@@ -136,3 +148,5 @@ header { display: flex; align-items: center; gap: 6px; height: 48px; flex: none;
 .sheet .captioned .cap { width: 64px; }
 .expinfo { display: flex; flex-direction: column; gap: 3px; min-height: 18px; }
 .expinfo .hint { text-align: left; flex: none; font-size: 12px; line-height: 16px; }
+/* a row's edit controls (R17): in Advanced four icons share the row with the level, so Remove is an icon there */
+.layer.editing .lvl { width: 48px; }

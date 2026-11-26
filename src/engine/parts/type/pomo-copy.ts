@@ -88,7 +88,7 @@ function ext(left: number, right: number, asc: number, desc: number, pad: number
 
 export function copyType(c: PartCtx, plan: Plan): Item[] | null {
   const { W, spec, m, P, T } = c;
-  const tx = spec.text, force = c.fallback, pos = plan.pos ?? {};
+  const tx = c.tx, force = c.fallback, pos = plan.pos ?? {};
   const paper = P.paper ?? P.ground, toner = P.toner ?? P.ink, spot = P.spot ?? toner;
   const label = luminance(paper) > 0.4 ? mixHex(paper, toner, -0.16) : mixHex(toner, paper, 0.06);
   const edge = spec.params['pomo.paperEdge'] !== false;
@@ -97,7 +97,7 @@ export function copyType(c: PartCtx, plan: Plan): Item[] | null {
   const gap = W * 0.025;
   const infoR: Item[] = [], infoT: Item[] = [], capT: Item[] = [];
   const atTop = plan.titleSide === 'bottom';
-  const infoRight = spec.text.caption.pos ? pos.caption === 'left' : pos.info !== 'left';
+  const infoRight = c.tx.caption.pos ? pos.caption === 'left' : pos.info !== 'left';
 
   // the band at the free end: info label on one side, the caption's three copies on the other
   let infoB: { items: Item[]; w: number; h: number } | null = null;

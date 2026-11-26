@@ -61,6 +61,15 @@ with served() as url, browser() as b:
             fallback_check(f'9.2 palette {style} {fmt}', r, 0)
             for f in r['failures'][:5]:
                 fail(f'9.2 palette {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    # 9.2 over text layers with the real fonts (spec 8.6, R17): 1 to 8 layers in every mix of levels, formats and
+    # modes cycling; every layer drawn or flagged, never dropped
+    for style in STYLES:
+        r = pg.evaluate('(o) => window.__rstr.proof.layers(o)', {'styles': [style], 'n': 200})
+        print(f'9.2 {style:6} layers: {r["count"]} designs, {r["layers"]} layers, {r["flagged"]} flagged, {len(r["failures"])} failing, {len(r["drawnOrFlagged"])} neither drawn nor flagged')
+        for f in r['failures'][:5]:
+            fail(f'9.2 layers {style}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+        for d in r['drawnOrFlagged'][:5]:
+            fail(f'9.2 layers {style}: a layer neither drawn nor flagged: {d}')
     # 9.2 with each transform forced on Swiss (spec 8.0): a tilted or turned page keeps every text item legal
     for fmt in FORMATS:
         for tr in ['tilt', 'quarter']:
@@ -166,7 +175,7 @@ with served() as url, browser() as b:
     for style in STYLES:
         for fmt in FORMATS:
             for i in range(6):
-                spec = pg.evaluate('([s, f, i, L]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.seeds = {layout: 100 + i, colour: 200 + i, graphic: 300 + i, type: 400 + i}; x.text.title.v = L; x.text.subtitle.v = L; x.text.caption.v = L; x.text.info.v = [{k: L, v: L}, {k: "When", v: L}, {k: "X", v: "Y"}]; return x; }', [style, fmt, i, long])
+                spec = pg.evaluate('([s, f, i, L]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.seeds = {layout: 100 + i, colour: 200 + i, graphic: 300 + i, type: 400 + i}; const by = (lv) => x.text.find((l) => l.level === lv); by("headline").v = L; by("subhead").v = L; by("caption").v = L; by("data").v = [{k: L, v: L}, {k: "When", v: L}, {k: "X", v: "Y"}]; return x; }', [style, fmt, i, long])
                 r = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
                 nfb += r['layout'] == 'fallback'
                 f = pg.evaluate('(s) => window.__rstr.check(s)', spec)

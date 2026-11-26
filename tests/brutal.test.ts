@@ -12,7 +12,7 @@ import { isCoreFace, PAIRINGS } from '../src/data/pairings';
 import { runBrutalWidth, shuffleSeeds, specs } from '../src/engine/proof';
 import { counted, rng } from '../src/engine/rng';
 import type { GraphicItem, Scene, TextItem } from '../src/engine/scene';
-import { defaultSpec, type Spec } from '../src/engine/spec';
+import { lead, slotsOf, defaultSpec, type Spec } from '../src/engine/spec';
 
 const titles = (sc: Scene) => sc.items.filter((i): i is TextItem => i.kind === 'text' && i.slot === 'title');
 const brutal = (i: number, f: Spec['format'] = '3:4') => { const s = defaultSpec(shuffleSeeds(i)); s.style = 'brutal'; s.format = f; return s; };
@@ -155,7 +155,7 @@ describe('R8: every title line fills the width (spec 8.3; Carried R8, review R1 
     let n = 0, lines = 0;
     const seen = new Set<string>();
     for (const s of specs({ styles: ['brutal'], n: 24, picks: 'none' })) {
-      if (s.text.title.v.trim().split(/\s+/).length > 4) continue;
+      if (slotsOf(s.text).title.v.trim().split(/\s+/).length > 4) continue;
       const sc = solve(s, stubMeasure).scene;
       if (sc.layout === 'fallback') continue;
       const plan = planOf(s, sc), ts = titles(sc);
@@ -203,8 +203,8 @@ describe('R8: every title line fills the width (spec 8.3; Carried R8, review R1 
     const by = new Map<string, [number, number]>();
     let all = 0, kept = 0;
     for (const pairing of core) for (const s of specs({ styles: ['brutal'], n: 200, variants: 'cycle', pick: { pairing } })) {
-      const words = s.text.title.v.trim().split(/\s+/).filter(Boolean).length;
-      if (words < 2 || words > 4 || s.text.title.v.includes('\n') || !s.text.title.on) continue;
+      const tt = slotsOf(s.text).title, words = tt.v.trim().split(/\s+/).filter(Boolean).length;
+      if (words < 2 || words > 4 || tt.v.includes('\n') || !tt.on) continue;
       const sc = solve(s, stubMeasure).scene;
       if (sc.layout === 'fallback') continue;
       const ts = titles(sc);
@@ -227,7 +227,7 @@ describe('R8: every title line fills the width (spec 8.3; Carried R8, review R1 
     let n = 0;
     for (const f of FORMAT_LIST) for (const layout of BRUTAL_LAYOUTS) for (let i = 0; i < 12; i++) {
       const s = brutal(i, f);
-      s.pick.layout = layout; s.text.title.v = 'Eight plain words make a long poster title';
+      s.pick.layout = layout; lead(s.text, 'title').v = 'Eight plain words make a long poster title';
       const sc = solve(s, stubMeasure).scene;
       if (sc.layout === 'fallback') continue;
       n++;

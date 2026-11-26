@@ -312,7 +312,7 @@ def run_advanced(pg, at, fail):
         # the seed may already draw the title low: Top and Low each reach the spec and draw different stages
         tap(pg, 'button[data-ctl="pos.title"][data-v="top"]')
         px = stage()
-        tapped('title position Low', 'button[data-ctl="pos.title"][data-v="low"]', lambda x: x['text']['title']['pos'] == 'low', change=False)
+        tapped('title position Low', 'button[data-ctl="pos.title"][data-v="low"]', lambda x: layer(x, 't1')['pos'] == 'low', change=False)
         if stage() == px:
             fail(f'{at}: Advanced title positions Top and Low drew the same stage')
     else:
@@ -369,6 +369,114 @@ def run_advanced(pg, at, fail):
     return n
 
 
+def layer(x, lid):
+    return next((l for l in x['text'] if l['id'] == lid), {'on': None, 'v': None, 'pos': None})
+
+
+EIGHT = [
+    {'id': 't1', 'level': 'headline', 'v': 'Eight plain words make a long poster title', 'on': True, 'pos': None},
+    {'id': 't2', 'level': 'subhead', 'v': 'A modular identity system', 'on': True, 'pos': None},
+    {'id': 't3', 'level': 'body', 'v': 'Pick a style, shuffle until something lands, type the words and export.', 'on': True, 'pos': None},
+    {'id': 't4', 'level': 'label', 'v': 'Free entry', 'on': True, 'pos': None},
+    {'id': 't5', 'level': 'data', 'v': [{'k': 'Where', 'v': 'Lisboa'}, {'k': 'When', 'v': '23 Nov 2026'}], 'on': True, 'pos': None},
+    {'id': 't6', 'level': 'caption', 'v': 'Vol. 01 — generated, not drawn', 'on': True, 'pos': None},
+    {'id': 't7', 'level': 'headline', 'v': 'Second headline', 'on': True, 'pos': None},
+    {'id': 't8', 'level': 'body', 'v': 'One user, one phone.', 'on': False, 'pos': None},
+]
+
+
+def run_layers(pg, at, fail):
+    """Text layers (spec 8.6, 10.2, 10.3, row R17): at 8 layers the Text tab fits without scrolling (page chips), in Simple
+    and Advanced, every style; Add is off at 8; add, remove, level and move up reach the spec; a flagged layer's row is marked."""
+    s0 = spec(pg)
+    n = 0
+    for adv in [False, True]:
+        if (pg.get_attribute('[data-testid="advanced"]', 'aria-pressed') == 'true') != adv:
+            pg.click('[data-tab="style"]')
+            pg.click('[data-testid="advanced"]')
+            idle(pg)
+        for style in STYLES:
+            pg.evaluate('([x, st, t]) => window.__rstr.app.load({ ...x, style: st, text: t })', [s0, style, EIGHT])
+            idle(pg)
+            pg.click('[data-tab="text"]')
+            pages = npages(pg)
+            if pages < 2:
+                fail(f'{at}: 8 layers on one page of the Text tab: no page chips')
+            rows = set()
+            for i in range(pages):
+                goto(pg, i)
+                pg.evaluate(FRAME_JS)
+                for prob in pg.evaluate(LAYOUT_JS)[:6]:
+                    fail(f'{at}, 8 layers, {"Advanced" if adv else "Simple"} {style}, text page {i + 1}: {prob}')
+                rows |= set(pg.evaluate('() => [...document.querySelectorAll("[data-layer]")].map((e) => e.dataset.layer)'))
+                n += 1
+            if rows != {l['id'] for l in EIGHT}:
+                fail(f'{at}: the Text tab pages show layers {sorted(rows)}, not all eight')
+            if not find(pg, 'text', '[data-add]') or pg.is_enabled('[data-add]'):
+                fail(f'{at}: Add is not off at 8 layers')
+            # a flagged layer is marked on its row
+            flagged = pg.evaluate('(x) => window.__rstr.scene(x).flagged || []', spec(pg))
+            marked = set()
+            for i in range(npages(pg)):
+                goto(pg, i)
+                marked |= set(pg.evaluate('() => [...document.querySelectorAll("[data-layer][data-flagged]")].map((e) => e.dataset.layer)'))
+            if marked != set(flagged):
+                fail(f'{at}: {style} flags {flagged} but the rows marked are {sorted(marked)}')
+        # the row's controls reach the spec
+        pg.evaluate('(x) => window.__rstr.app.load({ ...x, style: "swiss", text: x.text.slice(0, 4) })', s0)
+        idle(pg)
+        find(pg, 'text', '[data-add]')
+        for _ in range(6):
+            if pg.get_attribute('[data-add]', 'data-add') == 'label':
+                break
+            pg.click('[data-add-level]')
+            idle(pg)
+        tap(pg, '[data-add]')
+        if [l['level'] for l in spec(pg)['text']][-1:] != ['label'] or len(spec(pg)['text']) != 5:
+            fail(f'{at}: Add label did not add a label layer')
+        new = spec(pg)['text'][-1]['id']
+        find(pg, 'text', f'[data-level-of="{new}"]')
+        tap(pg, f'[data-level-of="{new}"]')
+        if layer(spec(pg), new).get('level') != 'caption':
+            fail(f'{at}: the level button did not step label to caption')
+        pg.fill(f'[data-field="{new}"]', 'Added words')
+        idle(pg)
+        if layer(spec(pg), new)['v'] != 'Added words':
+            fail(f'{at}: typing in an added layer did not reach the design')
+        pg.click(f'[data-more="{new}"]')
+        idle(pg)
+        pg.evaluate(FRAME_JS)
+        for prob in pg.evaluate(LAYOUT_JS)[:6]:
+            fail(f'{at}, {"Advanced" if adv else "Simple"}, a row\'s edit controls: {prob}')
+        if adv:
+            tap(pg, f'[data-up="{new}"]')
+            if spec(pg)['text'][3]['id'] != new:
+                fail(f'{at}: Move up did not move the layer')
+            find(pg, 'text', f'[data-down="{new}"]')
+            tap(pg, f'[data-down="{new}"]')
+            if spec(pg)['text'][4]['id'] != new:
+                fail(f'{at}: Move down did not move the layer')
+        elif pg.query_selector('[data-up]'):
+            fail(f'{at}: Simple shows Move up (reorder is Advanced, spec 10.3)')
+        if not find(pg, 'text', f'[data-remove="{new}"]'):
+            fail(f'{at}: the edit controls closed after a move')
+            find(pg, 'text', f'[data-more="{new}"]')
+            pg.click(f'[data-more="{new}"]')
+        tap(pg, f'[data-remove="{new}"]')
+        if any(l['id'] == new for l in spec(pg)['text']):
+            fail(f'{at}: Remove did not remove the layer')
+    print(f'{at}: Text tab at 8 layers checked on {n} pages (Simple and Advanced, every style): no scroll, controls at least 48 px, nothing wraps; Add off at 8; add, level, type, move up and down, remove reach the spec; flagged rows marked')
+    pg.evaluate('(x) => window.__rstr.app.load(x)', s0)
+    idle(pg)
+    pg.click('[data-tab="text"]')
+    goto(pg, 0)
+    if pg.get_attribute('[data-testid="advanced"]', 'aria-pressed') == 'true':
+        pg.click('[data-tab="style"]')
+        pg.click('[data-testid="advanced"]')
+        idle(pg)
+    pg.click('[data-tab="style"]')
+
+
 def run(b, url, fail):
     for (w, h) in [(360, 640), (412, 915)]:
         at = f'app {w}x{h}'
@@ -397,10 +505,15 @@ def run(b, url, fail):
         # spec 10.1: page chips only when a tab does not fit; four rows fit on a tall screen (review R4 S5)
         if h >= 760:
             # Postmodern adds a fifth Look row (Dialect, R6), so it may page there
-            for t in (['text', 'look'] if spec(pg)['style'] != 'pomo' else ['text']):
+            for t in ([] if spec(pg)['style'] == 'pomo' else ['look']):
                 pg.click(f'[data-tab="{t}"]')
                 if npages(pg) > 1:
                     fail(f'{at}: the {t.title()} tab has page chips where its four rows fit')
+        # the Text tab (R17): one row per layer and the Add row, four to a page on a tall screen, two on a short one
+        pg.click('[data-tab="text"]')
+        want = -(-(len(spec(pg)['text']) + 1) // (4 if h >= 760 else 2))
+        if npages(pg) != want:
+            fail(f'{at}: the Text tab has {npages(pg)} pages for {len(spec(pg)["text"])} layers and the Add row, not {want}')
             pg.click('[data-tab="style"]')
 
         # Style tiles, format, Light/Dark on the Look tab, finish, marks, rerolls, text switches
@@ -534,14 +647,14 @@ def run(b, url, fail):
         idle(pg)
         pg.click('[data-tab="text"]')
         before = spec(pg)
-        tap(pg, 'button[data-slot="title"]')
-        if spec(pg)['text']['title']['on'] == before['text']['title']['on']:
-            fail(f'{at}: the title switch did nothing')
-        tap(pg, 'button[data-slot="title"]')
-        pg.fill('[data-field="title"]', 'Typed title')
+        tap(pg, 'button[data-layer-on="t1"]')
+        if layer(spec(pg), 't1')['on'] == layer(before, 't1')['on']:
+            fail(f'{at}: the headline switch did nothing')
+        tap(pg, 'button[data-layer-on="t1"]')
+        pg.fill('[data-field="t1"]', 'Typed title')
         idle(pg)
-        if spec(pg)['text']['title']['v'] != 'Typed title':
-            fail(f'{at}: typing the title did not reach the design')
+        if layer(spec(pg), 't1')['v'] != 'Typed title':
+            fail(f'{at}: typing the headline did not reach the design')
         pg.click('[data-tab="style"]')
 
         # a locked facet survives 50 shuffles: its seed, its pick and what it draws; the other facets change
@@ -580,12 +693,13 @@ def run(b, url, fail):
             pg.click(f'button[data-lock="{f}"]')
         print(f'{at}: each facet locked survived 50 shuffles')
         run_advanced(pg, at, fail)
+        run_layers(pg, at, fail)
 
         # Back restores the previous design exactly: the spec and the stage's pixels, step by step
         steps = [
             ('[data-testid="shuffle"]', None), ('button[data-style="pomo"]', None), ('button[data-format="3:4"]', None),
             ('[data-tab="look"]', 'mode'), (None, 'mode'),
-            ('[data-tab="text"]', 'type'), (None, 'button[data-slot="subtitle"]'), ('[data-tab="style"]', 'button[data-style="vapor"]'),
+            ('[data-tab="text"]', 'type'), (None, 'button[data-layer-on="t2"]'), ('[data-tab="style"]', 'button[data-style="vapor"]'),
             (None, '[data-testid="shuffle"]'), (None, 'button[data-format="1:1"]'), ('[data-tab="look"]', 'button[data-reroll-page]'),
             ('[data-tab="style"]', '[data-testid="shuffle"]'),
             # Advanced (review R10 S4): a range dragged (three input events, one Back step, spec 10.1) and a colour
@@ -601,7 +715,8 @@ def run(b, url, fail):
             if sel == 'mode':
                 sel = f'button[data-mode="{"light" if spec(pg)["mode"] == "dark" else "dark"}"]'
             if sel == 'type':
-                pg.click('[data-field="subtitle"]')
+                find(pg, 'text', '[data-field="t2"]')
+                pg.click('[data-field="t2"]')
                 pg.keyboard.press('End')
                 pg.keyboard.type(' xyz')
                 idle(pg)

@@ -1,3 +1,4 @@
+import { slotsOf } from '../src/engine/spec';
 /** Vaporwave (row R9, spec 8.4) and the Carried R9 items, on the stub measure. */
 import { describe, expect, test } from 'vitest';
 import { bounds, overlaps, rectQuad } from '../src/engine/geom';
@@ -65,7 +66,7 @@ describe('Vaporwave (spec 8.4)', () => {
   test('a long title leaves no last word alone when it can be balanced (Carried R9: the 8-word 1:1 orphan)', () => {
     let multi = 0, orphans = 0;
     for (const s of specs({ styles: ['vapor'], formats: ['1:1', '3:4', '9:16'], n: 20, variants: 'all' })) {
-      if (s.text.title.v !== TITLES.eight || !s.text.title.on) continue;
+      if (slotsOf(s.text).title.v !== TITLES.eight || !slotsOf(s.text).title.on) continue;
       const sc = solve(s, stubMeasure).scene, t = texts(sc).find((x) => x.slot === 'title');
       if (!t || t.runs.length < 2) continue;
       multi++;

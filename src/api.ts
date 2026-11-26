@@ -10,7 +10,7 @@ import type { Scene } from './engine/scene';
 import { check } from './engine/invariants';
 import { solve, unloadedFaces } from './engine/layout';
 import { browserMeasure } from './engine';
-import { clumsyOf, pickForGraphic, picksOf, runAdvanced, runBrutalWidth, runIndependence, runInvariants, runTune, runVariety, specs, type Opts } from './engine/proof';
+import { clumsyOf, layerMix, runLayers, pickForGraphic, picksOf, runAdvanced, runBrutalWidth, runIndependence, runInvariants, runTune, runVariety, specs, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
 import { bench, copierProof, photoCopier, photoPixels, photoShows, treatBench, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
@@ -184,9 +184,13 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),
     /** Ids and names of a style's palettes and pairings, for the longest-name checks on the controls. */
+    /** A text layer list of the 9.2 run over layers (spec 8.6, R17), for the sheets and the smoke run. */
+    layerMix: (i: number) => layerMix(i),
     names: (style: StyleId) => ({ palettes: PALETTES[style].map((p) => ({ id: p.id, name: p.name })), pairings: PAIRINGS[style].map((p) => ({ id: p.id, name: p.name })) }),
     proof: {
       invariants: (o: Opts) => runInvariants(browserMeasure(), o, resolve),
+      /** 9.2 over text layers (spec 8.6, R17): layer lists of 1 to 8 in every mix of levels. */
+      layers: (o: { styles?: StyleId[]; n?: number; start?: number }) => runLayers(browserMeasure(), o, resolve),
       /** Row R10 (review R10 S3): every Advanced value and colour edit of each design through 9.2, real fonts. */
       advanced: (o: Opts) => runAdvanced(browserMeasure(), o, resolve),
       /** Review bundle 4 M5: Brutalist title lines at the full width with the real faces. */

@@ -38,6 +38,10 @@ export interface TextItem {
   ink: string[];             // the colours that carry legibility, checked for contrast
   px: number;                // effective size: size times the smallest run scale
   min: number;               // the style's minimum for this text
+  /** The text layer it draws (spec 8.6): its id. */
+  lid?: string;
+  /** Set by the shared layer placer (a layer beyond the four slots), not by the style's own slot rules. */
+  extra?: boolean;
 }
 
 export interface RectItem {
@@ -114,5 +118,7 @@ export interface Scene {
   /** The design's colours as palette roles (spec 5), read before any edit: `designRoles` in controls.ts. */
   /** Advanced control ids the design ignores (Plan.inert): the Advanced tabs hide them. */
   inert?: string[];
+  /** Text layers that are on and could not be drawn in full (spec 8.6): not drawn, or shortened. The Text tab flags their rows. */
+  flagged?: string[];
   designRoles?: ('ground' | 'ink' | 'accent' | 'accent2' | 'accent3' | 'paper' | 'toner' | 'spot' | 'window' | 'windowInk' | 'chrome')[][];
 }

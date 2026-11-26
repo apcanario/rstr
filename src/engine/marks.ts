@@ -295,7 +295,7 @@ function place(c: Ctx, kind: MarkKind): GraphicItem[] {
       const g = 16, L = 32, t = 3, diag = r() < 0.5;
       const blocks: Rect[] = [];
       for (const slot of ['title', 'info'] as const) {
-        const ts = c.texts.filter((x) => x.slot === slot);
+        const ts = c.texts.filter((x) => x.slot === slot && !x.extra);
         if (ts.length) blocks.push(union(ts.map((x) => bounds(x.quad))));
       }
       const gr = c.sc.items.find((i): i is GraphicItem => i.kind === 'graphic' && !i.layer?.match(/ground|mark/) && !i.pass);
@@ -321,7 +321,7 @@ function place(c: Ctx, kind: MarkKind): GraphicItem[] {
 function containers(c: Ctx): { card: GraphicItem | null; rest: GraphicItem[] } {
   let card: GraphicItem | null = null;
   const rest: GraphicItem[] = [];
-  const info = c.texts.filter((t) => t.slot === 'info');
+  const info = c.texts.filter((t) => t.slot === 'info' && !t.extra);
   if (info.length) {
     // the card frames the info text and any plate it sits on (a window, a label), so it never cuts across one
     let U = union(info.map((t) => bounds(t.quad)));
@@ -335,7 +335,7 @@ function containers(c: Ctx): { card: GraphicItem | null; rest: GraphicItem[] } {
       && !c.plates.some((p) => !own(p) && overlaps(p.quad, rectQuad(b)));
     if (ok) card = item(c, 'card', b, { chamfer: 28 }, info.map((t) => t.quad));
   }
-  const title = c.texts.filter((t) => t.slot === 'title');
+  const title = c.texts.filter((t) => t.slot === 'title' && !t.extra);
   if (title.length) {
     const T = union(title.map((t) => bounds(t.quad))), len = Math.round(between(c.r, 360, 430));
     // under the title or over it, from its left end or its right; a flush-left title (Swiss, spec 8.1: one axis)

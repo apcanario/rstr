@@ -18,6 +18,18 @@ import { fieldColour, inkOn } from '../shared/field';
 import { upper } from '../shared/text';
 import type { SizeClass, TypePart } from '../types';
 import { capControl, paramChoice, type Ranged } from '../../controls';
+import { lv } from '../shared/layers';
+import type { LevelSets } from '../types';
+/** Text layers beyond the slots (spec 8.6): flush left on the text area, as the slots of 8.1 are set, on ground plates. */
+export const SWISS_LEVELS: LevelSets = {
+  headline: lv('display', false, 0.09, 40, 0.94, 3, -0.028),
+  subhead: lv('serif', false, 0.036, 20, 1.18, 2, 0),
+  body: lv('text', false, 0.028, 16, 1.3, 5, 0),
+  label: lv('label', true, 0.017, 16, 1, 1, 0.14),
+  caption: lv('mono', true, 0.0185, 16, 1, 1, 0.12, 'bottom'),
+  data: lv('text', false, 0.026, 16, 1.2, 1, 0, 'bottom'),
+};
+
 
 /** Title case (spec 10.3 Type): Swiss sets the title as typed unless Advanced asks for upper or lower case. */
 export const titleCase = (v: string, k: unknown) => (k === 'upper' ? upper(v) : k === 'lower' ? v.toLocaleLowerCase() : v);
@@ -39,6 +51,7 @@ const titleTrack = (s: { params: Record<string, unknown> }) => {
 const trackControl = (): Ranged => ({ kind: 'range', id: 'type.track', label: 'Tracking', where: { at: 'params', key: 'type.track' }, facet: 'type', min: SWISS_TRACK.min, max: SWISS_TRACK.max, step: 0.002, shown: SWISS_TRACK.def });
 
 export const swissType: TypePart = {
+  levels: SWISS_LEVELS,
   id: 'swiss', min: MIN,
   controls: () => {
     const k = paramChoice('type.case', 'Case', ['upper', 'lower'], (v) => (v === 'upper' ? 'Upper' : 'Lower'));
@@ -47,7 +60,7 @@ export const swissType: TypePart = {
   },
   set(c, plan) {
     const { W, spec, m, P, T, story } = c;
-    const tx = { ...spec.text, title: { ...spec.text.title, v: titleCase(spec.text.title.v, spec.params['type.case']) } };
+    const tx = { ...c.tx, title: { ...c.tx.title, v: titleCase(c.tx.title.v, spec.params['type.case']) } };
     if (!SLOTS.some((s) => tx[s].on)) return [];
     const TR = plan.boxes.text, panel = plan.boxes.panel ?? null, F = plan.boxes.field;
     const pos = plan.pos ?? {}, up = !!plan.titleUp && !!plan.boxes.title;

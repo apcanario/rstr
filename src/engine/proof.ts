@@ -4,12 +4,12 @@ import { check, type Failure } from './invariants';
 import { choosePairing, partCtx, solve, type Use } from './layout';
 import { PAIRINGS } from '../data/pairings';
 import type { Measure } from './measure';
-import { mix } from './rng';
+import { mix, rng } from './rng';
 import type { Item, Scene, TextItem } from './scene';
 import { coverOf } from './cover';
 import { STYLES } from './styles';
 import { labelsOf, markOverlaps } from './marks';
-import { DEFAULT_TEXT, defaultSpec, SLOTS, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
+import { DEFAULT_SLOTS, defaultSpec, layersOf, LEVELS, slotsOf, SLOTS, type InfoPair, type Level, type TextLayer, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
 import { advancedOf, allControls, valuesOf } from './advanced';
 import { apply, designColours, setColour } from './controls';
 import { choosePalette } from './layout';
@@ -23,14 +23,14 @@ export const TITLES = { one: 'Signal', three: 'Signal and noise', eight: 'Eight 
 export function textVariants(): { name: string; text: Spec['text'] }[] {
   const out: { name: string; text: Spec['text'] }[] = [];
   for (const [name, v] of Object.entries(TITLES)) {
-    const t = structuredClone(DEFAULT_TEXT);
+    const t = structuredClone(DEFAULT_SLOTS);
     t.title.v = v;
-    out.push({ name: 'all-' + name, text: t });
+    out.push({ name: 'all-' + name, text: layersOf(t) });
   }
   for (const s of SLOTS) {
-    const t = structuredClone(DEFAULT_TEXT);
+    const t = structuredClone(DEFAULT_SLOTS);
     for (const o of SLOTS) t[o].on = o === s;
-    out.push({ name: s + '-alone', text: t });
+    out.push({ name: s + '-alone', text: layersOf(t) });
   }
   return out;
 }
@@ -281,7 +281,7 @@ export function clumsyOf(sc: Scene, spec: Spec): string[] {
   const out: string[] = [];
   const W = sc.w, H = sc.h;
   const title = sc.items.find((i) => i.kind === 'text' && i.slot === 'title');
-  if (title && title.kind === 'text' && spec.text.title.v.trim().split(/\s+/).length <= 3 && title.px < W * 0.06) out.push(`tiny title ${Math.round(title.px)} px`);
+  if (title && title.kind === 'text' && slotsOf(spec.text).title.v.trim().split(/\s+/).length <= 3 && title.px < W * 0.06) out.push(`tiny title ${Math.round(title.px)} px`);
   const nx = 24, ny = Math.round((24 * H) / W), cover = new Float32Array(nx * ny);
   const inQuad = (q: number[][], x: number, y: number) => {
     let inside = false;
@@ -399,7 +399,8 @@ export interface WidthReport { designs: number; lines: number; skipped: number; 
 export function runBrutalWidth(m: Measure, o: Opts = {}, resolve?: Resolve, read: Measure = m): WidthReport {
   const r: WidthReport = { designs: 0, lines: 0, skipped: 0, fallbacks: 0, off: [] };
   for (const spec of specs({ ...o, styles: ['brutal'] })) {
-    if (!spec.text.title.on || spec.text.title.v.trim().split(/\s+/).length > 4) continue;
+    const tt = slotsOf(spec.text).title;
+    if (!tt.on || tt.v.trim().split(/\s+/).length > 4) continue;
     const use = resolve?.(spec);
     if (spec.pick.pairing && use?.pairing && use.pairing !== spec.pick.pairing) { r.skipped++; continue; }
     const sc = solve(spec, m, use).scene;
@@ -415,6 +416,59 @@ export function runBrutalWidth(m: Measure, o: Opts = {}, resolve?: Resolve, read
       const run = t.runs[0], mt = read(run.s, t.font, t.size), got = (mt.left + mt.right) * (run.sx ?? 1);
       r.lines++;
       if (Math.abs(got - want) / want >= 0.01 && r.off.length < 50) r.off.push({ spec, line: run.s, got, want });
+    }
+  }
+  return r;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// text layers (spec 8.6, row R17)
+
+const WORDS: Record<Level, string[]> = {
+  headline: ['Signal', 'Signal and noise', 'Eight plain words make a long poster title'],
+  subhead: ['A modular identity system', 'Notes', 'Rules and seeded randomness, set by hand'],
+  body: ['One user, one phone.', 'Pick a style, shuffle until something lands, type the words and export the poster at any size.', 'Generated, not drawn'],
+  label: ['New', 'Free entry', 'Edition one of three'],
+  caption: ['Vol. 01 — generated, not drawn', 'Lisboa', 'Printed in an edition of forty, numbered by hand'],
+  data: [],
+};
+const PAIRS: InfoPair[][] = [[{ k: 'Where', v: 'Lisboa' }], [{ k: 'Where', v: 'Lisboa' }, { k: 'When', v: '23 Nov 2026' }, { k: 'Edition', v: '01' }], [{ k: 'Doors', v: '21:00' }, { k: '', v: 'Free' }]];
+
+/**
+ * Layer list i of the 9.2 run over layers: 1 to 8 layers (i mod 8, plus one). The first 48 are one level throughout
+ * (each level at each count); the rest mix levels at random from the seeded stream; words short, typical or long.
+ */
+export function layerMix(i: number): TextLayer[] {
+  const n = 1 + (i % 8), r = rng(mix(0x1a7e, i)), out: TextLayer[] = [];
+  for (let j = 0; j < n; j++) {
+    const level = i < 48 ? LEVELS[Math.floor(i / 8)] : LEVELS[Math.floor(r() * LEVELS.length)];
+    const w = Math.floor(r() * 3);
+    out.push({ id: 't' + (j + 1), level, v: level === 'data' ? structuredClone(PAIRS[w]) : WORDS[level][w], on: true, pos: null });
+  }
+  return out;
+}
+
+export interface LayerReport { count: number; layers: number; flagged: number; drawnOrFlagged: string[]; failures: { spec: Spec; failures: Failure[] }[]; }
+/**
+ * 9.2 over text layers: n layer lists per style, the format and mode cycling with the seed set. Every layer that is on
+ * is drawn or flagged on the Scene, never dropped (`drawnOrFlagged` lists any that is neither).
+ */
+export function runLayers(m: Measure, o: { styles?: StyleId[]; n?: number; start?: number; formats?: Format[] } = {}, resolve?: Resolve): LayerReport {
+  const r: LayerReport = { count: 0, layers: 0, flagged: 0, drawnOrFlagged: [], failures: [] };
+  const formats = o.formats ?? FORMAT_LIST;
+  for (const style of o.styles ?? STYLE_IDS) for (let i = o.start ?? 0; i < (o.start ?? 0) + (o.n ?? 200); i++) {
+    const s = defaultSpec(seedSet(i));
+    s.style = style; s.format = formats[i % formats.length]; s.mode = Math.floor(i / formats.length) % 2 ? 'dark' : 'light';
+    s.text = layerMix(i);
+    r.count++;
+    const { scene } = solve(s, m, resolve?.(s));
+    const f = check(scene);
+    if (f.length && r.failures.length < 50) r.failures.push({ spec: s, failures: f });
+    for (const L of s.text) {
+      r.layers++;
+      const drawn = scene.items.some((it) => it.kind === 'text' && it.lid === L.id);
+      if (scene.flagged?.includes(L.id)) r.flagged++;
+      else if (!drawn && r.drawnOrFlagged.length < 20) r.drawnOrFlagged.push(`${style} ${s.format} seed ${i} ${L.id} ${L.level}`);
     }
   }
   return r;

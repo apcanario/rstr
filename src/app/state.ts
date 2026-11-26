@@ -4,7 +4,7 @@
  */
 import { freshDraw, pushRecent } from '../engine/proof';
 import { facetOfParam } from '../engine/controls';
-import { FACETS, migrate, newSeed, SLOTS, type Facet, type Spec } from '../engine/spec';
+import { FACETS, MAX_LAYERS, migrate, newLayerId, newSeed, type Facet, type InfoPair, type Level, type Spec, type TextLayer } from '../engine/spec';
 
 /** Back keeps this many steps (spec 10.1). */
 export const BACK_STEPS = 30;
@@ -32,11 +32,7 @@ function dropFacet(s: Spec, f: Facet): Spec {
     for (const k of Object.keys(params)) if (facetOfParam(k) === f) delete params[k];
     out = { ...out, params };
   }
-  if (f === 'layout' && SLOTS.some((k) => s.text[k].pos !== null)) {
-    const text = { ...s.text } as Spec['text'];
-    for (const k of SLOTS) if (text[k].pos !== null) (text as any)[k] = { ...text[k], pos: null };
-    out = { ...out, text };
-  }
+  if (f === 'layout' && s.text.some((l) => l.pos !== null)) out = { ...out, text: s.text.map((l) => (l.pos !== null ? { ...l, pos: null } : l)) };
   // where the photo sits is the layout stream's (spec 3, 8.9): Advanced's role, scale and offset, and New crop's crop
   if (f === 'layout' && s.photo?.place) out = { ...out, photo: { ...s.photo, place: null } };
   // its treatment is the graphic stream's (spec 3, 8.9, R15); its parameters are photo.* params (above)
@@ -106,10 +102,10 @@ export function pushBack(back: Spec[], prev: Spec): Spec[] {
 }
 
 /** Info as one field: "Where: Lisboa · When: 23 Nov 2026". A part without a colon has an empty label. */
-export function infoText(v: Spec['text']['info']['v']): string {
+export function infoText(v: InfoPair[]): string {
   return v.map((p) => (p.k ? `${p.k}: ${p.v}` : p.v)).join(' · ');
 }
-export function parseInfo(t: string): Spec['text']['info']['v'] {
+export function parseInfo(t: string): InfoPair[] {
   return t.split(/[·|;]/).map((x) => x.trim()).filter(Boolean).slice(0, 3).map((x) => {
     const i = x.indexOf(':');
     return i < 0 ? { k: '', v: x } : { k: x.slice(0, i).trim(), v: x.slice(i + 1).trim() };
@@ -164,3 +160,33 @@ export function openLink(saved: Saved, q: string | null): Saved {
   if (JSON.stringify(spec) === JSON.stringify(saved.spec)) return saved;
   return { ...saved, spec, back: pushBack(saved.back, saved.spec) };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// text layers (spec 8.6, 10.2, 10.3): add, remove, reorder, level, words, on/off. Pure; the Text tab calls them.
+
+/** A new layer of a level at the end of the list, empty and on; none past MAX_LAYERS. */
+export function addLayer(s: Spec, level: Level): Spec {
+  if (s.text.length >= MAX_LAYERS) return s;
+  return { ...s, text: [...s.text, { id: newLayerId(s.text), level, v: level === 'data' ? [] : '', on: true, pos: null }] };
+}
+export const removeLayer = (s: Spec, id: string): Spec => ({ ...s, text: s.text.filter((l) => l.id !== id) });
+/** One step up (-1) or down (+1) the list; at an end, nothing. */
+export function moveLayer(s: Spec, id: string, by: -1 | 1): Spec {
+  const i = s.text.findIndex((l) => l.id === id), j = i + by;
+  if (i < 0 || j < 0 || j >= s.text.length) return s;
+  const text = s.text.slice();
+  [text[i], text[j]] = [text[j], text[i]];
+  return { ...s, text };
+}
+/** The words of a layer as its field shows them: data as "Label: value · ...". */
+export const layerText = (l: TextLayer): string => (Array.isArray(l.v) ? infoText(l.v) : l.v);
+/** A new level: the words carry over (to and from data through the field's form); a position, which names a slot's place, goes. */
+export function setLevel(s: Spec, id: string, level: Level): Spec {
+  return { ...s, text: s.text.map((l) => {
+    if (l.id !== id || l.level === level) return l;
+    const words = layerText(l);
+    return { ...l, level, v: level === 'data' ? parseInfo(words) : words, pos: null };
+  }) };
+}
+export const setLayerText = (s: Spec, id: string, t: string): Spec => ({ ...s, text: s.text.map((l) => (l.id === id ? { ...l, v: l.level === 'data' ? parseInfo(t) : t } : l)) });
+export const toggleLayer = (s: Spec, id: string): Spec => ({ ...s, text: s.text.map((l) => (l.id === id ? { ...l, on: !l.on } : l)) });

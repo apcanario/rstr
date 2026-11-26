@@ -36,7 +36,7 @@ export const vaporLayout: LayoutPart = {
   // upper part of that range, 60% to 64%, for the story zone above it)
   controls: ({ scene }) => [layoutPicker(VAPOR_LAYOUTS), ...(HORIZON.includes(scene.frame) ? [horizonControl()] : [transformControl()]), sizeControl()],
   plan(c) {
-    const { W, H, spec, story } = c, tx = spec.text, prm = spec.params;
+    const { W, H, spec, story } = c, tx = c.tx, prm = spec.params;
     // the layout stream, in a fixed order: layout, transform, tilt angle, size class, horizon, sun x, sun radius,
     // sun height, sun end; then the window side as a candidate decision
     const ul = c.rf(), ut = c.rf(), ua = c.rf(), us = c.rf(), uh = c.rf(), ux = c.rf(), ur = c.rf(), uk = c.rf(), ue = c.rf();

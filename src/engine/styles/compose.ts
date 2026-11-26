@@ -7,7 +7,8 @@ import { compose, xfQuad, type Xf } from '../geom';
 import type { GraphicItem, Item } from '../scene';
 import type { Parts, PartCtx, Plan } from '../parts/types';
 import { PHOTO_FLOOR, PHOTO_TRIES, photoChoice, photoItem, photoOf, photoShare, photoSpot, photoText } from '../photo';
-import { COLOUR_ROLES } from '../spec';
+import { COLOUR_ROLES, extrasOf, leadsOf } from '../spec';
+import { placeLayers } from '../parts/shared/layers';
 import { treatOf } from '../treat';
 
 export function place(it: Item, F: Xf | undefined): Item {
@@ -24,6 +25,15 @@ export function compose5(parts: Parts, c: PartCtx): { items: Item[]; plan: Plan 
   const below = [...ground, ...parts.graphics.place(c, plan).map((i) => place(i, plan.xf))];
   const text = parts.type.set(c, plan, below);
   if (!text) return null;
+  // text layers (spec 8.6): each slot's items draw the lead layer of its level; every other layer is set by the shared
+  // placer in the room left, by the treatment the style gives its level
+  const leads = leadsOf(c.spec.text);
+  for (const it of text) if (it.kind === 'text' && leads[it.slot]) it.lid = leads[it.slot]!.id;
+  const extras = extrasOf(c.spec.text);
+  if (extras.length) {
+    const sets = (plan.dialect && parts.type.levelsOf?.[plan.dialect]) || parts.type.levels;
+    text.push(...placeLayers(c, plan, below, text, sets, extras).items);
+  }
   const items = [...below, ...text.map((i) => place(i, plan.xf))];
   parts.graphics.after?.(c, plan, items);
   // the photo (spec 8.9): placed by its own layout stream among the items under the text, which the type part set

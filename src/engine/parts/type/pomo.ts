@@ -19,6 +19,27 @@ import { boxOf, moveItems } from '../shared/block';
 import { fitLines, upper } from '../shared/text';
 import type { PartCtx, Plan, TypePart } from '../types';
 import { copyType } from './pomo-copy';
+import { lv } from '../shared/layers';
+import type { LevelSets } from '../types';
+/** Text layers beyond the slots (spec 8.6), ice cream: display upper, serif italic, mono, each on a ground plate. */
+export const POMO_LEVELS: LevelSets = {
+  headline: lv('display', true, 0.09, 40, 1, 3, 0),
+  subhead: lv('serif', false, 0.04, 20, 1.15, 2, 0),
+  body: lv('text', false, 0.03, 16, 1.3, 5, 0),
+  label: lv('mono', true, 0.019, 16, 1, 1, 0.14),
+  caption: lv('mono', true, 0.019, 16, 1, 1, 0.18, 'bottom'),
+  data: lv('mono', false, 0.025, 16, 1.2, 1, 0, 'bottom'),
+};
+/** Photocopy: heavy words and mono on cut-out paper. */
+export const COPY_LEVELS: LevelSets = {
+  headline: lv('heavy', true, 0.09, 40, 0.95, 3, 0, 'top', 'left', 'paper'),
+  subhead: lv('text', true, 0.034, 20, 1.15, 2, 0, 'top', 'left', 'paper'),
+  body: lv('serif', false, 0.03, 16, 1.3, 5, 0, 'top', 'left', 'paper'),
+  label: lv('mono', true, 0.019, 16, 1, 1, 0.1, 'top', 'left', 'paper'),
+  caption: lv('mono', true, 0.019, 16, 1, 1, 0.1, 'bottom', 'left', 'paper'),
+  data: lv('mono', false, 0.025, 16, 1.2, 1, 0, 'bottom', 'left', 'paper'),
+};
+
 
 const MIN = { title: 40, subtitle: 20, info: 16, caption: 16 };
 
@@ -27,8 +48,8 @@ const block = (items: Item[]): Block => ({ items, b: boxOf(items) });
 const at = (B: Block, x: number, y: number): Item[] => moveItems(B.items, { x: x - B.b.x, y: y - B.b.y, rot: 0 });
 
 function iceType(c: PartCtx, plan: Plan): Item[] | null {
-  const { W, spec, m, P, T } = c;
-  const M = plan.margin, tx = spec.text, force = c.fallback, pos = plan.pos ?? {};
+  const { W, m, P, T } = c;
+  const M = plan.margin, tx = c.tx, force = c.fallback, pos = plan.pos ?? {};
   const d = W * 0.013;
   const A = { ink: P.ink, ground: P.ground, accent: P.accent, accent2: P.accent2 ?? P.accent, accent3: P.accent3 ?? P.ground };
   const area = plan.boxes.text, tz = plan.boxes.title ?? area, up = !!plan.titleUp;
@@ -234,6 +255,7 @@ function tileTitle(c: PartCtx, text: string, maxW: number, maxH: number, start: 
 const paperEdge = (): Switch => ({ kind: 'switch', id: 'pomo.paperEdge', label: 'Paper edge', where: { at: 'params', key: 'pomo.paperEdge' }, facet: 'type', off: false, onLabel: 'Holds over ink', offLabel: 'Rough, no check' });
 
 export const pomoType: TypePart = {
+  levels: POMO_LEVELS, levelsOf: { icecream: POMO_LEVELS, photocopy: COPY_LEVELS },
   id: 'pomo', min: MIN,
   // the size cap; in photocopy the Paper edge switch (spec 8.2: off waives rule 4 for the title words)
   controls: ({ scene }) => [capControl(), ...(scene.frame.startsWith('copy-') ? [paperEdge()] : [])],

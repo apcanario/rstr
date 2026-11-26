@@ -12,13 +12,26 @@ import { fitLine } from '../../text';
 import { breaksFrom, brutalBlock, brutalFit, brutalLines, brutalMetrics, KX_OK } from '../shared/brutal';
 import { upper } from '../shared/text';
 import type { TypePart } from '../types';
+import { lv } from '../shared/layers';
+import type { LevelSets } from '../types';
+/** Text layers beyond the slots (spec 8.6): upper case, heavy face or mono (8.3), on ground plates. */
+export const BRUTAL_LEVELS: LevelSets = {
+  headline: lv('display', true, 0.1, 40, 0.92, 3, 0),
+  subhead: lv('mono', true, 0.03, 16, 1.15, 2, 0.1),
+  body: lv('mono', true, 0.024, 16, 1.3, 5, 0.04),
+  label: lv('mono', true, 0.018, 16, 1, 1, 0.12),
+  caption: lv('mono', true, 0.018, 16, 1, 1, 0.08, 'bottom'),
+  data: lv('display', false, 0.03, 16, 1.2, 1, 0, 'bottom'),
+};
+
 
 const MIN = { title: 40, subtitle: 16, info: 16, caption: 16 };
 
 export const brutalType: TypePart = {
+  levels: BRUTAL_LEVELS,
   id: 'brutal', min: MIN,
   set(c, plan) {
-    const { W, H, spec, m, P, T } = c, tx = spec.text, force = c.fallback, B = plan.boxes;
+    const { W, H, spec, m, P, T } = c, tx = c.tx, force = c.fallback, B = plan.boxes;
     const { R, ms } = brutalMetrics(W), gap = plan.gutter;
     // a slot with text the layout gave no row cannot be held by this candidate
     const pairs = tx.info.v.slice(0, 3).filter((p) => p.k.trim() || p.v.trim());
