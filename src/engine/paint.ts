@@ -3,6 +3,7 @@ import { MASK } from '../data/palettes/system';
 import { GRAPHICS } from './graphics';
 import { drawMark } from './markdraw';
 import { photoOf } from './photo';
+import { isTreatment, treatColours, treatPixels } from './treat';
 import { clock, type Time } from './graphics/clock';
 import type { Ctx } from './graphics/types';
 import type { Quad } from './geom';
@@ -172,12 +173,50 @@ function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, n
   ctx.drawImage(L.canvas as CanvasImageSource, 0, 0);
 }
 
-/** The photo in its cover rect; a photo not registered (still loading, or gone) draws as a plain plate of the ground. */
+/** Treated pictures kept for the next paint of the same design (a finish paints a Scene more than once): a few only. */
+const TREATED_KEEP = 3;
+const treated = new Map<string, CanvasImageSource>();
+
+/**
+ * The photo's box as its treatment draws it (spec 8.9, R15): the picture drawn into a canvas of the box's size in
+ * device pixels (`s` per scene px), the treatment applied to those pixels, so a halftone screen or a dither pixel has
+ * the same size on the poster at any scale. `fresh`: skip the kept copies (the timing). Null where there is no
+ * picture or no canvas.
+ */
+export function treatedBox(g: GraphicItem, s: number, fresh = false): CanvasImageSource | null {
+  const p = photoOf(String(g.params.id)), P = g.params as Record<string, number>, b = g.box;
+  if (!p?.img) return null;
+  const w = Math.max(1, Math.ceil(b.w * s)), h = Math.max(1, Math.ceil(b.h * s));
+  const key = JSON.stringify([g.params, treatColours(g), s, b]);
+  const kept = fresh ? undefined : treated.get(key);
+  if (kept) { treated.delete(key); treated.set(key, kept); return kept; }
+  const L = layer(w, h);
+  if (!L) return null;
+  L.imageSmoothingEnabled = true;
+  L.imageSmoothingQuality = 'high';
+  L.drawImage(p.img, (P.x - b.x) * s, (P.y - b.y) * s, P.w * s, P.h * s);
+  const im = L.getImageData(0, 0, w, h);
+  treatPixels(im.data, w, h, g.params, treatColours(g), s);
+  L.putImageData(im, 0, 0);
+  const out = L.canvas as CanvasImageSource;
+  if (!fresh) {
+    treated.set(key, out);
+    while (treated.size > TREATED_KEEP) treated.delete(treated.keys().next().value as string);
+  }
+  return out;
+}
+
+/** The photo in its cover rect, in its treatment; a photo not registered (still loading, or gone) draws as a plain plate of the ground. */
 function drawPhoto(c: Ctx, g: GraphicItem) {
   const p = photoOf(String(g.params.id)), P = g.params as Record<string, number>;
   if (!p?.img) { c.fillStyle = g.colours.missing; c.fillRect(g.box.x, g.box.y, g.box.w, g.box.h); return; }
   c.imageSmoothingEnabled = true;
   c.imageSmoothingQuality = 'high';
+  if (isTreatment(g.params.treat) && g.params.treat !== 'colour') {
+    const m = c.getTransform(), s = Math.hypot(m.a, m.b) || 1;
+    const T = treatedBox(g, s);
+    if (T) { c.drawImage(T, g.box.x, g.box.y, g.box.w, g.box.h); return; }
+  }
   c.drawImage(p.img, P.x, P.y, P.w, P.h);
 }
 

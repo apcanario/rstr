@@ -139,6 +139,28 @@ with served() as url, browser() as b:
         rows.append(cells)
     strip(rows, h=520).save(os.path.join(OUT, 'photo-roles.jpg'), quality=85)
     print('wrote shots/photo-roles.jpg')
+    # row R15: one photo in every treatment (columns) under every style (rows; Postmodern in both dialects), ground
+    # and in the graphic box; then the finishes and the copier pass over a treated photo
+    TR = ['colour', 'mono', 'duotone', 'halftone', 'threshold', 'posterise', 'dither']
+    for role, fmt in (('ground', '3:4'), ('box', '1:1')):
+        rows = []
+        for si, (style, dia) in enumerate([('swiss', None), ('pomo', 'icecream'), ('pomo', 'photocopy'), ('brutal', None), ('vapor', None)]):
+            cells = []
+            for k, t in enumerate(TR):
+                spec = pg.evaluate('([s, d, t, f, r, n]) => { const x = window.__rstr.spec(); ' + PH + ' x.pick.dialect = d; x.style = s; x.format = f; x.mode = n % 3 === 2 ? "dark" : "light"; x.seeds = {layout: 5100 + n * 7919, colour: 5200 + n * 31, graphic: 5300, type: 5400 + n}; x.photo = {id: "test-portrait", treatment: t, place: {role: r}}; return x; }', [style, dia, t, fmt, role, si])
+                cells.append((img(pg, spec), f'{style}{" " + dia if dia else ""} {spec["mode"]} {t} {role}'))
+            rows.append(cells)
+        strip(rows, h=520).save(os.path.join(OUT, f'photo-treatments-{role}.jpg'), quality=85)
+        print('wrote', f'shots/photo-treatments-{role}.jpg')
+    rows = []
+    for fin in ['clean', 'grain', 'grunge', 'vhs', 'glitch']:
+        cells = []
+        for k, (style, dia, t) in enumerate([('swiss', None, 'duotone'), ('pomo', 'photocopy', 'threshold'), ('pomo', 'icecream', 'posterise'), ('brutal', None, 'halftone'), ('vapor', None, 'dither')]):
+            spec = pg.evaluate('([s, d, t, fin, n]) => { const x = window.__rstr.spec(); ' + PH + ' x.pick.dialect = d; x.finish = fin; x.style = s; x.format = "3:4"; x.mode = "light"; x.seeds = {layout: 4100 + n * 7919, colour: 4200 + n, graphic: 4300 + n, type: 4400 + n}; x.photo = {id: "test-landscape", treatment: t, place: {role: "ground"}}; return x; }', [style, dia, t, fin, k])
+            cells.append((img(pg, spec), f'{style}{" " + dia if dia else ""} {t} {fin}'))
+        rows.append(cells)
+    strip(rows, h=520).save(os.path.join(OUT, 'photo-finishes.jpg'), quality=85)
+    print('wrote shots/photo-finishes.jpg')
     for style in STYLES:
         rows = []
         for row in range(2):

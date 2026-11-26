@@ -10,6 +10,7 @@ import type { Rng } from '../rng';
 import type { Item } from '../scene';
 import type { Dialect, Slot, Spec } from '../spec';
 import type { Control, ControlQuery } from '../controls';
+import type { TreatList } from '../treat';
 
 /** What every part is called with for one candidate. */
 export interface PartCtx {
@@ -169,6 +170,10 @@ export interface GraphicsPart {
   vocabOf?: Partial<Record<Dialect, string[]>>;
   /** Its Advanced controls (spec 10.3), shown on the Graphic tab. */
   controls?(q: ControlQuery): Control[];
+  /** The photo treatments it allows and its favourite (spec 8.9, R15): what the graphic stream draws from. */
+  treatments: TreatList;
+  /** The same per dialect, where the style has more than one (spec 8.2). */
+  treatmentsOf?: Partial<Record<Dialect, TreatList>>;
 }
 export interface TypePart {
   id: string;

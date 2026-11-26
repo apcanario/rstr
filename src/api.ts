@@ -13,7 +13,7 @@ import { browserMeasure } from './engine';
 import { clumsyOf, pickForGraphic, picksOf, runAdvanced, runBrutalWidth, runIndependence, runInvariants, runTune, runVariety, specs, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
-import { bench, copierProof, photoPixels, photoShows, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
+import { bench, copierProof, photoCopier, photoPixels, photoShows, treatBench, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
 import { labelsOf, markOverlaps } from './engine/marks';
 import { thumb } from './engine';
 import { withStyle } from './app/state';
@@ -122,6 +122,10 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       shows: (raw: unknown) => { const s = migrate(raw); return photoShows(s, useOf(s)); },
       /** Text over the photo read on pixels (spec 9.4). */
       pixels: (raw: unknown) => { const s = migrate(raw); return photoPixels(s, useOf(s)); },
+      /** Text over the photo read in cells with the photocopy copier pass on (R15, Carried R15 from R14). */
+      copier: (raw: unknown) => { const s = migrate(raw); return photoCopier(s, useOf(s)); },
+      /** The treatment's time on the photo's box, and the whole render (R15). */
+      treatTime: (raw: unknown) => { const s = migrate(raw); return treatBench(s, useOf(s)); },
     },
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),

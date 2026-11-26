@@ -8,6 +8,7 @@ import type { GraphicItem, Item } from '../scene';
 import type { Parts, PartCtx, Plan } from '../parts/types';
 import { PHOTO_FLOOR, PHOTO_TRIES, photoChoice, photoItem, photoOf, photoShare, photoSpot, photoText } from '../photo';
 import { COLOUR_ROLES } from '../spec';
+import { treatOf } from '../treat';
 
 export function place(it: Item, F: Xf | undefined): Item {
   if (!F) return it;
@@ -32,6 +33,8 @@ export function compose5(parts: Parts, c: PartCtx): { items: Item[]; plan: Plan 
   const photo = photoOf(c.spec.photo?.id);
   if (photo) {
     const ch = photoChoice(c.spec), n0 = items.length;
+    // its treatment (R15): the graphic stream's, from the style's list (the dialect's, where it has one)
+    const treat = treatOf(c.spec, c.P, (plan.dialect && parts.graphics.treatmentsOf?.[plan.dialect]) || parts.graphics.treatments);
     const colours = [...new Set(COLOUR_ROLES.map((k) => c.P[k as keyof typeof c.P]).filter((v): v is string => typeof v === 'string'))];
     // spec 8.9 floor: each role in the stream's order, each placement of it in turn, until one shows PHOTO_FLOOR of
     // its box; else the placement that shows most. A candidate whose text over the photo fails is not taken.
@@ -41,7 +44,7 @@ export function compose5(parts: Parts, c: PartCtx): { items: Item[]; plan: Plan 
       for (let k = 0; k < (role === 'ground' ? 2 : PHOTO_TRIES); k++) {
         const spot = photoSpot(role, below, ground.length, c.W, c.H, plan.page, plan.xf, plan.boxes.graphic, r, k);
         const its = items.slice();
-        its.splice(spot.at, 0, photoItem(photo, spot, ch.scale, ch.x, ch.y, c.P.ground));
+        its.splice(spot.at, 0, photoItem(photo, spot, ch.scale, ch.x, ch.y, c.P.ground, treat, c.W / 1080));
         const ok = photoText(its, spot.at, below.length + 1, photo, colours, c.W, c.H, c.P.ground, c.spec.format);
         first ??= its;
         if (!ok) continue;

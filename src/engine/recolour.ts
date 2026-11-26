@@ -12,6 +12,7 @@
 import type { Form } from '../data/palettes';
 import { contrast, needRatio } from './colour';
 import { patternFill } from './graphics/pattern';
+import { paletteTreat, treatColours, treatFills } from './treat';
 import { designRoles, editedForm } from './controls';
 import { bounds, type Quad } from './geom';
 import { coloursOf, haloOf, lowContrast, OUTLINE_MIN } from './invariants';
@@ -43,8 +44,15 @@ function mapItem(it: Item, f: (c: string) => string, ground: string): Item {
   if (it.kind === 'rect') {
     return { ...it, fill: mapPaint(it.fill, f), ...(it.shadow ? { shadow: { ...it.shadow, fill: f(it.shadow.fill) } } : {}), ...(it.stroke ? { stroke: { ...it.stroke, colour: f(it.stroke.colour) } } : {}) };
   }
-  // the photo's colours are its pixels, not palette roles: an edit never touches them
-  if (it.name === 'photo') return it;
+  // the photo's colours are its pixels, not palette roles: an edit never touches them, except a treatment drawn in
+  // palette colours (R15): those follow the edit, and what was measured under text is read again as every colour the
+  // treatment can show (the edit may move them anywhere), so text over it keeps or gains a plate
+  if (it.name === 'photo') {
+    if (!paletteTreat(it.params.treat)) return it;
+    const colours = Object.fromEntries(Object.entries(it.colours).map(([k, v]) => [k, k === 'missing' ? v : f(v)]));
+    const fills = treatFills(it.params.treat, treatColours({ colours }));
+    return { ...it, colours, fills, regions: it.regions?.map((r) => ({ ...r, fills })) };
+  }
   const colours = Object.fromEntries(Object.entries(it.colours).map(([k, v]) => [k, f(v)]));
   // the faint pattern is drawn as the edited ink over the edited ground: its recorded fill is mixed again from them,
   // so rule 4 reads the colour drawn (review R10 M1)

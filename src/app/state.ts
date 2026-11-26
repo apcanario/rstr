@@ -39,6 +39,8 @@ function dropFacet(s: Spec, f: Facet): Spec {
   }
   // where the photo sits is the layout stream's (spec 3, 8.9): Advanced's role, scale and offset, and New crop's crop
   if (f === 'layout' && s.photo?.place) out = { ...out, photo: { ...s.photo, place: null } };
+  // its treatment is the graphic stream's (spec 3, 8.9, R15); its parameters are photo.* params (above)
+  if (f === 'graphic' && out.photo?.treatment) out = { ...out, photo: { ...out.photo, treatment: null } };
   if (f === 'colour' && s.pick.colours) out = { ...out, pick: { ...out.pick, colours: null } };
   return out;
 }
@@ -80,7 +82,8 @@ export function reroll(s: Spec, f: Facet, seed: () => number = newSeed): Spec {
  */
 export function withStyle(s: Spec, style: Spec['style']): Spec {
   const params = Object.fromEntries(Object.entries(s.params).filter(([k]) => facetOfParam(k) === null));
-  return { ...s, style, params, pick: { palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null } };
+  // a treatment picked by hand is the Graphic facet's, like the rest (R15)
+  return { ...s, style, params, photo: s.photo && s.photo.treatment ? { ...s.photo, treatment: null } : s.photo, pick: { palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null } };
 }
 
 /** A photo chosen from the phone (spec 8.9): its id in, its treatment and anything pinned about where it sat gone. */

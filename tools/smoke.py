@@ -361,7 +361,7 @@ with served() as url, browser() as b:
     for style in STYLES:
         for k, role in enumerate(['ground', 'box', 'disc', 'column', 'band']):
             for i in range(3):
-                spec = pg.evaluate('([s, r, k, i]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][(k + i) % 3]; x.mode = i % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 7100 + k * 31 + i, colour: 7200 + i, graphic: 7300 + k + i, type: 7400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: null, place: {role: r}}; return x; }', [style, role, k, i])
+                spec = pg.evaluate('([s, r, k, i]) => { const TR = ["colour", "mono", "duotone", "halftone", "threshold", "posterise", "dither"]; const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][(k + i) % 3]; x.mode = i % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 7100 + k * 31 + i, colour: 7200 + i, graphic: 7300 + k + i, type: 7400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: TR[(k * 3 + i) % TR.length], place: {role: r}}; return x; }', [style, role, k, i])
                 r = pg.evaluate('(s) => window.__rstr.photo.pixels(s)', spec)
                 npx += r['items']
                 meas += r['measured']
@@ -373,9 +373,66 @@ with served() as url, browser() as b:
                     if a != pg.evaluate('(s) => window.__rstr.pixels(s)', spec):
                         fail(f'photo determinism {style}: the same spec and photo drew different pixels', spec)
     print(f'photo pixels: {npx} text items over the photo read on pixels ({meas} measured, {plat} on a plate), none under spec 5; determinism per style; {time.time() - t1:.0f} s')
+    # row R15 (spec 8.9, 9.4): 9.2 in every treatment, every style, real fonts, no fallback; text over the photo on
+    # pixels in every treatment; photocopy text over the photo read with the copier pass on (Carried R15 from R14);
+    # the treatment's time at 1080 x 1920
+    t1 = time.time()
+    TREATS = ['colour', 'mono', 'duotone', 'halftone', 'threshold', 'posterise', 'dither']
+    ntr = 0
+    for style in STYLES:
+        for t in TREATS:
+            o = {'styles': [style], 'n': 7, 'start': 500, 'variants': 'cycle', 'photo': {'id': 'test-portrait' if len(t) % 2 else 'test-landscape', 'treatment': t, 'place': None}}
+            r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', o)
+            ntr += r['count']
+            fallback_check(f'9.2 photo {style} {t}', r, 0)
+            for f in r['failures'][:3]:
+                fail(f'9.2 photo {style} {t}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    TS = '([s, t, i, d]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][i % 3]; x.mode = (i >> 1) % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: d}; x.seeds = {layout: 6100 + i * 37, colour: 6200 + i, graphic: 6300 + i, type: 6400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: t, place: {role: ["ground", "box", "disc", "column", "band"][i % 5]}}; return x; }'
+    ntp = ntl = 0
+    for style in STYLES:
+        for t in TREATS:
+            for i in range(2):
+                spec = pg.evaluate(TS, [style, t, i, None])
+                r = pg.evaluate('(s) => window.__rstr.photo.pixels(s)', spec)
+                ntp += r['items']
+                if r['low']:
+                    fail(f'photo pixels {style} {t}: {r["low"]} of {r["masked"]} text pixels over the photo under the ratio of spec 5 {r["lows"]}', spec)
+            a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
+            if a != pg.evaluate('(s) => window.__rstr.pixels(s)', spec):
+                fail(f'photo determinism {style} {t}: the same spec, photo and treatment drew different pixels', spec)
+    print(f'photo treatments: 9.2 on {ntr} designs (4 styles x 7 treatments), {ntp} text items over a treated photo read on pixels, determinism per style and treatment; {time.time() - t1:.0f} s')
+    t1 = time.time()
+    cw = cc = cb = cl = 0
+    for t in TREATS:
+        for i in range(8):
+            spec = pg.evaluate(TS, ['pomo', t, i, 'photocopy'])
+            r = pg.evaluate('(s) => window.__rstr.photo.copier(s)', spec)
+            if r is None:
+                fail(f'photo copier {t}: a photocopy design drew no copier pass', spec)
+                continue
+            cw += r['items']
+            cc += r['cells']
+            cb += len(r['before'])
+            cl += len(r['low'])
+            for x in r['low'][:3]:
+                fail(f'photo copier {t}: {x["part"]} cell {x["cell"]} at {x["ratio"]} under {x["need"]} with the copier pass over the photo', spec)
+    if cw < 20:
+        fail(f'photo copier: only {cw} text items over the photo read with the pass, want at least 20')
+    print(f'photo copier: {cw} photocopy text items over the photo, {cc} cells read with the copier pass on, {cl} taken under by it, {cb} under before it; {time.time() - t1:.0f} s')
+    times = {}
+    for t in TREATS:
+        spec = pg.evaluate('(t) => { const x = window.__rstr.spec(); x.style = "swiss"; x.format = "9:16"; x.finish = "clean"; x.marks = "off"; x.params = {}; x.photo = {id: "test-portrait", treatment: t, place: {role: "ground"}}; return x; }', t)
+        rs = [pg.evaluate('(s) => window.__rstr.photo.treatTime(s)', spec) for _ in range(5)]
+        if not rs[0]:
+            fail(f'treatment time {t}: no photo drawn', spec)
+            continue
+        ms = sorted(r['ms'] for r in rs)[2]
+        rd = sorted(r['render'] for r in rs)[2]
+        times[t] = (ms, rd, rs[0]['w'], rs[0]['h'])
+    print('treatment time at 1080 x 1920 (ground photo, median of 5, ms; in brackets the whole render, its treated box kept from the run before): ' + ', '.join(f'{t} {v[0]:.0f} ({v[1]:.0f})' for t, v in times.items()) + (f'; box {list(times.values())[0][2]} x {list(times.values())[0][3]}' if times else ''))
     # review R14 S7: text over the test photo's calm sky and its hills (ground, close in, at the top and lower down),
     # so the measured path is read on pixels often, not a handful of times
-    PH = '([s, k, i, sc, y]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][i % 3]; x.mode = (i >> 1) % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 9100 + k * 37 + i, colour: 9200 + i, graphic: 9300 + k + i, type: 9400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: null, place: sc ? {role: "ground", scale: sc, x: 0.5, y: y} : (k < 5 ? {role: ["ground", "box", "disc", "column", "band"][k]} : null)}; return x; }'
+    PH = '([s, k, i, sc, y]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][i % 3]; x.mode = (i >> 1) % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 9100 + k * 37 + i, colour: 9200 + i, graphic: 9300 + k + i, type: 9400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: "colour", place: sc ? {role: "ground", scale: sc, x: 0.5, y: y} : (k < 5 ? {role: ["ground", "box", "disc", "column", "band"][k]} : null)}; return x; }'
     t1 = time.time()
     n2 = meas2 = 0
     for k, style in enumerate(STYLES):

@@ -903,7 +903,30 @@ def run_photo(b, url, fail):
         if not g0 or not g1 or (g0[0]['params']['role'], g0[0]['params']['scale']) != (g1[0]['params']['role'], g1[0]['params']['scale']):
             fail(f'{at}: with Layout locked, Shuffle moved the photo')
         pg.click('button[data-lock="layout"]')
-        # Advanced: the Photo tab carries role, scale and offset
+        # row R15: the Treatment tiles (spec 10.2) pick a treatment by hand, which the design draws; Auto gives it back
+        for i in range(npages(pg)):
+            goto(pg, i)
+            if pg.query_selector('button[data-treat="threshold"]'):
+                break
+        if not pg.query_selector('button[data-treat="threshold"]'):
+            fail(f'{at}: the Photo tab has no Treatment tiles')
+        else:
+            px0 = pg.evaluate('() => window.__rstr.pixels(window.__rstr.spec())')
+            t0 = [i for i in pg.evaluate('(s) => window.__rstr.scene(s)', spec(pg))['items'] if i['kind'] == 'graphic' and i['name'] == 'photo'][0]['params'].get('treat')
+            tap(pg, 'button[data-treat="threshold"]')
+            s4 = spec(pg)
+            g4 = [i for i in pg.evaluate('(s) => window.__rstr.scene(s)', s4)['items'] if i['kind'] == 'graphic' and i['name'] == 'photo']
+            if s4['photo']['treatment'] != 'threshold' or not g4 or g4[0]['params'].get('treat') != 'threshold':
+                fail(f'{at}: the Threshold tile did not put the treatment on the design ({s4["photo"]})')
+            elif t0 != 'threshold' and pg.evaluate('() => window.__rstr.pixels(window.__rstr.spec())') == px0:
+                fail(f'{at}: the Threshold tile drew the same pixels')
+            if pg.get_attribute('button[data-treat="threshold"]', 'aria-pressed') != 'true':
+                fail(f'{at}: the Threshold tile is not shown as on')
+            tap(pg, 'button[data-treat="auto"]')
+            if spec(pg)['photo']['treatment'] is not None:
+                fail(f'{at}: Auto did not give the treatment back to the graphic stream')
+            goto(pg, 0)
+        # Advanced: the Photo tab carries role, scale and offset, the treatment tiles and its parameters
         pg.click('[data-testid="advanced"]')
         pg.click('[data-tab="photo"]')
         ids = set()
@@ -913,7 +936,7 @@ def run_photo(b, url, fail):
             for p in pg.evaluate(LAYOUT_JS)[:6]:
                 fail(f'{at}, Advanced Photo tab page {i + 1}: {p}')
         goto(pg, 0)
-        want = {'photo-file', 'photo-crop', 'photo.role', 'photo.scale', 'photo.x', 'photo.y'}
+        want = {'photo-file', 'photo-crop', 'photo-treat-0', 'photo-treat-1', 'photo.role', 'photo.scale', 'photo.x', 'photo.y'}
         if not want <= ids:
             fail(f'{at}: the Advanced Photo tab lacks {sorted(want - ids)}')
         pg.click('[data-testid="advanced"]')
@@ -1018,5 +1041,5 @@ def run_photo(b, url, fail):
         fail(f'{at}: requests that could carry the photo: {bad[:4]}')
     if errors:
         fail(f'{at}: page errors {errors[:3]}')
-    print(f'{at}: a photo added through the Photo tab (orientation corrected), drawn, New crop, Layout lock holds it, Advanced role/scale/offset, back after reload, exported, Change and Remove; prune keeps what Back or Kept holds and deletes the rest; ten photos then Back x 9 leave {len(reg)} decoded, the current design (after the ten adds: {peak}); {len(reqs)} requests (service worker included), none with a body, a long URL, a query to this host or to another host; {len(sockets)} websockets')
+    print(f'{at}: a photo added through the Photo tab (orientation corrected), drawn, New crop, Layout lock holds it, a Treatment tile and Auto, Advanced role/scale/offset, back after reload, exported, Change and Remove; prune keeps what Back or Kept holds and deletes the rest; ten photos then Back x 9 leave {len(reg)} decoded, the current design (after the ten adds: {peak}); {len(reqs)} requests (service worker included), none with a body, a long URL, a query to this host or to another host; {len(sockets)} websockets')
     pg.close()

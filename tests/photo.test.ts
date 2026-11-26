@@ -97,10 +97,11 @@ describe('9.2 with a test photo, every style, format and role (spec 9.4)', () =>
 });
 
 describe('text over calm areas of the photo is measured, not only plated (review R14 S7)', () => {
+  // in colour (R15): the photo's own pixels; a screen treatment (halftone, dither) shows both its colours anywhere
   test('ground, close in on the sky and on the hills: at least 50 text items read against the pixels, every one passing', () => {
     let over = 0, measured = 0;
     for (const style of STYLE_IDS) for (let i = 0; i < 12; i++) for (const y of [0, 0.7]) {
-      const s: Spec = { ...defaultSpec(), seeds: seedSet(7000 + i), style, format: FORMAT_LIST[i % 3], mode: (i >> 1) % 2 ? 'dark' : 'light', finish: 'clean', marks: 'off', photo: { id: i % 2 ? LANDSCAPE : PORTRAIT, treatment: null, place: { role: 'ground', scale: 2.5, x: 0.5, y } } };
+      const s: Spec = { ...defaultSpec(), seeds: seedSet(7000 + i), style, format: FORMAT_LIST[i % 3], mode: (i >> 1) % 2 ? 'dark' : 'light', finish: 'clean', marks: 'off', photo: { id: i % 2 ? LANDSCAPE : PORTRAIT, treatment: 'colour', place: { role: 'ground', scale: 2.5, x: 0.5, y } } };
       const sc = solve(s, stubMeasure).scene, at = sc.items.findIndex((x) => x.kind === 'graphic' && x.name === 'photo'), g = sc.items[at] as GraphicItem;
       sc.items.forEach((t, k) => {
         if (k <= at || t.kind !== 'text') return;
@@ -195,7 +196,8 @@ describe('the spec and the controls', () => {
   });
   test('the Photo tab shows role, scale and offset on a design with a photo, and writes photo.place', () => {
     const s = { ...defaultSpec({ layout: 2 }), photo: withRole(PORTRAIT, 'box') };
-    const sc = solve(s, stubMeasure).scene, cs = photoControls({ spec: s, scene: sc });
+    // the placement controls (the treatment and its parameters follow them, R15: tests/treat.test.ts)
+    const sc = solve(s, stubMeasure).scene, cs = photoControls({ spec: s, scene: sc }).slice(0, 4);
     expect(cs.map((c) => c.id)).toEqual(['photo.role', 'photo.scale', 'photo.x', 'photo.y']);
     expect(cs.every((c) => c.facet === 'layout')).toBe(true);
     const t = apply(s, cs[1], 1.8);

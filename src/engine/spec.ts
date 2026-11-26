@@ -2,6 +2,7 @@
 import type { Format } from './formats';
 import { FORMATS } from './formats';
 import { PHOTO_ROLES, type PhotoPlace, type PhotoSpec } from './photo';
+import { isTreatment } from './treat';
 
 export type StyleId = 'swiss' | 'pomo' | 'brutal' | 'vapor';
 export type Mode = 'light' | 'dark';
@@ -75,7 +76,7 @@ export function defaultSpec(seeds?: Partial<Spec['seeds']>): Spec {
 }
 
 const unit = (v: unknown, a: number, b: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(a, Math.min(b, v)) : undefined);
-/** A stored photo reference: an id, a treatment name or null, and only the known place fields in range; anything else: null. */
+/** A stored photo reference: an id, a known treatment (R15) or null, and only the known place fields in range; anything else: null. */
 export function photoRef(raw: unknown): PhotoSpec | null {
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const r = raw as any;
@@ -91,7 +92,7 @@ export function photoRef(raw: unknown): PhotoSpec | null {
     if (typeof r.place.crop === 'number' && Number.isFinite(r.place.crop)) p.crop = Math.floor(Math.abs(r.place.crop)) >>> 0;
     if (Object.keys(p).length) place = p;
   }
-  return { id: r.id, treatment: typeof r.treatment === 'string' && r.treatment ? r.treatment : null, place };
+  return { id: r.id, treatment: isTreatment(r.treatment) ? r.treatment : null, place };
 }
 
 const oneOf = <T extends string>(v: unknown, list: readonly T[], d: T): T => (list.includes(v as T) ? (v as T) : d);

@@ -13,6 +13,9 @@ import { GRAPHICS } from './graphics';
 import { paramKey } from './graphics/params';
 import type { Scene } from './scene';
 import { COLOUR_ROLES, type ColourRole, type Facet, type Slot, type Spec } from './spec';
+import { isTreatment, paletteColours, TREAT_PARAMS, TREAT_RANGE, TREATMENT_LABEL, TREATMENTS, treatPairs, TWO_COLOUR, type Treatment } from './treat';
+
+const paletteCount = (P: Form) => paletteColours(P).length;
 
 /** The Advanced tabs (spec 10.3). */
 export const ADV_TABS = ['style', 'layout', 'graphic', 'type', 'colour', 'text', 'photo'] as const;
@@ -24,7 +27,9 @@ export type Where =
   | { at: 'pick'; key: 'layout' | 'motif' | 'palette' | 'pairing' | 'dialect' }
   | { at: 'pos'; slot: Slot }
   /** Where the photo sits (spec 8.9, 10.3 Photo): a field of `photo.place`. */
-  | { at: 'photo'; key: 'role' | 'scale' | 'x' | 'y' };
+  | { at: 'photo'; key: 'role' | 'scale' | 'x' | 'y' }
+  /** The photo's treatment (spec 8.9, R15): `photo.treatment`, the graphic stream's while unset. */
+  | { at: 'treatment' };
 /** A control's value: null is unset (the seed decides). */
 export type Value = string | number | boolean | null;
 
@@ -59,6 +64,7 @@ export function read(s: Spec, w: Where): Value {
   if (w.at === 'params') return w.key in s.params ? s.params[w.key] : null;
   if (w.at === 'pick') return s.pick[w.key] ?? null;
   if (w.at === 'photo') return s.photo?.place?.[w.key] ?? null;
+  if (w.at === 'treatment') return s.photo?.treatment ?? null;
   return s.text[w.slot].pos ?? null;
 }
 
@@ -76,19 +82,21 @@ export function write(s: Spec, w: Where, v: Value): Spec {
     if (v === null) delete place[w.key]; else place[w.key] = v;
     return { ...s, photo: { ...s.photo, place: Object.keys(place).length ? (place as never) : null } };
   }
+  if (w.at === 'treatment') return s.photo ? { ...s, photo: { ...s.photo, treatment: v === null ? null : String(v) } } : s;
   return { ...s, text: { ...s.text, [w.slot]: { ...s.text[w.slot], pos: v === null ? null : String(v) } } };
 }
 
 export const apply = (s: Spec, c: Control, v: Value): Spec => (c.set ? c.set(s, v) : write(s, c.where, v));
 
 /**
- * The facet a params key belongs to (spec 10.3): layout.* to Layout; g.*, graphics.* and vapor.* to Graphic; type.*
+ * The facet a params key belongs to (spec 10.3): layout.* to Layout; g.*, graphics.*, vapor.* and photo.* to Graphic; type.*
  * and the Paper edge to Type. Finish strengths and the marks allowed are settings outside the four facets, as the
  * finish and the marks level are (spec 3): Shuffle keeps them.
  */
 export function facetOfParam(k: string): Facet | null {
   if (k.startsWith('layout.')) return 'layout';
-  if (k.startsWith('g.') || k.startsWith('graphics.') || k.startsWith('vapor.')) return 'graphic';
+  // the photo's treatment parameters (R15) are the graphic stream's, as the treatment is (spec 3)
+  if (k.startsWith('g.') || k.startsWith('graphics.') || k.startsWith('vapor.') || k.startsWith('photo.')) return 'graphic';
   if (k.startsWith('type.') || k === 'pomo.paperEdge') return 'type';
   return null;
 }
@@ -172,11 +180,48 @@ export function libraryControls(q: ControlQuery, uses: readonly string[]): Range
 }
 
 /**
- * The Photo tab (spec 10.3: role, scale, offset; the treatment and its parameters come with R15). Layout's facet: the
- * layout stream places the photo (spec 3), so Shuffle clears them unless Layout is locked. Only on a design that draws
- * a photo; unset, each shows what the design draws.
+ * The treatment (spec 8.9, 10.2 Treatment tiles, R15): Auto and the seven, any of them by hand (the style's list is
+ * what the graphic stream draws from). Graphic's facet: the graphic stream picks it (spec 3). `drawn`: the one drawn.
  */
-export function photoControls(q: ControlQuery): Control[] {
+export function treatmentControl(drawn?: string): Choice {
+  return withDrawn(choice('photo.treatment', 'Treatment', { at: 'treatment' }, 'graphic', TREATMENTS, (v) => TREATMENT_LABEL[v as Treatment] ?? String(v)), drawn);
+}
+
+/**
+ * The treatment's parameters (spec 10.3 Photo: duotone roles, halftone screen, threshold level; and the rest), for the
+ * treatment drawn: `photo.<name>` params, Graphic's facet. Each shows what the design draws while unset.
+ */
+export function treatControls(g: { params: Record<string, unknown> }, P: Form): Control[] {
+  const t = g.params.treat;
+  if (!isTreatment(t)) return [];
+  const out: Control[] = [];
+  if (TWO_COLOUR.includes(t)) {
+    const pairs = treatPairs(P);
+    if (pairs.length > 1) out.push(withDrawn(choice('photo.duo', 'Colours', { at: 'params', key: 'photo.duo' }, 'graphic', pairs, (v) => String(v).split('+').map((r) => ROLE_LABEL[r as ColourRole] ?? human(r)).join(' + ')), g.params.duo as string | undefined));
+  }
+  const LABEL: Record<string, string> = { contrast: 'Contrast', screen: 'Screen', angle: 'Angle', level: 'Level', levels: 'Colours', dot: 'Pixel' };
+  for (const k of TREAT_PARAMS[t]) {
+    const R = TREAT_RANGE[k], key = 'photo.' + k;
+    // sizes are recorded in scene px; the control speaks px at 1080 wide
+    const v = Number(g.params[k]), shown = k === 'screen' || k === 'dot' ? v / (Number(g.params.k) || 1) : v;
+    if (k === 'levels') {
+      const n = paletteCount(P), opts = [3, 4, 5].filter((x) => x <= n);
+      if (opts.length > 1) out.push(withDrawn(choice(key, LABEL[k], { at: 'params', key }, 'graphic', opts, (x) => String(x)), Number.isFinite(v) ? v : undefined));
+      continue;
+    }
+    out.push({ kind: 'range', id: key, label: LABEL[k], where: { at: 'params', key }, facet: 'graphic', min: R.min, max: R.max, step: k === 'angle' ? 1 : (R.max - R.min) / 100,
+      ...(Number.isFinite(shown) ? { shown: Math.max(R.min, Math.min(R.max, shown)) } : {}), ...(k === 'screen' ? { log: true } : {}) });
+  }
+  return out;
+}
+
+/**
+ * The Photo tab (spec 10.3: role, scale, offset; the treatment and its parameters, R15). Role, scale and offset are
+ * Layout's facet: the layout stream places the photo (spec 3), so Shuffle clears them unless Layout is locked; the
+ * treatment and its parameters are Graphic's. Only on a design that draws a photo; unset, each shows what the design
+ * draws. `form`: the palette form the design is drawn with (the treatment's colour pairs).
+ */
+export function photoControls(q: ControlQuery, form?: Form): Control[] {
   const g = q.scene.items.find((i) => i.kind === 'graphic' && i.name === 'photo');
   if (!q.spec.photo || !g || g.kind !== 'graphic') return [];
   const P = g.params as Record<string, number | string>, b = g.box;
@@ -190,7 +235,8 @@ export function photoControls(q: ControlQuery): Control[] {
     (v) => ({ ground: 'Ground', box: 'In box', disc: 'Disc', column: 'Column', band: 'Band' })[String(v)] ?? String(v)), String(P.role));
   const range = (key: 'scale' | 'x' | 'y', label: string, min: number, max: number, shown: number | undefined, log = false): Ranged =>
     ({ kind: 'range', id: 'photo.' + key, label, where: { at: 'photo', key }, facet: 'layout', min, max, step: (max - min) / 100, ...(shown !== undefined && Number.isFinite(shown) ? { shown: Math.max(min, Math.min(max, shown)) } : {}), ...(log ? { log: true } : {}) });
-  return [role, range('scale', 'Scale', 1, 2.5, Number(P.scale), true), range('x', 'Across', 0, 1, sx), range('y', 'Down', 0, 1, sy)];
+  return [role, range('scale', 'Scale', 1, 2.5, Number(P.scale), true), range('x', 'Across', 0, 1, sx), range('y', 'Down', 0, 1, sy),
+    treatmentControl(String(P.treat)), ...(form ? treatControls(g, form) : [])];
 }
 
 /** The style's pairings by full name (spec 6; the Type lock shows only the display family, review R4 M6). */

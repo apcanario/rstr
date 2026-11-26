@@ -60,6 +60,8 @@ function coloursOf(name: string, P: Form, on?: string): Record<string, string> {
 
 export const vaporGraphics: GraphicsPart = {
   id: 'vapor', uses: VAPOR_GRAPHICS, vocab: VAPOR_GRAPHICS, motifs: VAPOR_GRAPHICS,
+  // spec 8.9 (R15): the palette's pastels and neons over the picture, and the old screen's dither
+  treatments: { allow: ['colour', 'duotone', 'posterise', 'dither', 'halftone'], favourite: 'duotone' },
   // a picked graphic is drawn in a layout that carries it (the tests force each graphic this way)
   pickFor: (name) => ({ motif: name, layout: name === 'tunnel' ? 'tunnel' : name === 'windows' ? 'windows' : 'title-floor' }),
   // spec 8.4, 10.3 Graphic: the first graphic (with a horizon: the thing in the sky), the second (the floor, or the

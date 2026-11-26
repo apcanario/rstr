@@ -4,7 +4,7 @@ import { FORMATS } from './formats';
 import { bounds, contains, overlaps } from './geom';
 import type { Ctx } from './graphics/types';
 import { behind, haloOf, inkOf } from './invariants';
-import { knockText, paint, paintText } from './paint';
+import { knockText, paint, paintText, treatedBox } from './paint';
 import { CELL, CELL_MIN, CELL_PX, RING, paintFinished, textContrast, tooLow } from './finish';
 import { contrast, needRatio, toHex } from './colour';
 import { browserMeasure, scene as sceneOf } from './index';
@@ -385,4 +385,60 @@ export function photoShows(spec: Spec, use: Use = {}): { share: number; scene: n
     if (Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]) >= 24) shown++;
   }
   return { share: box ? shown / box : 0, scene: Number(g.params.share), box, role: String(g.params.role) };
+}
+
+/**
+ * Row R15 (Carried R15 from R14; spec 8.9: the copier pass applies to the photo like any graphic): text over the photo
+ * read with the photocopy copier pass on. Each text item the photo lies under (no halo, rule 4 not waived) is read in
+ * cells, its ink against a ring of RING px round it, as the finish guard reads text: on the Clean render (pass
+ * included) and on the same Scene without the pass. `low`: cells at `needRatio` of its size or more without the pass
+ * and under it with it (the pass took them under: must be empty). `before`: cells under it already without the pass
+ * (reported; the pixel check without the pass is `photoPixels`). Null where the Scene has no surface pass.
+ */
+export function photoCopier(spec: Spec, use: Use = {}): { items: number; cells: number; low: { part: string; cell: number; ratio: number; need: number }[]; before: { part: string; cell: number; ratio: number; need: number }[] } | null {
+  const [W, H] = FORMATS[spec.format];
+  const sc = sceneOf(spec, browserMeasure(), use);
+  if (!sc.items.some((i) => i.kind === 'graphic' && i.pass)) return null;
+  const out = { items: 0, cells: 0, low: [] as { part: string; cell: number; ratio: number; need: number }[], before: [] as { part: string; cell: number; ratio: number; need: number }[] };
+  const at = sc.items.findIndex((i) => i.kind === 'graphic' && i.name === 'photo');
+  if (at < 0) return out;
+  const g = sc.items[at] as import('./scene').GraphicItem;
+  const a = canvas(W, H), z = canvas(W, H), mask = canvas(W, H);
+  paint(a, sc);
+  paint(z, sc, null, { only: (i) => !(i.kind === 'graphic' && i.pass) });
+  sc.items.forEach((it, i) => {
+    if (i <= at || it.kind !== 'text' || !overlaps(g.quad, it.quad) || haloOf(it) || it.waive?.includes(4)) return;
+    out.items++;
+    const ra = textContrast(a, mask, it), rz = textContrast(z, mask, it), need = needRatio(it.px);
+    if (!ra || !rz) return;
+    for (let j = 0; j < rz.cells.length; j++) {
+      const r = ra.cells[j], r0 = rz.cells[j];
+      if (r == null || r0 == null) continue;
+      out.cells++;
+      const x = { part: `${it.slot}.${it.part}`, cell: j, ratio: Math.round(r * 100) / 100, need };
+      if (r0 < need - 1e-6) out.before.push({ ...x, ratio: Math.round(r0 * 100) / 100 });
+      else if (r < need - 1e-6) out.low.push(x);
+    }
+  });
+  return out;
+}
+
+/**
+ * Row R15 (Done when: treatment time at 1080 x 1920 recorded): the time to draw the photo's box in its treatment, the
+ * picture drawn at the box's size and the treatment run on its pixels, nothing kept from an earlier draw; and the
+ * whole render (Scene, paint, finish) of the same spec. ms. Null when the design draws no photo or it has no picture.
+ */
+export function treatBench(spec: Spec, use: Use = {}): { treat: string; w: number; h: number; ms: number; render: number } | null {
+  const [W, H] = FORMATS[spec.format];
+  const t0 = performance.now();
+  const sc = sceneOf(spec, browserMeasure(), use);
+  const g = sc.items.find((i) => i.kind === 'graphic' && i.name === 'photo') as import('./scene').GraphicItem | undefined;
+  if (!g) return null;
+  const c = canvas(W, H);
+  paintFinished(c, sc, spec);
+  const t1 = performance.now();
+  const t2 = performance.now();
+  if (!treatedBox(g, 1, true)) return null;
+  const t3 = performance.now();
+  return { treat: String(g.params.treat ?? 'colour'), w: Math.ceil(g.box.w), h: Math.ceil(g.box.h), ms: t3 - t2, render: t1 - t0 };
 }

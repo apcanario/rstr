@@ -167,6 +167,8 @@ export function swissDraw(c: PartCtx, plan: Plan): SwissDraw | null {
 
 export const swissGraphics: GraphicsPart = {
   id: 'swiss', uses: SWISS_GRAPHICS, vocab: SWISS_GRAPHICS, motifs: SWISS_GRAPHICS,
+  // spec 8.9 (R15): the poster photo of the Swiss school, black and white or one colour on the ground; no posterise or dither
+  treatments: { allow: ['colour', 'mono', 'duotone', 'halftone', 'threshold'], favourite: 'duotone' },
   // spec 10.3 Graphic: the first graphic, how many cut into it, the second (the first cut-in) and how it is cut in,
   // and the parameters of each graphic drawn; none of them where the design draws no graphic (review R10 S1)
   controls: (q) => cutControls(q, SWISS_GRAPHICS, CUTS, (first) => (first === 'blocks' ? CUTS : CUTS.filter((x) => x !== 'block')), { disc: 'Disc', column: 'Column', band: 'Band', block: 'Block' }),

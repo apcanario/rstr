@@ -19,6 +19,7 @@ import type { GraphicItem, Item, Scene, TextItem } from './scene';
 import type { Spec } from './spec';
 import { plateUnder } from './items';
 import { PHOTO_ANY } from '../data/palettes/system';
+import { treatedRange, treatFields, treatFills, type Treat } from './treat';
 
 export const PHOTO_ROLES = ['ground', 'box', 'disc', 'column', 'band'] as const;
 export type PhotoRole = (typeof PHOTO_ROLES)[number];
@@ -145,7 +146,10 @@ export function photoChoice(spec: Spec, roles: readonly PhotoRole[] = PHOTO_ROLE
   };
 }
 
-/** The colours of the photo under a world quad: its darkest and lightest grid pixels there, or null if it is not all inside the photo's clip. */
+/**
+ * The colours of the photo under a world quad: its darkest and lightest grid pixels there, as its treatment draws them
+ * (spec 8.9, R15: what a duotone, threshold or screen makes of them), or null if it is not all inside the photo's clip.
+ */
 export function measureUnder(p: PhotoData, g: GraphicItem, q: Quad): { lo: string; hi: string } | null {
   const F = g.frame, local = F ? q.map((pt) => unapply(F, pt)) : q, b = g.box;
   if (g.cut === 'disc') {
@@ -164,7 +168,7 @@ export function measureUnder(p: PhotoData, g: GraphicItem, q: Quad): { lo: strin
     if (a < lv) { lv = a; lo = k; }
     if (z > hv) { hv = z; hi = k; }
   }
-  return { lo: toHex([G.lo[lo], G.lo[lo + 1], G.lo[lo + 2]]), hi: toHex([G.hi[hi], G.hi[hi + 1], G.hi[hi + 2]]) };
+  return treatedRange(g, toHex([G.lo[lo], G.lo[lo + 1], G.lo[lo + 2]]), toHex([G.hi[hi], G.hi[hi + 1], G.hi[hi + 2]]));
 }
 
 /** The box a cut-in shape takes inside a host box (spec 8.9: a disc, a column or a band), from the photo stream. */
@@ -276,14 +280,18 @@ export function photoShare(items: Item[], at: number, W: number, H: number): num
   return n ? shown / n : 0;
 }
 
-/** The photo as a Scene item: drawn by the `photo` graphic, its picture placed to cover its box. */
-export function photoItem(p: PhotoData, s: PhotoSpot, scale: number, x: number, y: number, ground: string): GraphicItem {
+/**
+ * The photo as a Scene item: drawn by the `photo` graphic, its picture placed to cover its box, in its treatment (R15;
+ * `k`: canvas width / 1080, the treatment's sizes are recorded in scene px). Its fills are what the treatment can show.
+ */
+export function photoItem(p: PhotoData, s: PhotoSpot, scale: number, x: number, y: number, ground: string, treat?: Treat, k = 1): GraphicItem {
   const d = coverRect(s.box, p.w, p.h, scale, x, y);
   const quad = xfQuad(s.frame, rectQuad(s.box));
+  const T = treat ? treatFields(treat, k) : { params: {}, colours: {} };
   return {
-    kind: 'graphic', name: 'photo', box: s.box, seed: 0, skip: 0, colours: { missing: ground },
-    params: { id: p.id, x: d.x, y: d.y, w: d.w, h: d.h, role: s.role, scale: Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale)) },
-    fills: [...ANY_COLOUR], quad, ...(s.frame ? { frame: s.frame } : {}), cut: s.cut ?? 'rect', layer: s.layer, tag: 'photo', regions: [],
+    kind: 'graphic', name: 'photo', box: s.box, seed: 0, skip: 0, colours: { missing: ground, ...T.colours },
+    params: { id: p.id, x: d.x, y: d.y, w: d.w, h: d.h, role: s.role, scale: Math.max(SCALE_MIN, Math.min(SCALE_MAX, scale)), ...T.params },
+    fills: treat ? treatFills(treat.name, treat.colours) : [...ANY_COLOUR], quad, ...(s.frame ? { frame: s.frame } : {}), cut: s.cut ?? 'rect', layer: s.layer, tag: 'photo', regions: [],
   };
 }
 

@@ -70,7 +70,7 @@ export function advancedOf(spec: Spec, scene: Scene, trial?: Trial): Advanced {
       type: [pairingPicker(spec), ...(P.type.controls?.(q) ?? [])].filter(live).map(mark),
       colour: [palettePicker(P.palette.list)].map(mark),
       text: Object.values(positions) as Control[],
-      photo: photoControls(q),
+      photo: photoControls(q, choosePalette(spec)),
     },
     positions,
     colours: designColours(choosePalette(spec), spec, scene),

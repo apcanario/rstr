@@ -22,7 +22,8 @@ import { addKept, infoText, newCrop, openLink, parseInfo, pushBack, reroll, rest
 import { addPhoto, ensurePhoto, prune } from '../photos';
 import { photoOf, releasePhotos } from '../engine/photo';
 import { advancedOf, type Advanced } from '../engine/advanced';
-import { apply, human, read, setColour, type Control, type DesignColour, type Value } from '../engine/controls';
+import { apply, human, read, setColour, treatmentControl, type Control, type DesignColour, type Value } from '../engine/controls';
+import { TREATMENT_LABEL, TREATMENTS } from '../engine/treat';
 
 /** What the stage drew: the pairing asked for, the one used, and the note (spec 6). */
 export interface Drawn { wanted: string; pairing: string; note: string; }
@@ -553,7 +554,8 @@ export function App({ ready }: { ready: Promise<void> }) {
     return { ...s, pick: { ...s.pick, colours: Object.keys(all).length ? all : null } };
   };
 
-  // Photo tab (spec 10.2, 10.3, 8.9): add or change, remove, New crop; Advanced adds role, scale and offset. Treatments: R15.
+  // Photo tab (spec 10.2, 10.3, 8.9): add or change, remove, New crop, the Treatment tiles (R15); Advanced adds role,
+  // scale, offset and the treatment's parameters
   const onFile = async (e: Event) => {
     const input = e.target as HTMLInputElement, f = input.files?.[0];
     input.value = '';
@@ -578,6 +580,15 @@ export function App({ ready }: { ready: Promise<void> }) {
       <L t={photoHint} c={photoState === 'failed' || photoGone ? 'hint warn' : 'hint'} />
       <div class="seg rerolls one" role="group"><button data-testid="photo-crop" disabled={!has} aria-label="New crop" onClick={() => commit((s) => newCrop(s))}><Icon n="reroll" /><L t="New crop" /></button></div>
     </div>,
+    // Treatment tiles (spec 10.2): Auto (the graphic stream's) and the seven, four to a row
+    ...chunk([null, ...TREATMENTS] as (string | null)[], 4).map((part, k) => (
+      <div class="seg" role="group" data-row={'photo-treat-' + k}>
+        {part.map((v) => {
+          const on = (spec.photo?.treatment ?? null) === v;
+          return <button class={on ? 'on' : ''} aria-pressed={on} disabled={!has} data-treat={v ?? 'auto'} onClick={() => commit((s) => apply(s, treatmentControl(), v))}><L t={v ? TREATMENT_LABEL[v as keyof typeof TREATMENT_LABEL] : 'Auto'} /></button>;
+        })}
+      </div>
+    )),
   ];
   const photoPages = paged(photoRows);
 
@@ -602,7 +613,8 @@ export function App({ ready }: { ready: Promise<void> }) {
     ]),
     text: paged((['title', 'subtitle', 'info', 'caption'] as Slot[]).flatMap((k) => [textRow(k), ...(adv?.positions[k] ? [ctlRow(adv.positions[k]!)] : [])])),
     look: lookPages,
-    photo: paged([...photoRows, ...(adv?.tabs.photo ?? []).map(ctlRow)]),
+    // the treatment is on its tiles; the generated list adds the rest
+    photo: paged([...photoRows, ...(adv?.tabs.photo ?? []).filter((c) => c.id !== 'photo.treatment').map(ctlRow)]),
   };
   const panel = advanced ? advPages[tab] : { style: stylePages, text: textPages, look: lookPages, photo: photoPages }[tab as 'style' | 'text' | 'look' | 'photo'];
 
