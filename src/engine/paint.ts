@@ -3,12 +3,13 @@ import { MASK } from '../data/palettes/system';
 import { GRAPHICS } from './graphics';
 import { drawMark } from './markdraw';
 import { photoOf } from './photo';
-import { isTreatment, treatColours, treatPixels } from './treat';
+import { isTreatment, treatColours, treatPixels, treatReach } from './treat';
 import { clock, type Time } from './graphics/clock';
 import type { Ctx } from './graphics/types';
 import type { Quad } from './geom';
 import { rng, skip } from './rng';
 import { fontCss, type GraphicItem, type Item, type Paint, type RectItem, type Scene, type TextItem } from './scene';
+import { banded, base, surfaceLike, viewOf } from './view';
 
 function style(ctx: Ctx, p: Paint, size = 1): string | CanvasGradient {
   if (typeof p === 'string') return p;
@@ -34,8 +35,22 @@ function paintRect(ctx: Ctx, it: RectItem) {
   ctx.restore();
 }
 
+/**
+ * The scene rows a text item's drawing can reach, with room to spare: its box, a whole size more each way (glyphs
+ * past the box, a turned item's corners), its outline, echoes and any pad. Only bands of a big render that meet
+ * these rows are drawn for it (R16); skipping the rest changes nothing, as nothing of it lies there.
+ */
+export function textSpan(it: TextItem, pad: number): [number, number] {
+  const ys = it.quad.map((p) => p[1]);
+  const e = Math.max(0, ...(it.echoes ?? []).map((x) => Math.abs(x.dy))), r = it.size + pad + 2 * (it.stroke?.width ?? 0) + e + 8;
+  return [Math.min(...ys) - r, Math.max(...ys) + r];
+}
+
 /** spread: grunge's ink spread (spec 7.1), an outline of the fill's own colour this many px wide at part strength. */
 export function paintText(ctx: Ctx, it: TextItem, spread = 0) {
+  banded(ctx, (c) => paintText1(c, it, spread), textSpan(it, spread));
+}
+function paintText1(ctx: Ctx, it: TextItem, spread: number) {
   ctx.save();
   place(ctx, it.xf);
   if (it.clip) { ctx.beginPath(); ctx.rect(it.clip.x, it.clip.y, it.clip.w, it.clip.h); ctx.clip(); }
@@ -86,6 +101,9 @@ export function paintText(ctx: Ctx, it: TextItem, spread = 0) {
 
 /** A text item's glyphs (and echoes) in the mask colour, grown by pad px all round: what a knock-out or a finish's ring reads. */
 export function knockText(ctx: Ctx, it: TextItem, pad: number) {
+  banded(ctx, (c) => knockText1(c, it, pad), textSpan(it, pad));
+}
+function knockText1(ctx: Ctx, it: TextItem, pad: number) {
   ctx.save();
   place(ctx, it.xf);
   ctx.font = fontCss(it.font, it.size);
@@ -141,8 +159,8 @@ function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, n
     c.restore();
   };
   if (!it.avoid?.length) { run(ctx); return; }
-  // draw on a layer, cut the text holes out, then lay it down
-  const L = noLayer ? null : layer(scene.w, scene.h);
+  // draw on a layer, cut the text holes out, then lay it down (the layer is the canvas's size and view: R16)
+  const L = noLayer ? null : (() => { try { return surfaceLike(ctx); } catch { return null; } })();
   if (!L) {
     // no layer to cut from: clip the whole canvas minus every avoided box (even-odd), so nothing lies behind the text
     ctx.save();
@@ -170,7 +188,10 @@ function paintGraphic(ctx: Ctx, it: GraphicItem, scene: Scene, t: Time | null, n
     for (const q of it.avoid) { L.beginPath(); quadPath(L, q); L.fill(); }
   }
   L.restore();
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(L.canvas as CanvasImageSource, 0, 0);
+  ctx.restore();
 }
 
 /**
@@ -213,6 +234,48 @@ export function treatedBox(g: GraphicItem, s: number, fresh = false): CanvasImag
   return out;
 }
 
+/**
+ * The photo's box in its treatment, straight on the canvas's pixel grid (R16): where the photo is not turned, the
+ * treatment runs on the canvas pixels the box covers, from its origin's pixel, at the canvas's scale, so a 2x or 3x
+ * export treats the photo at that size and a strip of a big render treats only its own rows (plus the rows a
+ * halftone cell reads), exactly as the same rows of the whole. Null where the photo is turned (then treatedBox) or
+ * nothing of the box is on the canvas.
+ */
+function treatedOnGrid(c: Ctx, g: GraphicItem, p: { img?: CanvasImageSource }): { img: CanvasImageSource; x: number; y: number; sy: number; h: number; w: number } | null | 'turned' {
+  const m = c.getTransform();
+  if (Math.abs(m.b) > 1e-9 || Math.abs(m.c) > 1e-9 || m.a <= 0 || m.d <= 0) return 'turned';
+  const v = viewOf(c), cw = c.canvas.width, ch = c.canvas.height, b = g.box, P = g.params as Record<string, number>;
+  const bx0 = b.x * m.a + m.e, by0 = b.y * m.d + m.f, bx1 = (b.x + b.w) * m.a + m.e, by1 = (b.y + b.h) * m.d + m.f;
+  const X0 = Math.floor(bx0), Y0 = Math.floor(by0);
+  // what shows: the box on this canvas; what the export holds of the box (rows in canvas px)
+  const ex0 = 0, ex1 = cw, ey0 = -v.top, ey1 = v.H - v.top;
+  const sx0 = Math.max(X0, ex0), sx1 = Math.min(Math.ceil(bx1), ex1), ry0 = Math.max(Y0, 0), ry1 = Math.min(Math.ceil(by1), ch);
+  if (sx1 <= sx0 || ry1 <= ry0) return null;
+  const s = m.a, { margin, align } = treatReach(g.params, s);
+  let wy0 = Math.max(Y0, ey0, ry0 - margin);
+  wy0 = Y0 + Math.floor((wy0 - Y0) / align) * align;
+  const wy1 = Math.min(Math.ceil(by1), ey1, ry1 + margin), w = sx1 - sx0, h = wy1 - wy0;
+  const key = JSON.stringify([g.params, treatColours(g), s, m.d, b, sx0, wy0 + v.top, w, h, X0, Y0 + v.top]);
+  let T = treated.get(key);
+  if (T) { treated.delete(key); treated.set(key, T); }
+  else {
+    const L = layer(w, h);
+    if (!L) return null;
+    L.imageSmoothingEnabled = true;
+    L.imageSmoothingQuality = 'high';
+    L.setTransform(m.a, 0, 0, m.d, m.e - sx0, m.f - wy0);
+    L.drawImage(p.img!, P.x, P.y, P.w, P.h);
+    L.setTransform(1, 0, 0, 1, 0, 0);
+    const im = L.getImageData(0, 0, w, h);
+    treatPixels(im.data, w, h, g.params, treatColours(g), s, { ox: sx0 - X0, oy: wy0 - Y0, x0: sx0 - X0, x1: sx1 - X0, y0: Math.max(Y0, ey0) - Y0, y1: Math.min(Math.ceil(by1), ey1) - Y0 });
+    L.putImageData(im, 0, 0);
+    T = L.canvas as CanvasImageSource;
+    treated.set(key, T);
+    while (treated.size > TREATED_KEEP) treated.delete(treated.keys().next().value as string);
+  }
+  return { img: T, x: sx0, y: ry0, sy: ry0 - wy0, h: ry1 - ry0, w };
+}
+
 /** The photo in its cover rect, in its treatment; a photo not registered (still loading, or gone) draws as a plain plate of the ground. */
 function drawPhoto(c: Ctx, g: GraphicItem) {
   const p = photoOf(String(g.params.id)), P = g.params as Record<string, number>;
@@ -220,6 +283,15 @@ function drawPhoto(c: Ctx, g: GraphicItem) {
   c.imageSmoothingEnabled = true;
   c.imageSmoothingQuality = 'high';
   if (isTreatment(g.params.treat) && g.params.treat !== 'colour') {
+    const on = treatedOnGrid(c, g, p);
+    if (on === null) return;
+    if (on !== 'turned') {
+      c.save();
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.drawImage(on.img, 0, on.sy, on.w, on.h, on.x, on.y, on.w, on.h);
+      c.restore();
+      return;
+    }
     const m = c.getTransform(), s = Math.hypot(m.a, m.b) || 1;
     const T = treatedBox(g, s);
     if (T) { c.drawImage(T, g.box.x, g.box.y, g.box.w, g.box.h); return; }
@@ -241,7 +313,13 @@ export interface PaintOpts {
 }
 
 export function paint(ctx: Ctx, scene: Scene, t: Time | null = null, o: PaintOpts = {}) {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // the canvas's base transform: scene px to the export's px (R16; identity on a 1x canvas); in bands at export sizes
+  base(ctx);
+  banded(ctx, (c) => paint1(c, scene, t, o));
+  base(ctx);
+}
+function paint1(ctx: Ctx, scene: Scene, t: Time | null, o: PaintOpts) {
+  base(ctx);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
   if (!o.noGround) {

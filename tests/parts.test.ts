@@ -1,3 +1,4 @@
+import { FORMAT_LIST } from '../src/engine/formats';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { describe, expect, test } from 'vitest';
@@ -95,7 +96,7 @@ describe('parts (spec 8.7)', () => {
         if (on) expect(items.some((i) => i.kind === 'text'), label + ': all text dropped').toBe(true);
       }
     }
-    expect(ran).toBe(4 ** 4 * 2 * 3 * 2);
+    expect(ran).toBe(4 ** 4 * 2 * FORMAT_LIST.length * 2);
     console.log(`mixed parts: ${ran} compositions, ${set} set text, the rest returned null`);
     expect(set, 'mixes that set text').toBeGreaterThan(ran / 4);
   });

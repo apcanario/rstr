@@ -3,6 +3,7 @@ import { luminance } from '../colour';
 import { TAU } from './clock';
 import { val } from './params';
 import type { Graphic } from './types';
+import { localTransform } from '../view';
 
 export const stars: Graphic = {
   name: 'stars',
@@ -15,8 +16,8 @@ export const stars: Graphic = {
     const G = stars, W = Number(g.params.W), hz = Number(g.params.hz);
     const n = val(g, G, 'count'), k = val(g, G, 'size'), spread = val(g, G, 'spread');
     ctx.fillStyle = g.colours.ink;
-    // a star whose cross meets a text hole (avoid, canvas px) is left out, not clipped to a tick beside a letter (R9 M2)
-    const m = typeof ctx.getTransform === 'function' ? ctx.getTransform() : null, holes = (g.avoid ?? []).map((q) => {
+    // a star whose cross meets a text hole (avoid, scene px) is left out, not clipped to a tick beside a letter (R9 M2)
+    const m = localTransform(ctx), holes = (g.avoid ?? []).map((q) => {
       const xs = q.map((p) => p[0]), ys = q.map((p) => p[1]);
       return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
     });

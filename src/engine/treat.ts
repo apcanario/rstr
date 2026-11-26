@@ -244,7 +244,24 @@ const BAYER = (() => {
  * device pixels per scene px (halftone screen and dither size are in scene px). Deterministic: no randomness, the
  * screens anchored at the pixels' origin. Pure apart from writing `d`.
  */
-export function treatPixels(d: Uint8ClampedArray, w: number, h: number, params: Record<string, unknown>, cols: string[], s = 1): void {
+/**
+ * A window onto the box (R16, big renders): the pixels `d` are the box's pixels from (ox, oy) on, in box px (device
+ * px from the box's origin); the screens stay anchored at the box's origin, so a strip of the box treats exactly as
+ * the same rows of the whole. Halftone reads a cell's tone at its centre, kept inside [x0, x1) x [y0, y1) (the box
+ * as far as it is drawn); a window must hold every centre it reads (a screen's width more than the rows it shows).
+ */
+/** Rows a window of a treatment must read beyond the rows it shows (halftone: a cell's centre), and the block a
+ *  window's first row must sit on (dither), in device px at `s` per scene px. */
+export function treatReach(params: Record<string, unknown>, s: number): { margin: number; align: number } {
+  if (params.treat === 'halftone') return { margin: Math.ceil(Math.max(2, Number(params.screen) * s)) + 2, align: 1 };
+  if (params.treat === 'dither') return { margin: 0, align: Math.max(1, Math.round(Number(params.dot) * s)) };
+  return { margin: 0, align: 1 };
+}
+
+export interface TreatWindow { ox: number; oy: number; x0: number; y0: number; x1: number; y1: number; }
+
+export function treatPixels(d: Uint8ClampedArray, w: number, h: number, params: Record<string, unknown>, cols: string[], s = 1, win?: TreatWindow): void {
+  const W0 = win ?? { ox: 0, oy: 0, x0: 0, y0: 0, x1: w, y1: h };
   const name = params.treat;
   if (!isTreatment(name) || name === 'colour') return;
   const C = cols.map(parseHex);
@@ -278,11 +295,13 @@ export function treatPixels(d: Uint8ClampedArray, w: number, h: number, params: 
     return;
   }
   if (name === 'dither') {
-    const D = Math.max(1, Math.round(Number(params.dot) * s));
-    for (let by = 0; by < h; by += D) for (let bx = 0; bx < w; bx += D) {
-      const i0 = (by * w + bx) * 4, t = lum8(d[i0], d[i0 + 1], d[i0 + 2]);
+    // blocks anchored at the box's origin; each block takes the tone of its first pixel in the window (a window
+    // starts on a block's edge, ditherAlign)
+    const D = Math.max(1, Math.round(Number(params.dot) * s)), ox = W0.ox, oy = W0.oy;
+    for (let by = Math.floor(oy / D) * D; by < oy + h; by += D) for (let bx = Math.floor(ox / D) * D; bx < ox + w; bx += D) {
+      const ry = Math.max(by, oy) - oy, rx = Math.max(bx, ox) - ox, i0 = (ry * w + rx) * 4, t = lum8(d[i0], d[i0 + 1], d[i0 + 2]);
       const c = t > BAYER[(by / D) & 7][(bx / D) & 7] ? B : A;
-      for (let y = by; y < Math.min(h, by + D); y++) for (let x = bx; x < Math.min(w, bx + D); x++) put((y * w + x) * 4, c);
+      for (let y = ry; y < Math.min(h, by + D - oy); y++) for (let x = rx; x < Math.min(w, bx + D - ox); x++) put((y * w + x) * 4, c);
     }
     return;
   }
@@ -292,11 +311,13 @@ export function treatPixels(d: Uint8ClampedArray, w: number, h: number, params: 
   const src = new Float32Array(n);
   for (let i = 0, j = 0; i < n; i++, j += 4) src[i] = lum8(d[j], d[j + 1], d[j + 2]);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const u = (x * ca + y * sa) / S, v = (-x * sa + y * ca) / S;
+    const bxp = x + W0.ox, byp = y + W0.oy;
+    const u = (bxp * ca + byp * sa) / S, v = (-bxp * sa + byp * ca) / S;
     const fu = Math.floor(u) + 0.5, fv = Math.floor(v) + 0.5;
-    // the cell's centre back in pixels
-    const cx = Math.max(0, Math.min(w - 1, Math.round((fu * ca - fv * sa) * S))), cy = Math.max(0, Math.min(h - 1, Math.round((fu * sa + fv * ca) * S)));
-    const t = src[cy * w + cx], cov = inv ? t : 1 - t;
+    // the cell's centre back in box pixels, kept inside the box as drawn, then read in the window
+    const cx = Math.max(W0.x0, Math.min(W0.x1 - 1, Math.round((fu * ca - fv * sa) * S))), cy = Math.max(W0.y0, Math.min(W0.y1 - 1, Math.round((fu * sa + fv * ca) * S)));
+    const wx = Math.max(0, Math.min(w - 1, cx - W0.ox)), wy = Math.max(0, Math.min(h - 1, cy - W0.oy));
+    const t = src[wy * w + wx], cov = inv ? t : 1 - t;
     const r = S * 0.74 * Math.sqrt(cov), dist = Math.hypot(u - fu, v - fv) * S;
     const k = Math.max(0, Math.min(1, r - dist + 0.5)), i = (y * w + x) * 4;
     d[i] = bg[0] + (dot[0] - bg[0]) * k; d[i + 1] = bg[1] + (dot[1] - bg[1]) * k; d[i + 2] = bg[2] + (dot[2] - bg[2]) * k;

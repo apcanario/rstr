@@ -3,14 +3,14 @@ taps the controls at both phone sizes, and checks exports. Any failure prints th
 import base64, io, json, sys, time
 from PIL import Image
 from common import browser, idle, open_app, served
-import appcheck, fontcheck
+import appcheck, exportcheck, fontcheck
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 200
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
 # styles whose row enforces the variety tests of spec 8.0 (R5: Swiss, R6: Postmodern, R8: Brutalist, R9: Vaporwave)
 ENFORCED = ['swiss', 'pomo', 'brutal', 'vapor']
-FORMATS = ['1:1', '3:4', '9:16']
-SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920)}
+FORMATS = ['1:1', '3:4', '9:16', 'A']
+SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920), 'A': (1080, 1527)}
 fails = []
 # Fallbacks allowed when a layout or motif is picked, at N = 200 (review R2 S1). Until R9 a picked Vaporwave sky
 # title could not always fit (196 at 1:1, 6 at 3:4 and 9:16); R9 keeps it above the sun, so none now. The runs
@@ -468,6 +468,9 @@ with served() as url, browser() as b:
     under = {key: sum(1 for v in vs if v < 0.35) for key, vs in shows.items()}
     print(f'photo shows (pixels): {sum(len(v) for v in shows.values())} designs; under 35% of the box: ' + ', '.join(f'{key} {n}/{len(shows[key])}' for key, n in sorted(under.items()) if n) + f'; {time.time() - t1:.0f} s')
     print(f'engine checks took {time.time() - t0:.0f} s')
+    # row R16 (spec 10.1, 9.4): export sizes, files, strips, the bleed, the honest failure, the export size of marks,
+    # finishes and photo
+    exportcheck.run(pg, fail)
     # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face
     t0 = time.time()
     skipped = fontcheck.run(b, url, pg, max(4, N // 25), fail)
@@ -476,9 +479,13 @@ with served() as url, browser() as b:
         fail('page errors: ' + '; '.join(errors[:3]))
     pg.close()
 
+    # row R16 (spec 9.4): the A3 print render in a fresh page, its time and peak memory
+    exportcheck.bench(b, url, fail, open_app)
+
     # the frame and Simple mode at both phone sizes (spec 10, row R4)
     appcheck.run(b, url, fail)
     appcheck.run_photo(b, url, fail)
+    appcheck.run_limits(b, url, fail)
 
 # the summary carries the skipped online checks, so a reader of the last line alone sees the gap (review R3 S1)
 if fails:

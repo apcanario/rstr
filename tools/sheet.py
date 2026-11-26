@@ -10,7 +10,7 @@ OUT = os.path.join(ROOT, 'shots')
 os.makedirs(OUT, exist_ok=True)
 REFS = os.path.join(ROOT, 'docs', 'design', 'refs')
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
-FORMATS = ['1:1', '3:4', '9:16']
+FORMATS = ['1:1', '3:4', '9:16', 'A']
 
 
 with served() as url, browser() as b:
@@ -23,7 +23,7 @@ with served() as url, browser() as b:
                 cells = []
                 for i in range(6):
                     n = row * 6 + i
-                    fmt = FORMATS[n % 3]
+                    fmt = FORMATS[n % len(FORMATS)]
                     spec = pg.evaluate('([s, f, n, md]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = md; x.seeds = {layout: 1000 + n * 7919, colour: 2000 + n * 104729, graphic: 3000 + n * 1299709, type: 4000 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null}; return x; }', [style, fmt, n, mode])
                     sol = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
                     sc = pg.evaluate('(s) => { const c = window.__rstr.scene(s); return c.palette + " " + c.pairing; }', spec)
@@ -39,7 +39,7 @@ with served() as url, browser() as b:
             for si, style in enumerate(STYLES):
                 cells = []
                 for fi, fmt in enumerate(FORMATS):
-                    n = si * 3 + fi
+                    n = si * len(FORMATS) + fi
                     spec = pg.evaluate('([s, f, n, k, v]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = n % 2 ? "dark" : "light"; x.seeds = {layout: 1000 + n * 7919, colour: 2000 + n * 104729, graphic: 3000 + n * 1299709, type: 4000 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null, dialect: s === "pomo" ? (n % 2 ? "photocopy" : "icecream") : null}; x.params = {}; x.finish = k === "finish" ? v : "clean"; x.marks = k === "marks" ? v : "off"; return x; }', [style, fmt, n, kind, v])
                     cells.append((img(pg, spec), f'{style} {fmt} {spec["mode"]} {kind} {v}'))
                 rows.append(cells)
@@ -52,7 +52,7 @@ with served() as url, browser() as b:
             cells = []
             for i in range(6):
                 n = row * 6 + i
-                spec = pg.evaluate('([d, n, f]) => { const x = window.__rstr.spec(); x.style = "pomo"; x.format = f; x.mode = n % 4 === 3 ? "dark" : "light"; x.seeds = {layout: 5100 + n * 7919, colour: 5200 + n * 104729, graphic: 5300 + n * 1299709, type: 5400 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null, dialect: d}; x.params = {}; return x; }', [d, n, FORMATS[n % 3]])
+                spec = pg.evaluate('([d, n, f]) => { const x = window.__rstr.spec(); x.style = "pomo"; x.format = f; x.mode = n % 4 === 3 ? "dark" : "light"; x.seeds = {layout: 5100 + n * 7919, colour: 5200 + n * 104729, graphic: 5300 + n * 1299709, type: 5400 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null, dialect: d}; x.params = {}; return x; }', [d, n, FORMATS[n % len(FORMATS)]])
                 sc = pg.evaluate('(s) => { const c = window.__rstr.scene(s); return [c.frame, c.transform, c.palette, c.layout].join(" "); }', spec)
                 cells.append((img(pg, spec), sc))
             rows.append(cells)
@@ -173,6 +173,42 @@ with served() as url, browser() as b:
             rows.append(cells)
         strip(rows).save(os.path.join(OUT, f'photo-{style}.jpg'), quality=85)
         print('wrote', f'shots/photo-{style}.jpg')
+    # row R16: the A format in every style, light and dark (the paper ratio, 1 to root 2)
+    rows = []
+    for row, mode in enumerate(['light', 'dark']):
+        cells = []
+        for si, style in enumerate(STYLES):
+            for j in range(2):
+                n = si * 2 + j + row * 8
+                spec = pg.evaluate('([s, n, md]) => { const x = window.__rstr.spec(); x.style = s; x.format = "A"; x.mode = md; x.seeds = {layout: 6100 + n * 7919, colour: 6200 + n * 104729, graphic: 6300 + n * 1299709, type: 6400 + n * 31}; x.pick = {palette: null, pairing: null, motif: null, layout: null, dialect: null}; x.params = {}; x.finish = "clean"; x.marks = n % 3 ? "off" : "light"; return x; }', [style, n, mode])
+                sol = pg.evaluate('(s) => window.__rstr.solve(s)', spec)
+                cells.append((img(pg, spec), f'A {style} {mode} {sol["layout"]}'))
+        rows.append(cells)
+    strip(rows).save(os.path.join(OUT, 'format-A.jpg'), quality=85)
+    print('wrote shots/format-A.jpg')
+    # row R16: export at size. Left: a 300 px corner of the 1x file, blown up three times; right: the same corner of
+    # the 3x file at its own pixels (marks and grain drawn at 3x). Below: the A3 print with its bleed, scaled down,
+    # the trim line drawn in on top (red), and its corner at full size
+    def dataimg(u):
+        return Image.open(io.BytesIO(base64.b64decode(u.split(',')[1]))).convert('RGB')
+    pairs = []
+    for i, (style, fin) in enumerate([('swiss', 'grain'), ('brutal', 'grunge'), ('vapor', 'vhs')]):
+        spec = pg.evaluate('([s, f, i]) => { const x = window.__rstr.spec(); x.style = s; x.format = "3:4"; x.finish = f; x.marks = "full"; x.seeds = {layout: 71 + i, colour: 72 + i, graphic: 73 + i, type: 74 + i}; x.params = {}; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; return x; }', [style, fin, i])
+        one = dataimg(pg.evaluate('(s) => window.__rstr.export.url(s, "1x", false, "png")', spec))
+        three = dataimg(pg.evaluate('(s) => window.__rstr.export.url(s, "3x", false, "png")', spec))
+        pairs.append([(one.crop((0, 0, 300, 300)).resize((900, 900), Image.NEAREST), f'{style} {fin} 1x, corner x3'), (three.crop((0, 0, 900, 900)), f'{style} {fin} 3x, the same corner')])
+    strip(pairs, h=600).save(os.path.join(OUT, 'export-scale.jpg'), quality=88)
+    print('wrote shots/export-scale.jpg')
+    spec = pg.evaluate('() => { const x = window.__rstr.spec(); x.style = "vapor"; x.format = "A"; x.finish = "grain"; x.marks = "light"; x.seeds = {layout: 81, colour: 82, graphic: 83, type: 84}; x.params = {}; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; return x; }')
+    full = dataimg(pg.evaluate('(s) => window.__rstr.export.url(s, "print", true, "jpeg")', spec))
+    small = full.resize((full.width // 4, full.height // 4))
+    d = ImageDraw.Draw(small)
+    d.rectangle((35 / 4, 35 / 4, (35 + 3508) / 4, (35 + 4961) / 4), outline=(255, 0, 0), width=1)
+    corner = full.crop((0, 0, 700, 700))
+    dc = ImageDraw.Draw(corner)
+    dc.line((35, 35, 700, 35), fill=(255, 0, 0)); dc.line((35, 35, 35, 700), fill=(255, 0, 0))
+    strip([[(small, f'A3 print + 3 mm bleed, {full.width} x {full.height}, scaled down; red: the trim'), (corner, 'its top-left corner at full size, bleed outside the red line')]], h=900).save(os.path.join(OUT, 'export-print.jpg'), quality=88)
+    print('wrote shots/export-print.jpg')
     pg.close()
     # app screens (row R4): every tab and page and both sheets at both phone sizes, then each style and dark
     for old in [f for f in os.listdir(OUT) if f.startswith('screen-')]:
@@ -228,6 +264,22 @@ with served() as url, browser() as b:
             pg.click(f'[data-testid="{name}"]')
             pg.wait_for_timeout(250)
             pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-sheet-{name}.png'))
+            if name == 'export':
+                # R16: Print with its bleed, and every format ticked at 3x
+                if pg.get_attribute('button[data-fmt="A"]', 'aria-pressed') != 'true':
+                    pg.click('button[data-fmt="A"]')
+                pg.click('button[data-size="print"]')
+                pg.click('button[data-bleed="3mm"]')
+                pg.wait_for_timeout(250)
+                pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-sheet-export-print.png'))
+                pg.click('button[data-bleed="off"]')
+                for f in FORMATS:
+                    if pg.get_attribute(f'button[data-fmt="{f}"]', 'aria-pressed') != 'true':
+                        pg.click(f'button[data-fmt="{f}"]')
+                pg.click('button[data-size="3x"]')
+                pg.wait_for_timeout(250)
+                pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-sheet-export-all.png'))
+                pg.click('button[data-size="1x"]')
             pg.click('[data-testid="close"]')
         for style in STYLES:
             pg.click(f'button[data-style="{style}"]')

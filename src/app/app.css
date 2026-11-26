@@ -131,3 +131,8 @@ header { display: flex; align-items: center; gap: 6px; height: 48px; flex: none;
 .captioned .hint { flex: 1; min-width: 0; text-align: left; }
 .hint.warn { color: #f1efe9; font-weight: 700; }
 .captioned .rerolls.one { flex: none; width: 72px; }
+/* the export sheet (spec 10.1, R16): one row per choice, caption left; then what the file will be */
+.sheet .captioned { height: 48px; }
+.sheet .captioned .cap { width: 64px; }
+.expinfo { display: flex; flex-direction: column; gap: 3px; min-height: 18px; }
+.expinfo .hint { text-align: left; flex: none; font-size: 12px; line-height: 16px; }

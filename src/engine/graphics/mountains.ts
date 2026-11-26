@@ -1,6 +1,7 @@
 /** Horizon mountains as a glowing polyline (Vaporwave, spec 8.4): the box's bottom edge is the horizon. Colours: fill, line. */
 import { val } from './params';
 import type { Graphic } from './types';
+import { scaleOf } from '../view';
 
 export const mountains: Graphic = {
   name: 'mountains',
@@ -21,7 +22,7 @@ export const mountains: Graphic = {
     }
     pts.push([R.x + R.w + 2, base]);
     ctx.fillStyle = C.fill; ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = C.line; ctx.lineWidth = Math.max(2, W * 0.003); ctx.shadowColor = C.line; ctx.shadowBlur = W * 0.01;
+    ctx.strokeStyle = C.line; ctx.lineWidth = Math.max(2, W * 0.003); ctx.shadowColor = C.line; ctx.shadowBlur = (W * 0.01) * scaleOf(ctx);
     ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
     // wire ridges from each peak down to the base
     for (let i = 1; i < pts.length - 1; i += 2) {

@@ -1,3 +1,4 @@
+import { FORMAT_LIST } from '../src/engine/formats';
 /** Row R7: the marks layer of spec 7.2 on the Scene (stub measure). Pixels are checked in smoke. */
 import { describe, expect, test } from 'vitest';
 import { check } from '../src/engine/invariants';
@@ -73,7 +74,7 @@ describe('marks (spec 7.2)', () => {
           expect(distinct.size).toBeLessThanOrEqual(4);
           if (distinct.size < 3) few++;
         }
-        expect(n).toBe(600);
+        expect(n).toBe(200 * FORMAT_LIST.length);
         // light is three or four marks (spec 7.2): fewer only where the page has no room, in at most 5% of designs
         // per style (review R7 S1; Brutalist's ruled page is the tight one)
         expect(few / n, `${few} of ${n} designs got fewer than three marks`).toBeLessThanOrEqual(0.05);

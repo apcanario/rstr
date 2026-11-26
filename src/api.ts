@@ -24,6 +24,10 @@ import type { Control } from './engine/controls';
 import { photoOf, registerPhoto, registeredIds, testPicture, gridSize } from './engine/photo';
 import { decodePhoto, testBlob } from './engine/photoload';
 import { storedIds } from './photos';
+import { exportDims, type Size } from './engine/formats';
+import { exportName, makeExport, photoNeed, workingSizes, type FileKind, type Limits } from './engine/export';
+import { exportBench, exportPaths, scaleProof, stripsSame } from './engine/pixels';
+import { seedCode } from './engine/spec';
 
 /** Every tool call lays out the way the app does: with the wanted pairing only if its fonts are loaded (spec 6). */
 const useOf = (spec: Spec) => resolvePairing(spec, available);
@@ -34,7 +38,7 @@ export interface AppHooks {
   load: (raw: unknown) => void;
   state: () => { spec: Spec; back: Spec[]; kept: Spec[]; locks: Record<string, boolean> };
   stage: () => string;
-  fileName: (raw: unknown, f: '1:1' | '3:4' | '9:16', k: 'jpeg' | 'png') => string;
+  fileName: (raw: unknown, f: Format, size: Size, bleed: boolean, k: FileKind) => string;
 }
 
 export function installApi(ready: Promise<void>, current: () => Spec, view: { idle: () => Promise<void>; drawn: () => Drawn | null; current: () => boolean; app: AppHooks }) {
@@ -122,12 +126,48 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
       stored: () => storedIds(),
       /** How much of the photo's box shows, read on pixels (review R14 S1). */
       shows: (raw: unknown) => { const s = migrate(raw); return photoShows(s, useOf(s)); },
-      /** Text over the photo read on pixels (spec 9.4). */
-      pixels: (raw: unknown) => { const s = migrate(raw); return photoPixels(s, useOf(s)); },
+      /** Text over the photo read on pixels (spec 9.4), at an export size (R16: 3x over a full-size photo). */
+      pixels: (raw: unknown, size: Size = '1x') => { const s = migrate(raw); return photoPixels(s, useOf(s), size); },
+      /** Register a test photo decoded from its full-size picture (R16, Carried R16 from R14: not the grid-sized decode). */
+      async full(id: string, w: number, h: number, seed = 1) {
+        const blob = await testBlob(w, h, testPicture(w, h, seed));
+        const p = await decodePhoto(id, blob);
+        registerPhoto({ ...p, held: true });
+        return { id, w: p.w, h: p.h };
+      },
       /** Text over the photo read in cells with the photocopy copier pass on (R15, Carried R15 from R14). */
       copier: (raw: unknown) => { const s = migrate(raw); return photoCopier(s, useOf(s)); },
       /** The treatment's time on the photo's box, and the whole render (R15). */
       treatTime: (raw: unknown) => { const s = migrate(raw); return treatBench(s, useOf(s)); },
+    },
+    /** Row R16 (spec 10.1): export sizes, files, strips, the bleed and the honest failure. */
+    export: {
+      dims: (f: Format, size: Size, bleed = false) => exportDims(f, size, bleed),
+      name: (raw: unknown, size: Size, bleed: boolean, k: FileKind) => { const s = migrate(raw); return exportName(seedCode(s.seeds), s.format, exportDims(s.format, size, bleed).w, k); },
+      /** One file made as the app makes it: its type, pixels as the browser decodes it, and its first bytes (base64). */
+      async make(raw: unknown, size: Size, bleed: boolean, k: FileKind, lim: Limits = {}, force?: 'strips' | 'strips-png') {
+        const s = migrate(raw);
+        try {
+          const m = await makeExport(s, useOf(s), size, bleed, k, lim, force);
+          const im = await createImageBitmap(m.blob), dec = [im.width, im.height];
+          im.close();
+          const head = new Uint8Array(await m.blob.slice(0, 4096).arrayBuffer());
+          let bin = '';
+          for (const b of head) bin += String.fromCharCode(b);
+          return { ok: true, w: m.w, h: m.h, type: m.blob.type, bytes: m.blob.size, how: m.how, ms: m.ms, strips: m.strips, decoded: dec, head: btoa(bin) };
+        } catch (e) { return { ok: false, error: String((e as Error).message ?? e), largest: (e as { largest?: Size | null }).largest ?? null }; }
+      },
+      /** The whole file as a data URL (the sheets). */
+      async url(raw: unknown, size: Size, bleed: boolean, k: FileKind) {
+        const s = migrate(raw), m = await makeExport(s, useOf(s), size, bleed, k);
+        return await new Promise<string>((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.readAsDataURL(m.blob); });
+      },
+      working: (raw: unknown, k: FileKind, sizes: Size[], bleed: boolean, lim: Limits = {}) => workingSizes(migrate(raw).format, k, sizes, bleed, lim),
+      stripsSame: (raw: unknown, size: Size, rows = 512, only?: number[]) => { const s = migrate(raw); return stripsSame(s, useOf(s), size, rows, only); },
+      paths: (raw: unknown, size: Size, bleed = false) => { const s = migrate(raw); return exportPaths(s, useOf(s), size, bleed); },
+      scale: (raw: unknown, size: Size, wrong = false) => { const s = migrate(raw); return scaleProof(s, useOf(s), size, wrong); },
+      bench: (raw: unknown, size: Size, bleed: boolean, k: FileKind, force?: 'strips' | 'strips-png') => { const s = migrate(raw); return exportBench(s, useOf(s), size, bleed, k, force); },
+      photoNeed: (raw: unknown, size: Size) => { const s = migrate(raw); return photoNeed(s, useOf(s), size); },
     },
     /** Palette ids of a style, in list order. */
     palettes: (style: StyleId) => PALETTES[style].map((p) => p.id),

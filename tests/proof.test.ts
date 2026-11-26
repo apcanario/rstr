@@ -1,3 +1,4 @@
+import { FORMAT_LIST } from '../src/engine/formats';
 import { describe, expect, test } from 'vitest';
 import { CORE_FAMILIES, CORE_FONTS, defaultPairing, faceKey, facesOf, isCoreFace, PAIRINGS, type Pairing } from '../src/data/pairings';
 import { PALETTES } from '../src/data/palettes';
@@ -19,7 +20,7 @@ describe('9.2 on the stub measure, every style x format x mode, every text varia
   for (const style of STYLE_IDS) {
     test(style, () => {
       const r = runInvariants(stubMeasure, { styles: [style], n: 10 });
-      expect(r.count).toBe(10 * textVariants().length * 3 * 2);
+      expect(r.count).toBe(10 * textVariants().length * FORMAT_LIST.length * 2);
       expect(r.failures, show(r.failures)).toEqual([]);
       expect(r.fallbacks, showFb(r)).toBe(0);
     });
@@ -30,7 +31,7 @@ describe('9.2 with every value of pick.layout and pick.motif', () => {
   for (const style of STYLE_IDS) {
     test(style, () => {
       const r = runInvariants(stubMeasure, { styles: [style], n: 9, picks: 'each', variants: 'cycle' });
-      expect(r.count).toBe(picksOf(style).length * 9 * 3 * 2);
+      expect(r.count).toBe(picksOf(style).length * 9 * FORMAT_LIST.length * 2);
       expect(r.failures, show(r.failures)).toEqual([]);
       expect(r.fallbacks, showFb(r)).toBeLessThanOrEqual(PICKED_FALLBACKS[style]);
     });
@@ -53,7 +54,7 @@ describe('9.2 with every palette picked, in both modes', () => {
   for (const style of STYLE_IDS) {
     test(style, () => {
       const r = runInvariants(stubMeasure, { styles: [style], n: 9, palettes: true, variants: 'cycle' });
-      expect(r.count).toBe(PALETTES[style].length * 9 * 3 * 2);
+      expect(r.count).toBe(PALETTES[style].length * 9 * FORMAT_LIST.length * 2);
       expect(r.failures, show(r.failures)).toEqual([]);
       expect(r.fallbacks, showFb(r)).toBe(0);
     });
@@ -69,7 +70,7 @@ describe('9.3 stream independence on the stub measure, light and dark', () => {
   for (const style of STYLE_IDS) {
     test(style, () => {
       const r = runIndependence(stubMeasure, { styles: [style], n: 30, variants: 'cycle' });
-      expect(r.count).toBe(30 * 3 * 2);
+      expect(r.count).toBe(30 * FORMAT_LIST.length * 2);
       expect(r.failures, show(r.failures)).toEqual([]);
       const p = runIndependence(stubMeasure, { styles: [style], n: 6, picks: 'each', variants: 'cycle' });
       expect(p.failures, show(p.failures)).toEqual([]);
@@ -93,7 +94,7 @@ describe('9.2 with every pairing picked (stub measure; the smoke run does it wit
   for (const style of STYLE_IDS) {
     test(style, () => {
       const r = runInvariants(stubMeasure, { styles: [style], n: 3, pairings: true, variants: 'all' });
-      expect(r.count).toBe(PAIRINGS[style].length * 3 * textVariants().length * 3 * 2);
+      expect(r.count).toBe(PAIRINGS[style].length * 3 * textVariants().length * FORMAT_LIST.length * 2);
       expect(r.pairings).toEqual(PAIRINGS[style].map((p) => p.id).sort());
       expect(r.failures, show(r.failures)).toEqual([]);
       expect(r.fallbacks, showFb(r)).toBe(0);

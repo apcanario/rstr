@@ -1,6 +1,7 @@
 /** Pixel reads for the tools: a hash of a render, and the knock-out proof. Kept in the engine (CLAUDE.md). */
 import { MARKER, MASK, PHOTO_PROBE } from '../data/palettes/system';
-import { FORMATS } from './formats';
+import { FORMATS, exportDims, type Size } from './formats';
+import { base as setBase, exportView, setView } from './view';
 import { bounds, contains, overlaps } from './geom';
 import type { Ctx } from './graphics/types';
 import { behind, haloOf, inkOf } from './invariants';
@@ -11,6 +12,7 @@ import { browserMeasure, scene as sceneOf } from './index';
 import type { Use } from './layout';
 import type { Scene, TextItem } from './scene';
 import type { Spec } from './spec';
+import { makeExport, renderSingle, renderStrips, type FileKind } from './export';
 
 function canvas(w: number, h: number): Ctx {
   const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
@@ -319,26 +321,30 @@ export async function bench(spec: Spec, use: Use = {}): Promise<{ scene: number;
  * against the colours that carry it (`inkOf`). `low` counts mask pixels under the ratio of spec 5. `measured`: items
  * the photo was measured under (no plate); `plated`: items on a plate over it.
  */
-export function photoPixels(spec: Spec, use: Use = {}): { items: number; measured: number; plated: number; masked: number; low: number; worst: number; lows: { part: string; ratio: number }[] } {
-  const [W, H] = FORMATS[spec.format];
+export function photoPixels(spec: Spec, use: Use = {}, size: Size = '1x'): { items: number; measured: number; plated: number; masked: number; low: number; worst: number; lows: { part: string; ratio: number }[]; w: number; h: number } {
+  // R16 (Carried R16 from R14): at 2x and 3x the design is drawn at that size, the photo's full picture with it
+  const D = exportDims(spec.format, size), W = D.trimW, H = D.trimH;
   const sc0: Scene = sceneOf(spec, browserMeasure(), use);
   const sc: Scene = { ...sc0, items: sc0.items.filter((i) => !(i.kind === 'graphic' && i.pass)) };
   const at = sc.items.findIndex((i) => i.kind === 'graphic' && i.name === 'photo');
-  const out = { items: 0, measured: 0, plated: 0, masked: 0, low: 0, worst: Infinity, lows: [] as { part: string; ratio: number }[] };
+  const out = { items: 0, measured: 0, plated: 0, masked: 0, low: 0, worst: Infinity, lows: [] as { part: string; ratio: number }[], w: W, h: H };
   if (at < 0) return out;
   const g = sc.items[at] as import('./scene').GraphicItem;
-  const base = canvas(W, H), mask = canvas(W, H);
-  paint(base, sc, null, { noText: true });
-  const a = base.getImageData(0, 0, W, H).data;
+  const v = exportView(sc.w, sc.h, W, H), base0 = canvas(W, H), mask = canvas(W, H);
+  setView(base0.canvas as OffscreenCanvas, v); setView(mask.canvas as OffscreenCanvas, v);
+  paint(base0, sc, null, { noText: true });
+  const a = base0.getImageData(0, 0, W, H).data;
   sc.items.forEach((it, i) => {
     if (i <= at || it.kind !== 'text' || !overlaps(g.quad, it.quad) || haloOf(it) || it.waive?.includes(4)) return;
     out.items++;
     if (g.regions?.some((r) => contains(r.quad, it.quad))) out.measured++;
     else if (sc.items.slice(at + 1, i).some((p) => p.kind === 'rect' && p.plate && contains(p.quad, it.quad))) out.plated++;
+    mask.setTransform(1, 0, 0, 1, 0, 0);
     mask.clearRect(0, 0, W, H);
+    setBase(mask);
     paintText(mask, { ...it, fill: MASK, stroke: it.stroke && { ...it.stroke, paint: MASK }, echoes: undefined });
-    const r = bounds(it.quad), x0 = Math.max(0, Math.floor(r.x) - 2), y0 = Math.max(0, Math.floor(r.y) - 2);
-    const x1 = Math.min(W, Math.ceil(r.x + r.w) + 2), y1 = Math.min(H, Math.ceil(r.y + r.h) + 2);
+    const r = bounds(it.quad), x0 = Math.max(0, Math.floor(r.x * v.sx) - 2), y0 = Math.max(0, Math.floor(r.y * v.sy) - 2);
+    const x1 = Math.min(W, Math.ceil((r.x + r.w) * v.sx) + 2), y1 = Math.min(H, Math.ceil((r.y + r.h) * v.sy) + 2);
     if (x1 <= x0 || y1 <= y0) return;
     const m = mask.getImageData(x0, y0, x1 - x0, y1 - y0).data, need = needRatio(it.px);
     const inks = inkOf(it);
@@ -354,6 +360,7 @@ export function photoPixels(spec: Spec, use: Use = {}): { items: number; measure
     out.worst = Math.min(out.worst, worst);
     if (worst < need - 1e-6 && out.lows.length < 6) out.lows.push({ part: `${it.slot}.${it.part}`, ratio: Math.round(worst * 100) / 100 });
   });
+  (base0.canvas as OffscreenCanvas).width = 0; (mask.canvas as OffscreenCanvas).width = 0;
   return out;
 }
 
@@ -445,4 +452,121 @@ export function treatBench(spec: Spec, use: Use = {}): { treat: string; w: numbe
   if (!treatedBox(g, 1, true)) return null;
   const t3 = performance.now();
   return { treat: String(g.params.treat ?? 'colour'), w: Math.ceil(g.box.w), h: Math.ceil(g.box.h), ms: t3 - t2, render: t1 - t0 };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Row R16: export proofs
+
+const rgbDiff = (a: Uint8ClampedArray, b: Uint8ClampedArray) => {
+  let diff = 0, max = 0;
+  if (a.length !== b.length) return { diff: -1, max: 255 };
+  for (let i = 0; i < a.length; i += 4) for (let c = 0; c < 3; c++) { const d = Math.abs(a[i + c] - b[i + c]); if (d) { diff++; if (d > max) max = d; } }
+  return { diff, max };
+};
+const pixelsOf = (c: HTMLCanvasElement | OffscreenCanvas) => (c.getContext('2d', { willReadFrequently: true } as CanvasRenderingContext2DSettings) as Ctx).getImageData(0, 0, c.width, c.height).data;
+
+/**
+ * Done when (R16): a strip-rendered export is pixel-identical to a single-canvas one of the same spec. The trim drawn
+ * on one canvas and in strips of `rows` rows, compared byte for byte (RGB). `diff`: channel values that differ.
+ */
+export async function stripsSame(spec: Spec, use: Use, size: Size, rows: number, only?: number[]): Promise<{ w: number; h: number; diff: number; max: number; strips: number; drawn: number; restored: number; single: number; striped: number; where: [number, number, number, number][] }> {
+  const D = exportDims(spec.format, size), sc0 = sceneOf(spec, browserMeasure(), use);
+  const sc = only ? { ...sc0, items: sc0.items.filter((_, i) => only.includes(i)) } : sc0;
+  const c = new OffscreenCanvas(D.trimW, D.trimH);
+  let t0 = performance.now();
+  renderSingle(c, spec, sc, D);
+  const single = performance.now() - t0, A = pixelsOf(c);
+  c.width = 0;
+  const B = new Uint8ClampedArray(D.trimW * D.trimH * 4);
+  t0 = performance.now();
+  // rows 0: the whole canvas twice (is the single render itself deterministic at this size)
+  const r = rows ? await renderStrips(spec, sc, D, rows, { rows: (d, y) => { B.set(d, y * D.trimW * 4); } }) : (() => { const c2 = new OffscreenCanvas(D.trimW, D.trimH); renderSingle(c2, spec, sc, D); B.set(pixelsOf(c2)); c2.width = 0; return { strips: 1, drawn: 1, restored: 0 }; })();
+  const striped = performance.now() - t0;
+  // where they differ: rows (first 40 with a difference) and the x range there, for a report
+  const where: [number, number, number, number][] = [];
+  for (let y = 0; y < D.trimH && where.length < 40; y++) {
+    let n = 0, x0 = -1, x1 = -1;
+    for (let x = 0; x < D.trimW; x++) { const i = (y * D.trimW + x) * 4; if (A[i] !== B[i] || A[i + 1] !== B[i + 1] || A[i + 2] !== B[i + 2]) { n++; if (x0 < 0) x0 = x; x1 = x; } }
+    if (n) where.push([y, n, x0, x1]);
+  }
+  return { w: D.trimW, h: D.trimH, ...rgbDiff(A, B), ...r, single, striped, where };
+}
+
+/**
+ * The same file three ways: one canvas, strips joined in one canvas, strips written straight into a PNG; each
+ * decoded by the browser and compared with the first (bleed included where asked).
+ */
+export async function exportPaths(spec: Spec, use: Use, size: Size, bleed: boolean): Promise<{ w: number; h: number; strips: { diff: number; max: number; w: number; h: number }; png: { diff: number; max: number; w: number; h: number }; hows: string[] }> {
+  const dec = async (b: Blob) => { const im = await createImageBitmap(b); const c = new OffscreenCanvas(im.width, im.height); (c.getContext('2d') as Ctx).drawImage(im, 0, 0); im.close(); const d = pixelsOf(c); return { d, w: c.width, h: c.height }; };
+  const a = await makeExport(spec, use, size, bleed, 'png');
+  const A = await dec(a.blob);
+  const b = await makeExport(spec, use, size, bleed, 'png', {}, 'strips');
+  const B = await dec(b.blob);
+  const c = await makeExport(spec, use, size, bleed, 'png', {}, 'strips-png');
+  const C = await dec(c.blob);
+  return { w: A.w, h: A.h, strips: { ...rgbDiff(A.d, B.d), w: B.w, h: B.h }, png: { ...rgbDiff(A.d, C.d), w: C.w, h: C.h }, hows: [a.how, b.how, c.how] };
+}
+
+/**
+ * Carried R16 (from R7): marks and finishes drawn at the export size. Marks: the design's marks alone, drawn at 1x and
+ * at `size`, the latter averaged down to 1x; `iou`: the share of covered pixels of each that the other covers within a
+ * pixel (1: the same marks in the same places at the same size; marks drawn at 1x size into a 3x file would cover a
+ * ninth). Finish: the share of side-by-side pixel pairs that differ at `size` (a finish made at 1x and scaled up would
+ * repeat each pixel, so at 3x at most a third of pairs could differ; one made at the export size changes nearly all).
+ */
+export function scaleProof(spec: Spec, use: Use, size: Size, wrong = false): { marks: number; iou: number; pairs: number } {
+  const sc = sceneOf(spec, browserMeasure(), use), D = exportDims(spec.format, size), [W, H] = FORMATS[spec.format];
+  const k = Math.round(D.trimW / W);
+  const marksOnly = { noGround: true, only: (i: import('./scene').Item) => i.kind === 'graphic' && i.layer === 'mark' };
+  const one = canvas(W, H);
+  paint(one, sc, null, marksOnly);
+  const big = canvas(D.trimW, D.trimH);
+  // `wrong` (the test of the test): marks drawn at their 1080 sizes into the big canvas, a finish made at 1x and scaled up
+  if (!wrong) setView(big.canvas as OffscreenCanvas, exportView(sc.w, sc.h, D.trimW, D.trimH));
+  paint(big, sc, null, marksOnly);
+  const a = one.getImageData(0, 0, W, H).data, b = big.getImageData(0, 0, D.trimW, D.trimH).data;
+  // coverage at 1x of each, the large one averaged down; a pixel of one matches where the other covers it or a
+  // neighbour (hairlines land a pixel apart once averaged)
+  const A1 = new Uint8Array(W * H), B1 = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let s = 0;
+    for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) s += b[(((y * k + j) * D.trimW) + x * k + i) * 4 + 3];
+    A1[y * W + x] = a[(y * W + x) * 4 + 3] >= 128 ? 1 : 0;
+    B1[y * W + x] = s / (k * k) >= 128 ? 1 : 0;
+  }
+  const near = (M: Uint8Array, x: number, y: number) => { for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const X = x + i, Y = y + j; if (X >= 0 && Y >= 0 && X < W && Y < H && M[Y * W + X]) return true; } return false; };
+  let inter = 0, uni = 0;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const p = y * W + x;
+    if (A1[p]) { uni++; if (near(B1, x, y)) inter++; }
+    if (B1[p]) { uni++; if (near(A1, x, y)) inter++; }
+  }
+  const marks = sc.items.filter((i) => i.kind === 'graphic' && i.layer === 'mark').length;
+  // the finish at the export size
+  const fin = canvas(D.trimW, D.trimH);
+  if (wrong) {
+    const small = canvas(W, H);
+    paintFinished(small, sc, spec);
+    fin.imageSmoothingEnabled = false;
+    fin.drawImage(small.canvas as CanvasImageSource, 0, 0, D.trimW, D.trimH);
+  } else {
+    setView(fin.canvas as OffscreenCanvas, exportView(sc.w, sc.h, D.trimW, D.trimH));
+    paintFinished(fin, sc, spec);
+  }
+  const f = fin.getImageData(0, 0, D.trimW, D.trimH).data;
+  let pairs = 0, differ = 0;
+  for (let y = 0; y < D.trimH; y += 7) for (let x = 0; x + 1 < D.trimW; x++) {
+    const i = (y * D.trimW + x) * 4;
+    pairs++;
+    if (f[i] !== f[i + 4] || f[i + 1] !== f[i + 5] || f[i + 2] !== f[i + 6]) differ++;
+  }
+  for (const c of [one, big, fin]) (c.canvas as OffscreenCanvas).width = 0;
+  return { marks, iou: uni ? inter / uni : 1, pairs: pairs ? differ / pairs : 0 };
+}
+
+/** Row R16 (Done when: the A3 render's time recorded): one export made and encoded, timed, with the JS heap after. */
+export async function exportBench(spec: Spec, use: Use, size: Size, bleed: boolean, kind: FileKind, force?: 'strips' | 'strips-png'): Promise<{ ms: number; w: number; h: number; bytes: number; how: string; strips: number; heap: number | null }> {
+  const m = await makeExport(spec, use, size, bleed, kind, {}, force);
+  const pm = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+  return { ms: m.ms, w: m.w, h: m.h, bytes: m.blob.size, how: m.how, strips: m.strips, heap: pm ? pm.usedJSHeapSize : null };
 }

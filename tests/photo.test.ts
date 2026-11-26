@@ -51,7 +51,7 @@ describe('cover (spec 8.9: from fitting to 2.5 times, offset anywhere that keeps
       expect(contains(rectQuad(d), rectQuad(g!.box), 1e-6), `${style} ${format} ${role} ${id}`).toBe(true);
       n++;
     }
-    expect(n).toBe(4 * 3 * 5 * 2 * 3);
+    expect(n).toBe(4 * FORMAT_LIST.length * 5 * 2 * 3);
   });
   test('kept on import at a long edge of 5000 px at most', () => {
     expect(keptSize(8000, 6000)).toEqual([5000, 3750]);
@@ -71,7 +71,7 @@ describe('9.2 with a test photo, every style, format and role (spec 9.4)', () =>
         fallbacks += r.fallbacks;
         expect(r.failures.map((f) => [role, id, f.failures[0], JSON.stringify(f.spec)]), `${style} ${role} ${id}`).toEqual([]);
       }
-      expect(count).toBe(5 * 2 * 3 * 2 * 7);
+      expect(count).toBe(5 * 2 * FORMAT_LIST.length * 2 * 7);
       expect(fallbacks, `${style}: fallbacks with a photo`).toBe(0);
     }, 480000);
   }

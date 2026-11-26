@@ -264,15 +264,18 @@ describe('R8: the band and the marks (Carried R8 from R13 and from R7)', () => {
   });
   test('light marks: three or more on all but at most one of 600 Brutalist designs, never none', () => {
     let few = 0, n = 0;
+    const fewOf: string[] = [];
     for (const s of specs({ styles: ['brutal'], n: 200, variants: 'cycle', marks: 'light', modes: ['light'] })) {
       n++;
       const sc = solve(s, stubMeasure).scene;
       const kinds = new Set(sc.items.filter((i): i is GraphicItem => i.kind === 'graphic' && i.layer === 'mark' && !['bar', 'card', 'label'].includes(String(i.params.kind))).map((g) => g.params.mark));
       expect(kinds.size, JSON.stringify(s.seeds)).toBeGreaterThan(0);
-      if (kinds.size < 3) few++;
+      if (kinds.size < 3) { few++; fewOf.push(`${s.format} ${sc.layout} ${sc.transform} ${JSON.stringify(s.seeds)}`); }
     }
-    console.log(`R8 marks: ${few} of ${n} Brutalist designs with fewer than three light marks`);
-    expect(n).toBe(600);
-    expect(few).toBeLessThanOrEqual(1);
+    console.log(`R8 marks: ${few} of ${n} Brutalist designs with fewer than three light marks: ${fewOf.join('; ')}`);
+    expect(n).toBe(200 * FORMAT_LIST.length);
+    // one in the 600 of the three screen formats (Carried R12 from R8 (1)); the A format of R16 adds one more of the
+    // same kind (the full-bleed bar blocking the edge strip)
+    expect(few).toBeLessThanOrEqual(2);
   }, 120000);
 });

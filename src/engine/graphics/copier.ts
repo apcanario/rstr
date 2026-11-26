@@ -7,6 +7,8 @@
  */
 import { val } from './params';
 import type { Graphic } from './types';
+import { noiseAt } from '../rng';
+import { viewOf } from '../view';
 
 export const copier: Graphic = {
   name: 'copier',
@@ -17,8 +19,9 @@ export const copier: Graphic = {
     contrast: { min: 1, max: 1.3, def: 1.14 },
   },
   draw(ctx, g, r, _T) {
-    const G = copier, cv = ctx.canvas, W = cv.width, H = cv.height;
-    if (!W || !H) return;
+    // W, H: the whole export's pixels; the canvas may be one strip of it, from export row `top` (R16)
+    const G = copier, cv = ctx.canvas, v = viewOf(ctx), W = v.W, H = v.H, top = v.top, rows = cv.height;
+    if (!W || !H || !rows) return;
     const amt = val(g, G, 'grain'), stk = val(g, G, 'streaks'), pe = val(g, G, 'edges'), k = val(g, G, 'contrast');
     // sizes are shares of the canvas, so a preview and an export look alike
     const u = W / 1080;
@@ -29,12 +32,13 @@ export const copier: Graphic = {
     // nearest text quad, as shares of the page, set by the ground part from the finished Scene
     const kp = g.keep ?? { l: 1, r: 1, t: 1 };
     eL = Math.min(eL, Math.max(0, kp.l) * W); eR = Math.min(eR, Math.max(0, kp.r) * W); eT = Math.min(eT, Math.max(0, kp.t) * H);
-    let s = ((r() * 4294967296) >>> 0) || 1;
-    const im = ctx.getImageData(0, 0, W, H), d = im.data;
+    const s = ((r() * 4294967296) >>> 0) || 1;
+    const y0 = Math.max(0, top), y1 = Math.min(H, top + rows);
+    if (y1 <= y0) return;
+    const im = ctx.getImageData(0, y0 - top, W, y1 - y0), d = im.data;
     const dust = 0.0014 / Math.max(0.25, u * u);
-    for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i += 4) {
-      s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
-      const n = (s >>> 0) / 4294967296;
+    for (let y = y0, i = 0; y < y1; y++) for (let x = 0; x < W; x++, i += 4) {
+      const n = noiseAt(s, y * W + x);
       let v = (n - 0.5) * 70 * amt + streak[y];
       if (n > 1 - dust) v += 140; else if (n < dust) v -= 170;
       if (x < eL) v -= 255 * Math.pow(1 - x / eL, 1.4) * (0.5 + n);
@@ -42,6 +46,6 @@ export const copier: Graphic = {
       if (y < eT) v -= 255 * Math.pow(1 - y / eT, 1.4) * (0.5 + n);
       for (let c = 0; c < 3; c++) { const p = (d[i + c] - 128) * k + 128 + v; d[i + c] = p < 0 ? 0 : p > 255 ? 255 : p; }
     }
-    ctx.putImageData(im, 0, 0);
+    ctx.putImageData(im, 0, y0 - top);
   },
 };

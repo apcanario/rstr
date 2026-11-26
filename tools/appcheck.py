@@ -10,7 +10,7 @@ import json, time, urllib.parse
 from PIL import Image
 from common import idle, open_app
 
-SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920)}
+SIZES = {'1:1': (1080, 1080), '3:4': (1080, 1440), '9:16': (1080, 1920), 'A': (1080, 1527)}
 STYLES = ['swiss', 'pomo', 'brutal', 'vapor']
 TABS = ['style', 'text', 'look', 'photo']
 # Advanced's tabs (spec 10.3, R10; Photo with R14)
@@ -414,7 +414,7 @@ def run(b, url, fail):
             blank = pg.evaluate('() => [...document.querySelectorAll(".tile canvas")].filter((c) => c.width < 8).length')
             if blank:
                 fail(f'{at}: {blank} style tiles have no live render')
-            for fmt in ['1:1', '3:4', '9:16']:
+            for fmt in ['1:1', '3:4', '9:16', 'A']:
                 if spec(pg)['format'] != fmt:
                     tap(pg, f'button[data-format="{fmt}"]')
                 cw, ch = pg.evaluate('() => { const c = document.querySelector("[data-testid=stage]"); return [c.width, c.height]; }')
@@ -658,40 +658,78 @@ def run(b, url, fail):
             idle(pg)
         print(f'{at}: Back restored {len(steps)} designs exactly (spec and stage pixels), typing in a field is one step, so is a range drag and a colour edit')
 
-        # export: all three sizes, JPEG and PNG, files of exactly the format's pixels, named rstr-<seed>-<format>
-        pg.click('[data-testid="export"]')
-        pg.wait_for_selector('[data-testid="export-sheet"]')
-        for f in SIZES:
-            if pg.get_attribute(f'button[data-size="{f}"]', 'aria-pressed') != 'true':
-                pg.click(f'button[data-size="{f}"]')
-        label = pg.inner_text('[data-testid="save"]').strip().lower()
-        if '3 files' not in label:
-            fail(f'{at}: the Save button says {label!r} with three sizes chosen')
-        cur = spec(pg)
-        for kind, fmt_name in [('jpeg', 'JPEG'), ('png', 'PNG')]:
-            pg.click(f'button[data-kind="{kind}"]')
+        # export (spec 10.1, R16): all four formats at 1x in JPEG, PNG and WebP; 2x and 3x; Print with its bleed; files of
+        # exactly their pixels, named rstr-<seed>-<format>-<width>
+        def save_files(want_n, label):
             downloads.clear()
             pg.click('[data-testid="save"]')
             t0 = time.time()
-            while len(downloads) < 3 and time.time() - t0 < 30:
+            while len(downloads) < want_n and time.time() - t0 < 120:
                 pg.wait_for_timeout(100)
-            if len(downloads) != 3:
-                fail(f'{at}: Save {kind} gave {len(downloads)} files, not 3')
-                continue
+            if len(downloads) != want_n:
+                fail(f'{at}: {label} gave {len(downloads)} files, not {want_n}')
             got = {}
             for d in downloads:
                 im = Image.open(d.path())
                 got[d.suggested_filename] = (im.format, im.size)
+            return got
+        pg.click('[data-testid="export"]')
+        pg.wait_for_selector('[data-testid="export-sheet"]')
+        for f in SIZES:
+            if pg.get_attribute(f'button[data-fmt="{f}"]', 'aria-pressed') != 'true':
+                pg.click(f'button[data-fmt="{f}"]')
+        pg.click('button[data-size="1x"]')
+        label = pg.inner_text('[data-testid="save"]').strip().lower()
+        if '4 files' not in label:
+            fail(f'{at}: the Save button says {label!r} with four formats chosen')
+        cur = spec(pg)
+        for kind, fmt_name in [('jpeg', 'JPEG'), ('png', 'PNG'), ('webp', 'WEBP')]:
+            pg.click(f'button[data-kind="{kind}"]')
+            got = save_files(4, f'Save {kind}')
             for f, px in SIZES.items():
-                name = pg.evaluate('([s, f, k]) => window.__rstr.app.fileName(s, f, k)', [cur, f, kind])
-                if not name.startswith('rstr-') or got.get(name) != (fmt_name, px):
+                name = pg.evaluate('([s, f, k]) => window.__rstr.app.fileName(s, f, "1x", false, k)', [cur, f, kind])
+                if not name.startswith('rstr-') or not name.endswith(f'-{px[0]}.' + {'jpeg': 'jpg', 'png': 'png', 'webp': 'webp'}[kind]) or got.get(name) != (fmt_name, px):
                     fail(f'{at}: export {kind} {f}: want {name} {fmt_name} {px}, got {got}')
+        # 2x and 3x of one format
+        for f in ['1:1', '9:16', 'A']:
+            pg.click(f'button[data-fmt="{f}"]')
+        pg.click('button[data-kind="jpeg"]')
+        for z, k in [('2x', 2), ('3x', 3)]:
+            pg.click(f'button[data-size="{z}"]')
+            got = save_files(1, f'Save 3:4 {z}')
+            want = (1080 * k, 1440 * k)
+            if list(got.values()) != [('JPEG', want)] or not list(got)[0].endswith(f'-3x4-{want[0]}.jpg'):
+                fail(f'{at}: export 3:4 {z}: got {got}, want a JPEG of {want}')
+        # Print is A3: it takes the A format alone; the bleed row, the sRGB line; 3579 x 5032 with the bleed
+        pg.click('button[data-fmt="A"]')
+        if pg.query_selector('button[data-size="print"]') is None:
+            fail(f'{at}: no Print size with A ticked')
+        else:
+            pg.click('button[data-size="print"]')
+            on = [f for f in SIZES if pg.get_attribute(f'button[data-fmt="{f}"]', 'aria-pressed') == 'true']
+            if on != ['A']:
+                fail(f'{at}: Print left formats {on} ticked, want A alone')
+            info = pg.inner_text('[data-testid="export-info"]')
+            if 'sRGB' not in info or '3508' not in info:
+                fail(f'{at}: the Print sheet says {info!r}: no sRGB line or no A3 pixels')
+            pg.click('button[data-bleed="3mm"]')
+            pg.click('button[data-kind="png"]')
+            pg.evaluate('() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))')
+            for p_ in pg.evaluate(LAYOUT_JS)[:6]:
+                fail(f'{at}, export sheet with Print and bleed: {p_}')
+            got = save_files(1, 'Save Print with bleed')
+            if list(got.values()) != [('PNG', (3579, 5032))] or not list(got)[0].endswith('-A-3579.png'):
+                fail(f'{at}: Print with bleed: got {got}, want a PNG of 3579 x 5032')
+            pg.click('button[data-bleed="off"]')
+            pg.click('button[data-size="1x"]')
+        pg.click('button[data-fmt="3:4"]')
+        pg.click('button[data-fmt="A"]')
         share = pg.query_selector('[data-testid="share"]')
         can = pg.evaluate('() => typeof navigator.canShare === "function" && (() => { try { return navigator.canShare({files: [new File([new Blob(["x"])], "x.jpg", {type: "image/jpeg"})]}); } catch (e) { return false; } })()')
         if bool(share) != bool(can):
             fail(f'{at}: Share shown {bool(share)} but the browser can share files {can}')
         pg.click('[data-testid="close"]')
-        print(f'{at}: export gave 1080 x 1080, 1080 x 1440 and 1080 x 1920 files in JPEG and PNG')
+        print(f'{at}: export gave the four formats at 1x in JPEG, PNG and WebP, 3:4 at 2x and 3x, and A3 Print with its bleed (3579 x 5032), each of exactly its pixels')
 
         # reload brings back the design, Back steps, Kept, locks and the Simple/Advanced switch
         tap(pg, '[data-testid="shuffle"]')
@@ -1055,4 +1093,45 @@ def run_photo(b, url, fail):
     if errors:
         fail(f'{at}: page errors {errors[:3]}')
     print(f'{at}: a photo added through the Photo tab (orientation corrected), drawn, New crop, Layout lock holds it, a Treatment tile and Auto, Advanced role/scale/offset, back after reload, exported, Change and Remove; prune keeps what Back or Kept holds and deletes the rest; ten photos then Back x 9 leave {len(reg)} decoded, the current design (after the ten adds: {peak}); {len(reqs)} requests (service worker included), none with a body, a long URL, a query to this host or to another host; {len(sockets)} websockets')
+    pg.close()
+
+
+def run_limits(b, url, fail):
+    """Row R16 (spec 10.1, the honest failure): on a phone that makes no canvas over 6 M pixels (?maxpx), the export
+    sheet greys the sizes it cannot make as JPEG, says so, and a PNG can still be made at 3x (in strips)."""
+    at = 'app 412x915 maxpx 6M'
+    pg, errors = open_app(b, url, 412, 915, query='?maxpx=6000000')
+    downloads = []
+    pg.on('download', lambda d: downloads.append(d))
+    pg.click('[data-testid="export"]')
+    pg.wait_for_selector('[data-testid="export-sheet"]')
+    # 9:16 alone (ticked first: the last format ticked cannot be unticked)
+    for f in ['9:16'] + [x for x in SIZES if x != '9:16']:
+        on = pg.get_attribute(f'button[data-fmt="{f}"]', 'aria-pressed') == 'true'
+        if on != (f == '9:16'):
+            pg.click(f'button[data-fmt="{f}"]')
+    pg.click('button[data-kind="jpeg"]')
+    pg.wait_for_timeout(200)
+    dis = {z: pg.get_attribute(f'button[data-size="{z}"]', 'disabled') is not None for z in ['1x', '2x', '3x']}
+    info = pg.inner_text('[data-testid="export-info"]')
+    if dis != {'1x': False, '2x': True, '3x': True} or 'cannot make' not in info:
+        fail(f'{at}: JPEG sizes disabled {dis}, the sheet says {info!r}')
+    pg.click('button[data-kind="png"]')
+    pg.wait_for_timeout(200)
+    if pg.get_attribute('button[data-size="3x"]', 'disabled') is not None:
+        fail(f'{at}: a 3x PNG is greyed, but it can be written in strips')
+    pg.click('button[data-size="3x"]')
+    pg.click('[data-testid="save"]')
+    t0 = time.time()
+    while not downloads and time.time() - t0 < 120:
+        pg.wait_for_timeout(200)
+    if not downloads:
+        fail(f'{at}: the 3x PNG gave no file')
+    else:
+        im = Image.open(downloads[0].path())
+        if (im.format, im.size) != ('PNG', (3240, 5760)):
+            fail(f'{at}: the 3x PNG in strips is {im.format} {im.size}')
+    if errors:
+        fail(f'{at}: page errors ' + '; '.join(errors[:3]))
+    print(f'{at}: JPEG at 2x and 3x greyed and said so ({info.splitlines()[0] if info else ""}); a 3x PNG made in strips, 3240 x 5760')
     pg.close()

@@ -239,7 +239,7 @@ describe('R5: Swiss finished (spec 8.1, 8.5)', () => {
         n++;
       }
     }
-    expect(n).toBe(3 * 15 * 40);
+    expect(n).toBe(FORMAT_LIST.length * 15 * 40);
   });
   test('the vertical title reads up the page', () => {
     let n = 0;

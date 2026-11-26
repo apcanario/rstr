@@ -2,7 +2,7 @@
  * Swiss as finished at R5 (review R5 S4), and Postmodern, Brutalist and Vaporwave until their own rows (review
  * R13 S5), stay as they are. For each style, a
  * hash of every Scene item (kind, quad, fills, name, params, runs: the whole item, numbers rounded to 1e-3) over
- * 40 seed sets x 3 formats x 2 modes on the stub measure. A row that changes one of these styles on purpose
+ * 40 seed sets x 3 formats (1:1, 3:4, 9:16: the A format of R16 is new and is held by 9.2, not by this hash) x 2 modes on the stub measure. A row that changes one of these styles on purpose
  * updates its hash here and says so in the changelog. Bundle 3 touches shared code: a Swiss change shows here. Swiss hash updated for the bundle 2 viewer fixes (S2, M1-M4). Postmodern hash updated for R6 (both dialects built), then for the bundle 3 viewer fixes (S1, M3, M4). Brutalist hash updated for R8 (Brutalist finished). Vaporwave hash updated for R9 (Vaporwave finished), then for the R9 review fixes (S2 to S5, M1 to M4). Postmodern hash updated for the R10 review fixes (S2: a photocopy caption that does not fit beside the label on a narrow page goes under it, where the design fell back before). Brutalist hash updated for the bundle 4 viewer fixes (S2: a numeral only where it is drawn huge; S4: no cut-in in a band taller than the title). Vaporwave hash updated for the bundle 4 viewer fixes (M4: no mountains on the huge sun or the orb). Postmodern hash updated for R15 (the photocopy caption's faintest copy fades to 5.4:1, not 4.6:1, so the copier pass cannot take it under 4.5:1), then for the R15 review fixes (S3: faintest copy at 7:1 and the middle at 9:1, as every text item read with the pass showed 5.4 taken to 3.52 on paper).
  */
 import { describe, expect, test } from 'vitest';
@@ -21,7 +21,7 @@ const SNAPSHOT: Partial<Record<StyleId, string>> = {
 const round = (_k: string, v: unknown) => (typeof v === 'number' ? Math.round(v * 1000) / 1000 : v);
 export function sceneHash(style: StyleId): string {
   let h = 2166136261;
-  for (const s of specs({ styles: [style], n: 40, variants: 'cycle' })) {
+  for (const s of specs({ styles: [style], formats: ['1:1', '3:4', '9:16'], n: 40, variants: 'cycle' })) {
     const sc = solve(s, stubMeasure).scene;
     const str = JSON.stringify([sc.layout, sc.frame, sc.transform, sc.palette, sc.pairing, sc.items], round);
     for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }

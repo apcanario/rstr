@@ -12,7 +12,8 @@ import { pixelHash } from '../engine/pixels';
 import { defaultPairing } from '../data/pairings';
 import { PALETTES } from '../data/palettes';
 import { available, coreFailures, ensure, onFontsChange } from '../fonts';
-import { FORMAT_LIST, FORMATS, type Format } from '../engine/formats';
+import { exportDims, FORMAT_LIST, FORMATS, sizesOf, type Format, type Size } from '../engine/formats';
+import { exportName, ExportError, makeExport, photoNeed, workingSizes, type FileKind, type Limits } from '../engine/export';
 import { STYLES } from '../engine/styles';
 import type { Scene } from '../engine/scene';
 import { defaultSpec, FACETS, migrate, newSeed, newSeeds, seedCode, STYLE_IDS, type Facet, type Finish, type Marks, type Slot, type Spec, type StyleId } from '../engine/spec';
@@ -33,7 +34,7 @@ type Tab = 'style' | 'text' | 'look' | 'layout' | 'graphic' | 'type' | 'colour' 
 const SIMPLE_TABS: Tab[] = ['style', 'text', 'look', 'photo'];
 const ADV_TABS: Tab[] = ['style', 'layout', 'graphic', 'type', 'colour', 'text', 'photo'];
 type Sheet = null | 'kept' | 'export';
-type Kind = 'jpeg' | 'png';
+type Kind = FileKind;
 
 const FACET_LABEL: Record<Facet, string> = { layout: 'Layout', colour: 'Colour', graphic: 'Graphic', type: 'Type' };
 const REROLL_LABEL: Record<Facet, string> = { layout: 'New layout', colour: 'New colours', graphic: 'New graphic', type: 'New type' };
@@ -58,7 +59,13 @@ const num = (v: number, step: number) => (step >= 1 ? String(Math.round(v)) : St
 /** A log range's slider runs over these many steps in log space (review R10 M2). */
 const LOG_STEPS = 1000;
 const same = (a: Spec, b: Spec) => JSON.stringify(a) === JSON.stringify(b);
-export const fileName = (s: Spec, f: Format, k: Kind) => `rstr-${seedCode(s.seeds)}-${f.replace(':', 'x')}.${k === 'jpeg' ? 'jpg' : 'png'}`;
+/** Names of spec 10.1: rstr-<seed>-<format>-<width>.<ext>, the width the file's own (bleed included). */
+export const fileName = (s: Spec, f: Format, size: Size, bleed: boolean, k: Kind) => exportName(seedCode(s.seeds), f, exportDims(f, size, bleed && size === 'print').w, k);
+const SIZE_LABEL: Record<Size, string> = { '1x': '1x', '2x': '2x', '3x': '3x', print: 'Print' };
+const KINDS: [Kind, string][] = [['jpeg', 'JPEG'], ['png', 'PNG'], ['webp', 'WebP']];
+/** The tools act as a phone with a canvas limit (spec 10.1, the honest failure): ?maxpx=<pixels>. */
+const LIMITS: Limits = (() => { try { const v = Number(new URLSearchParams(location.search).get('maxpx')); return v > 0 ? { maxArea: v } : {}; } catch { return {}; } })();
+const px = (w: number, h: number) => `${w} × ${h}`;
 
 /** A label that shrinks to fit, then shortens (spec 10.1). Its text is set by fitAll, never by Preact. */
 const L = ({ t, c }: { t: string; c?: string }) => <span class={c ? `fit ${c}` : 'fit'} data-fit={t} />;
@@ -157,6 +164,9 @@ export function App({ ready }: { ready: Promise<void> }) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sizes, setSizes] = useState<Format[]>([init.current.spec.format]);
   const [kind, setKind] = useState<Kind>('jpeg');
+  const [size, setSize] = useState<Size>('1x');
+  const [bleed, setBleed] = useState(false);
+  const [expNote, setExpNote] = useState('');
   const [keptPage, setKeptPage] = useState(0);
   const [flash, setFlash] = useState<'' | 'copied' | 'copyfail' | 'kept'>('');
   const [saveNote, setSaveNote] = useState('');
@@ -258,23 +268,33 @@ export function App({ ready }: { ready: Promise<void> }) {
     else w.then(() => show('copied'), () => show('copyfail'));
   };
 
-  /** Export: each chosen size drawn at full size after its fonts (spec 4, 6), as files named rstr-<seed>-<format>. */
+  /**
+   * Export (spec 10.1): each chosen format at the chosen size, drawn at that size from the spec after its fonts and
+   * photo (spec 4, 6), as files named rstr-<seed>-<format>-<width>. A size this phone cannot make is never made
+   * smaller in silence: the sheet says so and offers the largest that works.
+   */
   const files = async (): Promise<File[]> => {
     const s = docRef.current.spec, out: File[] = [];
+    setExpNote('');
     for (const f of FORMAT_LIST.filter((x) => sizes.includes(x))) {
-      const one = { ...s, format: f };
+      const one = { ...s, format: f }, z: Size = size === 'print' && f !== 'A' ? '3x' : size, b = bleed && z === 'print';
       const { use } = await fontsFor(ready, one);
       await ensurePhoto(one.photo?.id);
-      const c = document.createElement('canvas');
-      render(c, one, null, use);
-      const type = kind === 'jpeg' ? 'image/jpeg' : 'image/png';
-      const blob = await new Promise<Blob | null>((r) => c.toBlob(r, type, 0.92));
-      if (blob) out.push(new File([blob], fileName(s, f, kind), { type }));
+      try {
+        const m = await makeExport(one, use, z, b, kind, LIMITS);
+        out.push(new File([m.blob], fileName(s, f, z, b, kind), { type: m.blob.type }));
+      } catch (e) {
+        const ok = workingSizes(f, kind, sizesOf(f), b, LIMITS), largest = ok[ok.length - 1];
+        setExpNote(`${(e as Error).message || 'Export failed'}${largest ? ` · largest that works: ${SIZE_LABEL[largest]}` : ''}`);
+        if (largest && e instanceof ExportError) setSize(largest);
+        throw e;
+      }
     }
     return out;
   };
   const save = async () => {
     setBusy(true);
+    await new Promise((r) => setTimeout(r, 30));
     try {
       for (const file of await files()) {
         const a = document.createElement('a');
@@ -284,14 +304,14 @@ export function App({ ready }: { ready: Promise<void> }) {
         setTimeout(() => URL.revokeObjectURL(a.href), 4000);
         await new Promise((r) => setTimeout(r, 150));
       }
-    } finally { setBusy(false); }
+    } catch { /* said on the sheet */ } finally { setBusy(false); }
   };
   const canShare = (() => {
     try { return typeof navigator.canShare === 'function' && navigator.canShare({ files: [new File([new Blob(['x'])], 'x.jpg', { type: 'image/jpeg' })] }); } catch { return false; }
   })();
   const share = async () => {
     setBusy(true);
-    try { await navigator.share({ files: await files() }); } catch { /* cancelled */ } finally { setBusy(false); }
+    try { await navigator.share({ files: await files() }); } catch { /* cancelled, or said on the sheet */ } finally { setBusy(false); }
   };
 
   useEffect(() => {
@@ -303,7 +323,7 @@ export function App({ ready }: { ready: Promise<void> }) {
         load: (raw: unknown) => commit(() => migrate(raw)),
         state: () => structuredClone({ spec: docRef.current.spec, back: docRef.current.back, kept: keptRef.current, locks: locksRef.current }),
         stage: () => (cv.current && cv.current.width > 1 ? pixelHash(cv.current) : ''),
-        fileName: (raw: unknown, f: Format, k: Kind) => fileName(migrate(raw), f, k),
+        fileName: (raw: unknown, f: Format, z: Size, b: boolean, k: Kind) => fileName(migrate(raw), f, z, b, k),
       },
     });
     ready.then(() => setLoaded(true));
@@ -624,6 +644,33 @@ export function App({ ready }: { ready: Promise<void> }) {
   };
   const panel = advanced ? advPages[tab] : { style: stylePages, text: textPages, look: lookPages, photo: photoPages }[tab as 'style' | 'text' | 'look' | 'photo'];
 
+  // the export sheet: which sizes this phone can make for the formats and file chosen, and what the file will be
+  const expOk = useMemo(() => {
+    if (sheet !== 'export') return [] as Size[];
+    const all: Size[] = ['1x', '2x', '3x', 'print'];
+    return all.filter((z) => sizes.every((f) => (z === 'print' && f !== 'A') || workingSizes(f, kind, [z], bleed && z === 'print', LIMITS).length > 0));
+  }, [sheet, sizes, kind, bleed]);
+  useEffect(() => {
+    if (sheet === 'export' && expOk.length && !expOk.includes(size)) setSize(expOk[expOk.length - 1]);
+  }, [sheet, expOk]);
+  const expLines = useMemo(() => {
+    if (sheet !== 'export') return [] as string[];
+    const out: string[] = [];
+    if (expNote) out.push(expNote);
+    const first = FORMAT_LIST.find((f) => sizes.includes(f)) ?? spec.format, b = bleed && size === 'print';
+    const D = exportDims(first, size === 'print' && first !== 'A' ? '3x' : size, b);
+    const cannot = (['1x', '2x', '3x', 'print'] as Size[]).filter((z) => (z !== 'print' || sizes.includes('A')) && !expOk.includes(z));
+    if (cannot.length && !expNote) out.push(`This phone cannot make ${cannot.map((z) => SIZE_LABEL[z]).join(', ')} as ${kind.toUpperCase()}${kind !== 'png' ? '; PNG may' : ''}`);
+    out.push(size === 'print' ? `A3 at 300 dpi, ${px(D.w, D.h)} px${b ? ' with 3 mm bleed' : ''}; also prints A4, A5` : sizes.length > 1 ? `${sizes.length} files, ${D.w} px wide` : `${px(D.w, D.h)} px`);
+    if (size === 'print') out.push('sRGB: saturated colours print duller than on screen');
+    if (spec.photo) {
+      const n = photoNeed({ ...spec, format: first }, { pairing: drawn.current?.pairing }, size === 'print' && first !== 'A' ? '3x' : size);
+      if (n) out.push(`Photo ${px(...n.has)} px; this size draws it at ${px(...n.wants)}${n.has[0] < n.wants[0] ? ', drawn anyway' : ''}`);
+    }
+    return out;
+  }, [sheet, sizes, size, bleed, kind, expOk, expNote, spec]);
+
+
   return (
     <div class={sheet ? 'app sheeted' : 'app'}>
       <header>
@@ -657,7 +704,7 @@ export function App({ ready }: { ready: Promise<void> }) {
         <button class="act" data-testid="back" aria-label="Back" disabled={!doc.back.length} onClick={goBack}><Icon n="back" /></button>
         <button class="shuffle" data-testid="shuffle" onClick={doShuffle}><Icon n="shuffle" /><L t="Shuffle" /></button>
         <button class={flash === 'kept' ? 'act done' : 'act'} data-testid="keep" aria-label="Keep" onClick={keep}><Icon n="keep" /></button>
-        <button class="act" data-testid="export" aria-label="Export" disabled={!loaded} onClick={() => { setSizes([spec.format]); setSheet('export'); }}><Icon n="save" /></button>
+        <button class="act" data-testid="export" aria-label="Export" disabled={!loaded} onClick={() => { setSizes([spec.format]); if (size === 'print' && spec.format !== 'A') setSize('3x'); setExpNote(''); setSheet('export'); }}><Icon n="save" /></button>
       </div>
       <nav class="tabs" role="tablist">
         {(advanced ? ADV_TABS : SIMPLE_TABS).map((t) => (
@@ -668,16 +715,42 @@ export function App({ ready }: { ready: Promise<void> }) {
       {sheet === 'export' && (
         <div class="sheet" data-testid="export-sheet" role="dialog" aria-label="Export">
           <div class="sheethead"><L t="Export" c="title" /><button class="act" data-testid="close" aria-label="Close" onClick={() => setSheet(null)}><Icon n="close" /></button></div>
-          <L t="Sizes" c="cap" />
-          <div class="seg" role="group">
-            {FORMAT_LIST.map((f) => (
-              <button class={sizes.includes(f) ? 'on' : ''} aria-pressed={sizes.includes(f)} data-size={f} onClick={() => setSizes((z) => (z.includes(f) ? (z.length > 1 ? z.filter((x) => x !== f) : z) : [...z, f]))}><L t={f} /></button>
-            ))}
+          <div class="captioned" data-row="formats">
+            <L t="Formats" c="cap" />
+            <div class="seg" role="group">
+              {FORMAT_LIST.map((f) => (
+                <button class={sizes.includes(f) ? 'on' : ''} aria-pressed={sizes.includes(f)} data-fmt={f} onClick={() => {
+                  const next = sizes.includes(f) ? (sizes.length > 1 ? sizes.filter((x) => x !== f) : sizes) : [...sizes, f];
+                  setSizes(next);
+                  // Print is A3: a format other than A takes the largest screen size instead
+                  if (size === 'print' && next.some((x) => x !== 'A')) setSize('3x');
+                }}><L t={f} /></button>
+              ))}
+            </div>
           </div>
-          <L t="File" c="cap" />
-          {seg([['jpeg', 'JPEG'], ['png', 'PNG']], kind, setKind, 'data-kind')}
+          <div class="captioned" data-row="size">
+            <L t="Size" c="cap" />
+            <div class="seg" role="group">
+              {(sizes.includes('A') ? (['1x', '2x', '3x', 'print'] as Size[]) : (['1x', '2x', '3x'] as Size[])).map((z) => (
+                <button class={size === z ? 'on' : ''} aria-pressed={size === z} data-size={z} disabled={!expOk.includes(z)} onClick={() => { setSize(z); if (z === 'print') setSizes(['A']); }}><L t={SIZE_LABEL[z]} /></button>
+              ))}
+            </div>
+          </div>
+          {size === 'print' && (
+            <div class="captioned" data-row="bleed">
+              <L t="Bleed" c="cap" />
+              {seg([['off', 'Off'], ['3mm', '3 mm']], bleed ? '3mm' : 'off', (v) => setBleed(v === '3mm'), 'data-bleed')}
+            </div>
+          )}
+          <div class="captioned" data-row="file">
+            <L t="File" c="cap" />
+            {seg(KINDS, kind, setKind, 'data-kind')}
+          </div>
+          <div class="expinfo" data-testid="export-info">
+            {expLines.map((t, i) => <L t={t} c={i === 0 && expNote ? 'hint warn' : 'hint'} />)}
+          </div>
           <div class="go">
-            <button class="primary" data-testid="save" disabled={busy} onClick={save}><Icon n="save" /><L t={`Save ${sizes.length} ${sizes.length === 1 ? 'file' : 'files'}`} /></button>
+            <button class="primary" data-testid="save" disabled={busy} onClick={save}><Icon n="save" /><L t={busy ? 'Making…' : `Save ${sizes.length} ${sizes.length === 1 ? 'file' : 'files'}`} /></button>
             {canShare && <button class="act" data-testid="share" aria-label="Share" disabled={busy} onClick={share}><Icon n="share" /></button>}
           </div>
         </div>

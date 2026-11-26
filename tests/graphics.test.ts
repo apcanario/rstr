@@ -1,3 +1,4 @@
+import { FORMAT_LIST } from '../src/engine/formats';
 import { describe, expect, test } from 'vitest';
 import { GRAPHICS } from '../src/engine/graphics';
 import { chooseParams, lerpRange, paramKey } from '../src/engine/graphics/params';
@@ -74,7 +75,7 @@ describe('9.2 with every graphic parameter at both ends of its range, per style'
         expect(reached, label + ': Scenes with the graphic but not the value').toBe(n - absent);
         expect(absent, label + ': never placed').toBeLessThan(n);
         if (absent) missing.push(`${name}.${k}=${v}: ${absent}/${n}`);
-        expect(n).toBe(2 * 3 * 2 * textVariants().length);
+        expect(n).toBe(2 * FORMAT_LIST.length * 2 * textVariants().length);
       }
       // every style places its graphic (Brutalist's band too since R8: a picked motif takes the small title)
       expect(missing, style).toEqual([]);

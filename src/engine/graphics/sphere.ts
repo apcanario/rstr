@@ -2,6 +2,7 @@
 import { TAU } from './clock';
 import { val } from './params';
 import type { Graphic } from './types';
+import { scaleOf } from '../view';
 
 export const sphere: Graphic = {
   name: 'sphere',
@@ -22,7 +23,7 @@ export const sphere: Graphic = {
     if (!(r > 0)) return;
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(tilt);
     ctx.strokeStyle = g.colours.line; ctx.lineWidth = Math.max(1.5, W * val(g, G, 'weight'));
-    ctx.shadowColor = g.colours.line; ctx.shadowBlur = W * 0.008;
+    ctx.shadowColor = g.colours.line; ctx.shadowBlur = (W * 0.008) * scaleOf(ctx);
     ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU);
     for (let i = 1; i < nLat; i++) {
       const y = -r + (2 * r * i) / nLat, rx = Math.sqrt(Math.max(0, r * r - y * y));
