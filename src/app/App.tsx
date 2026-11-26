@@ -20,7 +20,7 @@ import { fitAll } from './fit';
 import { Icon } from './icons';
 import { addKept, infoText, newCrop, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withPhoto, withStyle, type Locks, type Saved } from './state';
 import { addPhoto, ensurePhoto, prune } from '../photos';
-import { photoOf } from '../engine/photo';
+import { photoOf, releasePhotos } from '../engine/photo';
 import { advancedOf, type Advanced } from '../engine/advanced';
 import { apply, human, read, setColour, type Control, type DesignColour, type Value } from '../engine/controls';
 
@@ -186,6 +186,10 @@ export function App({ ready }: { ready: Promise<void> }) {
   const token = useRef(0);
   const lastKey = useRef<string | null>(null);
   const hold = useRef<{ t: number; fired: boolean }>({ t: 0, fired: false });
+  // review R14 S4: decoded photos stay in memory only for the current design and the Kept page shown; the rest are
+  // released after each draw and read from the phone again when a design needs them
+  const keptShown = useRef<(string | undefined)[]>([]);
+  keptShown.current = sheet === 'kept' ? kept.slice(keptPage * KEPT_PAGE, (keptPage + 1) * KEPT_PAGE).map((k) => k.photo?.id) : [];
 
   const draw = (s: Spec) => {
     const my = ++token.current;
@@ -194,6 +198,7 @@ export function App({ ready }: { ready: Promise<void> }) {
       if (my !== token.current || !cv.current) return;
       setPhotoGone(!!s.photo && !has);
       const sc = render(cv.current, s, null, use);
+      releasePhotos([s.photo?.id, ...keptShown.current]);
       drawn.current = d;
       drawnSpec.current = s;
       setNote(d.note);
@@ -380,6 +385,7 @@ export function App({ ready }: { ready: Promise<void> }) {
         if (stop || !c.parentElement) return;
         const box = c.parentElement.getBoundingClientRect(), [W, H] = FORMATS[s.format];
         thumb(c, s, Math.min(box.width - 8, ((box.height - 8) * W) / H) * devicePixelRatio, resolvePairing(s, available));
+        releasePhotos([docRef.current.spec.photo?.id, ...keptShown.current]);
       });
     });
     return () => { stop = true; };
@@ -570,7 +576,7 @@ export function App({ ready }: { ready: Promise<void> }) {
     </div>,
     <div class="captioned" data-row="photo-crop">
       <L t={photoHint} c={photoState === 'failed' || photoGone ? 'hint warn' : 'hint'} />
-      <div class="seg rerolls one" role="group"><button data-testid="photo-crop" disabled={!has} aria-label="New crop" onClick={() => commit((s) => newCrop(s))}><Icon n="reroll" /><L t="Crop" /></button></div>
+      <div class="seg rerolls one" role="group"><button data-testid="photo-crop" disabled={!has} aria-label="New crop" onClick={() => commit((s) => newCrop(s))}><Icon n="reroll" /><L t="New crop" /></button></div>
     </div>,
   ];
   const photoPages = paged(photoRows);

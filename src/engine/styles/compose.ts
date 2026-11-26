@@ -4,9 +4,9 @@
  * page; here they are put on the canvas by the plan's transform. Ground is never transformed.
  */
 import { compose, xfQuad, type Xf } from '../geom';
-import type { Item } from '../scene';
+import type { GraphicItem, Item } from '../scene';
 import type { Parts, PartCtx, Plan } from '../parts/types';
-import { photoChoice, photoItem, photoOf, photoSpot, photoText } from '../photo';
+import { PHOTO_FLOOR, PHOTO_TRIES, photoChoice, photoItem, photoOf, photoShare, photoSpot, photoText } from '../photo';
 import { COLOUR_ROLES } from '../spec';
 
 export function place(it: Item, F: Xf | undefined): Item {
@@ -32,13 +32,29 @@ export function compose5(parts: Parts, c: PartCtx): { items: Item[]; plan: Plan 
   const photo = photoOf(c.spec.photo?.id);
   if (photo) {
     const ch = photoChoice(c.spec), n0 = items.length;
-    const spot = photoSpot(ch.role, below, ground.length, c.W, c.H, plan.page, plan.xf, plan.boxes.graphic, ch.r);
-    items.splice(spot.at, 0, photoItem(photo, spot, ch.scale, ch.x, ch.y, c.P.ground));
     const colours = [...new Set(COLOUR_ROLES.map((k) => c.P[k as keyof typeof c.P]).filter((v): v is string => typeof v === 'string'))];
-    const ok = photoText(items, spot.at, below.length + 1, photo, colours, c.W, c.H, c.P.ground, c.spec.format);
+    // spec 8.9 floor: each role in the stream's order, each placement of it in turn, until one shows PHOTO_FLOOR of
+    // its box; else the placement that shows most. A candidate whose text over the photo fails is not taken.
+    let best: { items: Item[]; share: number } | null = null, first: Item[] | null = null;
+    search: for (const role of ch.order) {
+      const r = ch.r(role);
+      for (let k = 0; k < (role === 'ground' ? 2 : PHOTO_TRIES); k++) {
+        const spot = photoSpot(role, below, ground.length, c.W, c.H, plan.page, plan.xf, plan.boxes.graphic, r, k);
+        const its = items.slice();
+        its.splice(spot.at, 0, photoItem(photo, spot, ch.scale, ch.x, ch.y, c.P.ground));
+        const ok = photoText(its, spot.at, below.length + 1, photo, colours, c.W, c.H, c.P.ground, c.spec.format);
+        first ??= its;
+        if (!ok) continue;
+        const share = photoShare(its, spot.at, c.W, c.H);
+        (its[spot.at] as GraphicItem).params.share = Math.round(share * 1000) / 1000;
+        if (!best || share > best.share + 1e-9) best = { items: its, share };
+        if (share >= PHOTO_FLOOR) break search;
+      }
+    }
+    if (!best && !c.fallback) return null;
+    items.splice(0, items.length, ...(best ?? { items: first! }).items);
     const d = items.length - n0;
     for (const it of items) if (it.kind === 'graphic' && it.knock) it.knock = { ...it.knock, glyphs: it.knock.glyphs.map((i) => i + d) };
-    if (!ok && !c.fallback) return null;
   }
   // the ground's surface pass goes over everything, type included (spec 8.2 copier pass); never transformed
   items.push(...(parts.ground.pass?.(c, plan, items) ?? []));

@@ -1,5 +1,5 @@
 /** Small constructors that compute each item's world quad. */
-import { apply, bounds, rectQuad, union, xfQuad, type Quad, type Rect, type Xf } from './geom';
+import { apply, bounds, pad, rectQuad, union, unapply, xfQuad, type Quad, type Rect, type Xf } from './geom';
 import type { Measure } from './measure';
 import type { FontRef, GraphicItem, Paint, RectItem, Run, TextItem } from './scene';
 import type { Slot } from './spec';
@@ -59,3 +59,13 @@ export function mkGraphic(name: string, box: Rect, seed: number, skipN: number, 
 
 export const quadBounds = (q: Quad) => bounds(q);
 export { apply };
+
+/**
+ * A plate under text item t, in its own orientation, its ink's bounds padded by `d` (review R14 M3: the photo's
+ * plates and the colour edit's repair plates share this one helper, each with its own pad).
+ */
+export function plateUnder(t: TextItem, fill: string, d: number): RectItem {
+  if (!t.xf) return mkRect(pad(bounds(t.quad), d), fill, { plate: true });
+  const local: Quad = t.quad.map((p) => unapply(t.xf!, p));
+  return mkRect(pad(bounds(local), d), fill, { xf: t.xf, plate: true });
+}

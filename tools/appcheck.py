@@ -269,7 +269,15 @@ def run_advanced(pg, at, fail):
             # the design before the tap, so a seed that shows the control but draws the same can be opened (R14)
             fail(f'{at}: Advanced {what} drew the same stage', before)
     if find(pg, 'layout', 'button[data-ctl="layout.size"][data-v="small"]'):
-        tapped('title size Small', 'button[data-ctl="layout.size"][data-v="small"]', lambda x: x['params'].get('layout.size') == 'small')
+        # the design may already draw its title Small (review R14 E1: a Shuffle that picked small drew the same stage):
+        # Over and Small each reach the spec and draw different stages, as for title position Top and Low
+        tap(pg, 'button[data-ctl="layout.size"][data-v="oversize"]')
+        if spec(pg)['params'].get('layout.size') != 'oversize':
+            fail(f'{at}: Advanced title size Over did not reach the spec: {spec(pg)["params"]}')
+        px = stage()
+        tapped('title size Small', 'button[data-ctl="layout.size"][data-v="small"]', lambda x: x['params'].get('layout.size') == 'small', change=False)
+        if stage() == px:
+            fail(f'{at}: Advanced title sizes Over and Small drew the same stage', spec(pg))
     else:
         fail(f'{at}: no title size control on the Layout tab')
     if find(pg, 'layout', '[data-ctl-next="pick.layout"]'):
@@ -827,18 +835,33 @@ def test_jpegs(tmp):
     return out
 
 
+def test_many(tmp, n):
+    """n small photos, each a different colour, for the memory check (review R14 S4)."""
+    import os
+    from PIL import Image as I
+    out = []
+    for i in range(n):
+        p = os.path.join(tmp, f'many{i}.jpg')
+        I.new('RGB', (600 + 10 * i, 800), (20 * i, 255 - 20 * i, 90)).save(p, quality=85)
+        out.append(p)
+    return out
+
+
 def run_photo(b, url, fail):
     """Row R14 in the app (spec 8.9, 10.2, 10.3): Add a photo from the phone through the Photo tab, its orientation
     corrected; the stage draws it; it survives reload; New crop and Remove; Shuffle with Layout locked holds where it
-    sits; and no network request carries image data (every request is a GET with no body, none to a host but this
-    one and the font hosts)."""
+    sits; export with it; prune keeps what Back or Kept holds and deletes the rest; decoded photos are released; and no
+    network request carries image data (every request, the service worker's too, is a GET with no body, no URL over
+    2 KB, no query to this host, none to a host but this one and the font hosts; no websocket)."""
     import tempfile
     from urllib.parse import urlparse
     at = 'photo 412x915'
     pg, errors = open_app(b, url, 412, 915)
     host = urlparse(url).netloc
-    reqs = []
-    pg.on('request', lambda r: reqs.append((r.method, r.url, r.post_data_buffer)))
+    reqs, sockets, reg, peak = [], [], [], 0
+    # on the context, so requests the app's service worker makes itself are seen too (review R14 S3)
+    pg.context.on('request', lambda r: reqs.append((r.method, r.url, r.post_data_buffer)))
+    pg.on('websocket', lambda w: sockets.append(w.url))
     with tempfile.TemporaryDirectory() as tmp:
         upright, wide = test_jpegs(tmp)
         pg.click('[data-tab="photo"]')
@@ -910,6 +933,19 @@ def run_photo(b, url, fail):
         if json.dumps(s3, sort_keys=True) != json.dumps(st, sort_keys=True):
             fail(f'{at}: reload did not bring back the design with its photo')
         # Change: a second photo replaces the first; Remove takes it off the design
+        # export with the photo on the design: the other path its pixels take (review R14 S3)
+        pg.click('[data-testid="export"]')
+        pg.wait_for_selector('[data-testid="export-sheet"]')
+        pg.click('button[data-kind="jpeg"]')
+        downloads = []
+        pg.on('download', lambda d: downloads.append(d))
+        pg.click('[data-testid="save"]')
+        t0 = time.time()
+        while not downloads and time.time() - t0 < 30:
+            pg.wait_for_timeout(100)
+        if not downloads:
+            fail(f'{at}: export with a photo gave no file')
+        pg.click('[data-testid="close"]')
         pg.click('[data-tab="photo"]')
         pg.set_input_files('[data-testid="photo-input"]', wide)
         try:
@@ -920,13 +956,67 @@ def run_photo(b, url, fail):
         tap(pg, '[data-testid="photo-remove"]')
         if spec(pg).get('photo') is not None:
             fail(f'{at}: Remove left a photo on the design')
-        stored = pg.evaluate('() => window.__rstr.photo.stored()')
-        if pid not in stored:
-            fail(f'{at}: the first photo left the phone while Back still holds it')
+        pid2 = [x for x in pg.evaluate('() => window.__rstr.photo.stored()') if x != pid]
+        # review R14 S5: prune, tested. After a reload no photo is fresh: a photo Back still holds stays past the
+        # 3 s wait; one held only by Kept stays; one nothing holds any more leaves the phone
+        def reload_and_wait():
+            pg.wait_for_timeout(600)
+            pg.reload()
+            pg.wait_for_function('window.__rstr !== undefined')
+            pg.evaluate('() => window.__rstr.ready')
+            idle(pg)
+            pg.wait_for_timeout(3600)
+            return pg.evaluate('() => window.__rstr.photo.stored()')
+        stored = reload_and_wait()
+        if pid not in stored or not pid2 or pid2[0] not in stored:
+            fail(f'{at}: after reload a photo Back holds left the phone ({pid}, {pid2} not all in {stored})')
+        # Back once: the design with the second photo, which Kept then holds; Remove; then 32 shuffles push every
+        # design with a photo out of Back's 30 steps
+        tap(pg, '[data-testid="back"]')
+        if not (spec(pg).get('photo') or {}).get('id') in pid2:
+            fail(f'{at}: Back did not bring back the design with the second photo: {spec(pg).get("photo")}')
+        pg.click('[data-testid="keep"]')
+        idle(pg)
+        pg.click('[data-tab="photo"]')
+        tap(pg, '[data-testid="photo-remove"]')
+        for _ in range(32):
+            tap(pg, '[data-testid="shuffle"]')
+        stored = reload_and_wait()
+        back = pg.evaluate('() => JSON.parse(localStorage.getItem("rstr.app.v1")).back.map((s) => s.photo && s.photo.id)')
+        if any(back):
+            fail(f'{at}: Back still holds a photo after 32 shuffles: {back}')
+        if pid in stored:
+            fail(f'{at}: a photo no design holds any more was not deleted from the phone ({pid} in {stored})')
+        if pid2 and pid2[0] not in stored:
+            fail(f'{at}: a photo only Kept holds left the phone ({pid2[0]} not in {stored})')
+        # review R14 S4: decoded photos are released; with ten different photos in Back, after stepping back through
+        # them only the current design's stays decoded
+        many = test_many(tmp, 10)
+        pg.click('[data-tab="photo"]')
+        for f in many:
+            before = (spec(pg).get('photo') or {}).get('id')
+            pg.set_input_files('[data-testid="photo-input"]', f)
+            try:
+                pg.wait_for_function('(id) => { const p = window.__rstr.spec().photo; return p && p.id !== id; }', arg=before, timeout=15000)
+            except Exception:
+                fail(f'{at}: adding photo {f} did not put it on the design')
+            idle(pg)
+        peak = len(pg.evaluate('() => window.__rstr.photo.registered()'))
+        # Back x 9: through every one of the ten, to the first, whose photo alone stays decoded
+        for _ in range(9):
+            tap(pg, '[data-testid="back"]')
+        reg = pg.evaluate('() => window.__rstr.photo.registered()')
+        cur = (spec(pg).get('photo') or {}).get('id')
+        if not cur or reg != [cur]:
+            fail(f'{at}: after ten photos and Back x 9, {len(reg)} photos stay decoded ({reg}; current {cur})')
     bad = [(m, u[:120]) for (m, u, body) in reqs if m != 'GET' or body or u.startswith('data:') or (urlparse(u).netloc not in (host, 'fonts.googleapis.com', 'fonts.gstatic.com') and not u.startswith('blob:'))]
+    # a GET may carry data in its URL: none over 2 KB, and no query string to this host (review R14 S3)
+    bad += [('GET long', u[:120]) for (m, u, body) in reqs if len(u) > 2048 and not u.startswith('blob:')]
+    bad += [('GET query', u[:120]) for (m, u, body) in reqs if urlparse(u).netloc == host and urlparse(u).query]
+    bad += [('websocket', u[:120]) for u in sockets]
     if bad:
         fail(f'{at}: requests that could carry the photo: {bad[:4]}')
     if errors:
         fail(f'{at}: page errors {errors[:3]}')
-    print(f'{at}: a photo added through the Photo tab (orientation corrected), drawn, New crop, Layout lock holds it, Advanced role/scale/offset, back after reload, Change and Remove; {len(reqs)} requests, none with a body or to another host')
+    print(f'{at}: a photo added through the Photo tab (orientation corrected), drawn, New crop, Layout lock holds it, Advanced role/scale/offset, back after reload, exported, Change and Remove; prune keeps what Back or Kept holds and deletes the rest; ten photos then Back x 9 leave {len(reg)} decoded, the current design (after the ten adds: {peak}); {len(reqs)} requests (service worker included), none with a body, a long URL, a query to this host or to another host; {len(sockets)} websockets')
     pg.close()

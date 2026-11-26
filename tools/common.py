@@ -3,6 +3,9 @@ import functools, http.server, os, socketserver, threading
 from contextlib import contextmanager
 from playwright.sync_api import sync_playwright
 
+# requests a service worker makes itself reach the context's 'request' event (review R14 S3)
+os.environ.setdefault('PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS', '1')
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST = os.path.join(ROOT, 'dist')
 

@@ -348,7 +348,8 @@ with served() as url, browser() as b:
         for fmt in FORMATS:
             for role in ['ground', 'box', 'disc', 'column', 'band', None]:
                 for pid in ['test-portrait', 'test-landscape']:
-                    o = {'styles': [style], 'formats': [fmt], 'n': max(4, N // (40 if role else 10)), 'start': 300, 'variants': 'cycle',
+                    # a multiple of the seven text variants, so each pinned role meets each slot alone (review R14 S2)
+                    o = {'styles': [style], 'formats': [fmt], 'n': -(-max(7, N // (40 if role else 10)) // 7) * 7, 'start': 300, 'variants': 'cycle',
                          'photo': {'id': pid, 'treatment': None, 'place': {'role': role} if role else None}}
                     r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', o)
                     nph += r['count']
@@ -372,6 +373,41 @@ with served() as url, browser() as b:
                     if a != pg.evaluate('(s) => window.__rstr.pixels(s)', spec):
                         fail(f'photo determinism {style}: the same spec and photo drew different pixels', spec)
     print(f'photo pixels: {npx} text items over the photo read on pixels ({meas} measured, {plat} on a plate), none under spec 5; determinism per style; {time.time() - t1:.0f} s')
+    # review R14 S7: text over the test photo's calm sky and its hills (ground, close in, at the top and lower down),
+    # so the measured path is read on pixels often, not a handful of times
+    PH = '([s, k, i, sc, y]) => { const x = window.__rstr.spec(); x.style = s; x.format = ["1:1", "3:4", "9:16"][i % 3]; x.mode = (i >> 1) % 2 ? "dark" : "light"; x.params = {}; x.finish = "clean"; x.marks = "off"; x.pick = {palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: null}; x.seeds = {layout: 9100 + k * 37 + i, colour: 9200 + i, graphic: 9300 + k + i, type: 9400 + i}; x.photo = {id: i % 2 ? "test-landscape" : "test-portrait", treatment: null, place: sc ? {role: "ground", scale: sc, x: 0.5, y: y} : (k < 5 ? {role: ["ground", "box", "disc", "column", "band"][k]} : null)}; return x; }'
+    t1 = time.time()
+    n2 = meas2 = 0
+    for k, style in enumerate(STYLES):
+        for i in range(12):
+            for sc_, y in ((2.5, 0), (2.5, 0.7)):
+                spec = pg.evaluate(PH, [style, k, i, sc_, y])
+                r = pg.evaluate('(s) => window.__rstr.photo.pixels(s)', spec)
+                n2 += r['items']
+                meas2 += r['measured']
+                if r['low']:
+                    fail(f'photo pixels (calm) {style}: {r["low"]} of {r["masked"]} text pixels over the photo under the ratio of spec 5 {r["lows"]}', spec)
+    if meas2 < 50:
+        fail(f'photo pixels (calm): only {meas2} text items measured over the photo, want at least 50')
+    print(f'photo pixels over calm areas: {n2} text items, {meas2} measured on pixels, none under spec 5; {time.time() - t1:.0f} s')
+    # review R14 S1 (spec 8.9): the share of the photo's box that shows, read on pixels, in every style and role;
+    # the stream's choice (unpinned) must show at least 35% on pixels wherever the engine says it does
+    t1 = time.time()
+    shows = {}
+    for k, style in enumerate(STYLES):
+        for role in range(6):
+            for i in range(4):
+                spec = pg.evaluate(PH, [style, role, i, 0, 0])
+                r = pg.evaluate('(s) => window.__rstr.photo.shows(s)', spec)
+                if not r:
+                    fail(f'photo shows {style}: the design drew no photo', spec)
+                    continue
+                key = f'{style} {"unpinned" if role == 5 else r["role"]}'
+                shows.setdefault(key, []).append(r['share'])
+                if role == 5 and r['scene'] >= 0.35 and r['share'] < 0.35:
+                    fail(f'photo shows {style} unpinned {r["role"]}: {r["share"]:.2f} of its box on pixels, the Scene said {r["scene"]:.2f}', spec)
+    under = {key: sum(1 for v in vs if v < 0.35) for key, vs in shows.items()}
+    print(f'photo shows (pixels): {sum(len(v) for v in shows.values())} designs; under 35% of the box: ' + ', '.join(f'{key} {n}/{len(shows[key])}' for key, n in sorted(under.items()) if n) + f'; {time.time() - t1:.0f} s')
     print(f'engine checks took {time.time() - t0:.0f} s')
     # spec 6: online loading, the cache, the 4 s wait, the note, and no layout with a fallback face
     t0 = time.time()

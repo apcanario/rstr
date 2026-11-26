@@ -13,9 +13,9 @@ import type { Form } from '../data/palettes';
 import { contrast, needRatio } from './colour';
 import { patternFill } from './graphics/pattern';
 import { designRoles, editedForm } from './controls';
-import { bounds, pad, unapply, type Quad } from './geom';
+import { bounds, type Quad } from './geom';
 import { coloursOf, haloOf, lowContrast, OUTLINE_MIN } from './invariants';
-import { mkRect } from './items';
+import { plateUnder } from './items';
 import type { Item, Paint, Scene, TextItem } from './scene';
 import { COLOUR_ROLES, type Spec } from './spec';
 
@@ -66,14 +66,6 @@ function worst(t: TextItem, bg: string[]): number {
   return w;
 }
 
-/** A plate under text item t, in its own orientation, a little larger than its ink. */
-export function plateFor(t: TextItem, fill: string) {
-  const d = Math.max(4, t.size * 0.12);
-  if (!t.xf) return mkRect(pad(bounds(t.quad), d), fill, { plate: true });
-  const local: Quad = t.quad.map((p) => unapply(t.xf!, p));
-  return mkRect(pad(bounds(local), d), fill, { xf: t.xf, plate: true });
-}
-
 /**
  * The Scene with this design's colour edits (spec 5); unchanged when there are none. Text that falls under contrast
  * takes another of the design's colours as its ink, else a plate; what cannot pass is named in `colourWarn`.
@@ -112,7 +104,7 @@ export function applyColourEdits(sc0: Scene, P: Form, s: Spec): Scene {
       }
       if (!best) continue;
       // the plate goes under the first text item it would cover, so it is never drawn over text (rule 3)
-      const plate = plateFor(best.u, best.plate);
+      const plate = plateUnder(best.u, best.plate, Math.max(4, best.u.size * 0.12));
       let at = i;
       for (let j = 0; j < i; j++) if (items[j].kind === 'text' && overlapsQuad(items[j] as TextItem, plate.quad)) { at = j; break; }
       items[i] = best.u;

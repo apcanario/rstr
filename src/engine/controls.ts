@@ -180,8 +180,12 @@ export function photoControls(q: ControlQuery): Control[] {
   const g = q.scene.items.find((i) => i.kind === 'graphic' && i.name === 'photo');
   if (!q.spec.photo || !g || g.kind !== 'graphic') return [];
   const P = g.params as Record<string, number | string>, b = g.box;
-  const room = (d: number, size: number, at: number) => (size - d > 0.5 ? (at - Number(d === b.w ? P.x : P.y)) / (size - d) : 0.5);
-  const sx = room(b.w, Number(P.w), b.x), sy = room(b.h, Number(P.h), b.y);
+  // the offset as a share of the room the scale leaves, per axis (review R14 S6: a square box read x for both)
+  const room = (axis: 'x' | 'y') => {
+    const d = axis === 'x' ? b.w : b.h, size = Number(axis === 'x' ? P.w : P.h), at = axis === 'x' ? b.x : b.y;
+    return size - d > 0.5 ? (at - Number(P[axis])) / (size - d) : 0.5;
+  };
+  const sx = room('x'), sy = room('y');
   const role = withDrawn(choice('photo.role', 'Role', { at: 'photo', key: 'role' }, 'layout', ['ground', 'box', 'disc', 'column', 'band'],
     (v) => ({ ground: 'Ground', box: 'In box', disc: 'Disc', column: 'Column', band: 'Band' })[String(v)] ?? String(v)), String(P.role));
   const range = (key: 'scale' | 'x' | 'y', label: string, min: number, max: number, shown: number | undefined, log = false): Ranged =>

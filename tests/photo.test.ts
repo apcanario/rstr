@@ -3,14 +3,16 @@ import { beforeAll, describe, expect, test } from 'vitest';
 import { solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { contains, rectQuad, xfQuad } from '../src/engine/geom';
-import { check, lowContrast } from '../src/engine/invariants';
-import { coverRect, gridOf, PHOTO_ROLES, registerPhoto, testPhoto, keptSize, photoChoice, type PhotoRole } from '../src/engine/photo';
-import { runInvariants } from '../src/engine/proof';
+import { check, inkOf, lowContrast } from '../src/engine/invariants';
+import { coverRect, gridOf, PHOTO_FLOOR, PHOTO_ROLES, registerPhoto, testPhoto, keptSize, photoChoice, toRelease, photoShare, type PhotoRole } from '../src/engine/photo';
+import { runInvariants, seedSet } from '../src/engine/proof';
 import { defaultSpec, migrate, STYLE_IDS, type Spec } from '../src/engine/spec';
 import { FORMAT_LIST } from '../src/engine/formats';
 import { newCrop, NO_LOCKS, shuffle, withPhoto } from '../src/app/state';
-import { photoControls, apply } from '../src/engine/controls';
-import type { GraphicItem, Scene } from '../src/engine/scene';
+import { photoControls, apply, designColours, setColour } from '../src/engine/controls';
+import { choosePalette } from '../src/engine/layout';
+import type { TextItem } from '../src/engine/scene';
+import type { GraphicItem, Item, Scene } from '../src/engine/scene';
 
 const PORTRAIT = 'test-portrait', LANDSCAPE = 'test-landscape';
 beforeAll(() => {
@@ -19,6 +21,12 @@ beforeAll(() => {
 });
 const photoOfScene = (sc: Scene) => sc.items.find((i): i is GraphicItem => i.kind === 'graphic' && i.name === 'photo');
 const withRole = (id: string, role: PhotoRole): Spec['photo'] => ({ id, treatment: null, place: { role } });
+/** Role, scale and offset (share of the room the scale leaves; 0.5 where there is none), each rounded to 0.05. */
+const r05 = (v: number) => Math.round(v * 20) / 20;
+function choiceKey(g: GraphicItem): string {
+  const b = g.box, P = g.params, off = (d: number, size: number, at: number, p: number) => (size - d > 0.5 ? r05((at - p) / (size - d)) : 0.5);
+  return [P.role, r05(+P.scale), off(b.w, +P.w, b.x, +P.x), off(b.h, +P.h, b.y, +P.y)].join(' ');
+}
 
 describe('cover (spec 8.9: from fitting to 2.5 times, offset anywhere that keeps the box covered)', () => {
   test('a portrait and a landscape photo cover every box at every scale and offset', () => {
@@ -57,14 +65,15 @@ describe('9.2 with a test photo, every style, format and role (spec 9.4)', () =>
     test(style, () => {
       let count = 0, fallbacks = 0;
       for (const role of PHOTO_ROLES) for (const id of [PORTRAIT, LANDSCAPE]) {
-        const r = runInvariants(stubMeasure, { styles: [style], n: 4, variants: 'cycle', photo: withRole(id, role) });
+        // seven seed sets: each of the seven text variants once per role and photo (review R14 S2: each slot alone too)
+        const r = runInvariants(stubMeasure, { styles: [style], n: 7, variants: 'cycle', photo: withRole(id, role) });
         count += r.count;
         fallbacks += r.fallbacks;
         expect(r.failures.map((f) => [role, id, f.failures[0], JSON.stringify(f.spec)]), `${style} ${role} ${id}`).toEqual([]);
       }
-      expect(count).toBe(5 * 2 * 3 * 2 * 4);
+      expect(count).toBe(5 * 2 * 3 * 2 * 7);
       expect(fallbacks, `${style}: fallbacks with a photo`).toBe(0);
-    }, 240000);
+    }, 480000);
   }
   test('every text item over the photo is on a plate or reads against the measured pixels', () => {
     let over = 0, measured = 0, plated = 0;
@@ -87,20 +96,46 @@ describe('9.2 with a test photo, every style, format and role (spec 9.4)', () =>
   }, 240000);
 });
 
+describe('text over calm areas of the photo is measured, not only plated (review R14 S7)', () => {
+  test('ground, close in on the sky and on the hills: at least 50 text items read against the pixels, every one passing', () => {
+    let over = 0, measured = 0;
+    for (const style of STYLE_IDS) for (let i = 0; i < 12; i++) for (const y of [0, 0.7]) {
+      const s: Spec = { ...defaultSpec(), seeds: seedSet(7000 + i), style, format: FORMAT_LIST[i % 3], mode: (i >> 1) % 2 ? 'dark' : 'light', finish: 'clean', marks: 'off', photo: { id: i % 2 ? LANDSCAPE : PORTRAIT, treatment: null, place: { role: 'ground', scale: 2.5, x: 0.5, y } } };
+      const sc = solve(s, stubMeasure).scene, at = sc.items.findIndex((x) => x.kind === 'graphic' && x.name === 'photo'), g = sc.items[at] as GraphicItem;
+      sc.items.forEach((t, k) => {
+        if (k <= at || t.kind !== 'text') return;
+        over++;
+        expect(lowContrast(sc, k)).toBeNull();
+        if (g.regions?.some((r) => contains(r.quad, t.quad))) measured++;
+      });
+    }
+    expect(over).toBeGreaterThan(0);
+    expect(measured).toBeGreaterThanOrEqual(50);
+  }, 240000);
+});
+
 describe('roles and crop from the layout stream (spec 8.9)', () => {
   test('30 shuffles give at least 10 distinct role-and-crop results per style', () => {
-    for (const style of STYLE_IDS) {
+    // keyed on what photoChoice decides (review R14 E2): role, scale and the offset as a share of the room, not the
+    // drawn rect, which moves with the layout's box whatever the crop does
+    const count = (style: Spec['style'], fixed: boolean) => {
       let s: Spec = { ...defaultSpec(), style, photo: { id: PORTRAIT, treatment: null, place: null } };
       const seen = new Set<string>();
       let k = 1;
       for (let i = 0; i < 30; i++) {
         s = shuffle(s, NO_LOCKS, () => (k = (k * 48271) % 2147483647));
-        const g = photoOfScene(solve(s, stubMeasure).scene)!;
-        seen.add([g.params.role, ...['x', 'y', 'w', 'h'].map((p) => Math.round(+g.params[p] / 10))].join(' '));
+        // the negative check: a crop stream stuck at one scale and offset, the role still the stream's
+        if (fixed) s = { ...s, photo: { ...s.photo!, place: { scale: 1.5, x: 0.5, y: 0.5 } } };
+        seen.add(choiceKey(photoOfScene(solve(s, stubMeasure).scene)!));
       }
+      return seen;
+    };
+    for (const style of STYLE_IDS) {
+      const seen = count(style, false);
       expect(seen.size, style).toBeGreaterThanOrEqual(10);
       const roles = new Set([...seen].map((x) => x.split(' ')[0]));
       expect(roles.size, `${style} roles`).toBeGreaterThanOrEqual(3);
+      expect(count(style, true).size, `${style}: a constant crop must fail the count`).toBeLessThan(10);
     }
   }, 240000);
   test('every role comes up', () => {
@@ -167,6 +202,82 @@ describe('the spec and the controls', () => {
     expect(t.photo!.place).toEqual({ role: 'box', scale: 1.8 });
     expect(apply(t, cs[0], null).photo!.place).toEqual({ scale: 1.8 });
     expect(photoControls({ spec: defaultSpec(), scene: solve(defaultSpec(), stubMeasure).scene })).toEqual([]);
+  });
+  test('Across and Down show their own axis on a square box (review R14 S6)', () => {
+    for (const layout of [2, 9, 31]) {
+      const s = { ...defaultSpec({ layout }), photo: { id: PORTRAIT, treatment: null, place: { role: 'disc' as const, scale: 1.6, x: 0.2, y: 0.8 } } };
+      const sc = solve(s, stubMeasure).scene, g = photoOfScene(sc)!;
+      expect(g.box.w).toBeCloseTo(g.box.h, 6);
+      const cs = photoControls({ spec: s, scene: sc }), shown = (id: string) => (cs.find((c) => c.id === id) as { shown?: number }).shown;
+      expect(shown('photo.x')).toBeCloseTo(0.2, 6);
+      expect(shown('photo.y')).toBeCloseTo(0.8, 6);
+    }
+  });
+  test('decoded photos are released but the current design\'s, the shown Kept page\'s and the held ones (review R14 S4)', () => {
+    const reg = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 't', held: true }, { id: 'd' }];
+    expect(toRelease(reg, ['b'])).toEqual(['a', 'c', 'd']);
+    expect(toRelease(reg, ['b', undefined, null, 'd', 'gone'])).toEqual(['a', 'c']);
+    expect(toRelease(reg, [])).toEqual(['a', 'b', 'c', 'd']);
+    expect(toRelease([], ['a'])).toEqual([]);
+  });
+  test('a colour edit on a design with a photo: text measured over it that the edit fails is repaired, rule 4 passing (review R14 M6)', () => {
+    let tried = 0, plated = 0;
+    for (const style of STYLE_IDS) for (let i = 0; i < 12 && plated < 8; i++) {
+      const s: Spec = { ...defaultSpec(), seeds: seedSet(500 + i), style, format: FORMAT_LIST[i % 3], mode: i % 2 ? 'dark' : 'light', photo: withRole(PORTRAIT, 'ground') };
+      const sc = solve(s, stubMeasure).scene, g = photoOfScene(sc)!;
+      const k = sc.items.findIndex((t) => t.kind === 'text' && g.regions?.some((r) => contains(r.quad, t.quad)));
+      if (k < 0) continue;
+      const t = sc.items[k] as TextItem, reg = g.regions!.find((r) => contains(r.quad, t.quad))!;
+      const ink = inkOf(t)[0].toLowerCase(), d = designColours(choosePalette(s), s, sc).find((x) => x.now === ink);
+      if (!d) continue;
+      // the ink set to a colour the photo shows right under it: it can no longer read there as it is
+      const e = setColour(s, d.roles, reg.fills[0].toLowerCase()), se = solve(e, stubMeasure).scene;
+      tried++;
+      const j = se.items.findIndex((x) => x.kind === 'text' && x.slot === t.slot && x.part === t.part);
+      const u = se.items[j] as TextItem;
+      // rules 1, 2, 3, 5 whatever the colours; rule 4 passes, or the Scene warns of the item
+      expect(check(se).filter((x) => x.rule !== 4), JSON.stringify(e)).toEqual([]);
+      if (!se.colourWarn?.includes(`${u.slot}.${u.part}`)) expect(lowContrast(se, j), JSON.stringify(e)).toBeNull();
+      const onPlate = se.items.slice(0, j).some((x) => x.kind === 'rect' && x.plate && contains(x.quad, u.quad));
+      const swapped = inkOf(u)[0].toLowerCase() !== reg.fills[0].toLowerCase();
+      expect(onPlate || swapped, `${style} ${i}: neither plated nor another ink`).toBe(true);
+      if (onPlate && lowContrast(se, j) === null) plated++;
+    }
+    expect(tried).toBeGreaterThan(0);
+    expect(plated, 'edits repaired with a plate, rule 4 passing').toBeGreaterThan(0);
+  }, 240000);
+  test('the photo shows (spec 8.9, review R14 S1): unpinned, at least PHOTO_FLOOR of its box wherever a role can show it', () => {
+    // over 100 seed sets per style: the stream's choice shows the floor, or as much as the best pinned role
+    // (a page full of type); each pinned role is drawn at the placement of it that shows most
+    const under: Record<string, number> = {};
+    for (const style of STYLE_IDS) for (let i = 0; i < 100; i++) {
+      const s: Spec = { ...defaultSpec(), seeds: seedSet(2000 + i), style, format: FORMAT_LIST[i % 3], mode: i % 2 ? 'dark' : 'light' };
+      const share = (place: Spec['photo']) => +photoOfScene(solve({ ...s, photo: place }, stubMeasure).scene)!.params.share;
+      const pinned = PHOTO_ROLES.map((r) => share(withRole(i % 2 ? PORTRAIT : LANDSCAPE, r)));
+      for (const [k, v] of pinned.entries()) if (v < PHOTO_FLOOR) under[`${style} ${PHOTO_ROLES[k]}`] = (under[`${style} ${PHOTO_ROLES[k]}`] ?? 0) + 1;
+      const u = share({ id: i % 2 ? PORTRAIT : LANDSCAPE, treatment: null, place: null });
+      expect(u, `${style} seed set ${2000 + i}: unpinned ${u}, pinned ${pinned}`).toBeGreaterThanOrEqual(Math.min(PHOTO_FLOOR, Math.max(...pinned)) - 1e-9);
+      if (u < PHOTO_FLOOR) under[`${style} unpinned`] = (under[`${style} unpinned`] ?? 0) + 1;
+    }
+    // for the record: how often each pinned role cannot show the floor (Brutalist's page is full of type)
+    console.log('photo under the floor, of 100 per style:', JSON.stringify(under));
+  }, 600000);
+  test('the share is read on the Scene: text and plates cover, an open graphic half, the canvas edge clips', () => {
+    const ph = { kind: 'graphic', name: 'photo', box: { x: 0, y: 0, w: 100, h: 100 }, quad: rectQuad({ x: 0, y: 0, w: 100, h: 100 }), cut: 'rect' } as unknown as Item;
+    const text = { kind: 'text', quad: rectQuad({ x: 0, y: 0, w: 50, h: 100 }) } as unknown as Item;
+    const open = { kind: 'graphic', name: 'lines', quad: rectQuad({ x: 50, y: 0, w: 50, h: 100 }) } as unknown as Item;
+    const plated = { ...open, plate: '#000000' } as Item;
+    const pass = { kind: 'graphic', name: 'copier', pass: true, quad: rectQuad({ x: 0, y: 0, w: 100, h: 100 }) } as unknown as Item;
+    expect(photoShare([ph], 0, 1000, 1000)).toBe(1);
+    expect(photoShare([ph, text], 0, 1000, 1000)).toBeCloseTo(0.5, 6);
+    expect(photoShare([ph, text, open], 0, 1000, 1000)).toBeCloseTo(0.25, 6);
+    expect(photoShare([ph, text, plated], 0, 1000, 1000)).toBe(0);
+    expect(photoShare([ph, pass], 0, 1000, 1000)).toBe(1);
+    // half of the box off the canvas
+    expect(photoShare([ph], 0, 50, 1000)).toBeCloseTo(0.5, 6);
+    // a disc: only its points count, so text over the box's corners hides nothing of it
+    const disc = { ...ph, cut: 'disc' } as Item, corner = { kind: 'text', quad: rectQuad({ x: 0, y: 0, w: 12, h: 12 }) } as unknown as Item;
+    expect(photoShare([disc, corner], 0, 1000, 1000)).toBe(1);
   });
   test('the grid keeps each cell\'s darkest and lightest pixel', () => {
     const px = new Uint8ClampedArray(4 * 4 * 4).fill(128);

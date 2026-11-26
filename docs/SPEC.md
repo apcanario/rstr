@@ -281,6 +281,7 @@ One photo per design, chosen from the phone. It never leaves the phone.
 - **Treatments,** picked by the graphic stream unless chosen: colour, monochrome, duotone (two palette roles), halftone, threshold, posterise (three to five palette colours), dither. Each style lists the treatments it allows and its favourite.
 - Finishes and the copier pass apply to the photo like any graphic.
 - **Text over a photo** sits on a plate or a scrim unless the measured contrast against the actual pixels behind it passes section 5.
+- **It shows** (review R14 S1). Wherever it sits, at least 35% of the photo's box shows once text, plates and the graphics over it are drawn (read on the Scene: text, plates, fields and graphics on a plate cover it, an open graphic counts as half; the smoke reads it on pixels). A placement that shows less tries the next placement of its role, then the next role from the layout stream; where none does (a role pinned in Advanced, or a page full of type) the placement that shows most is drawn. `ground` lies over every ground-layer item and every field or graphic that covers more than 80% of the canvas, and, as its second placement, over every field.
 - Graphics still draw: a photo is one more graphic the combination rule of 8.0 can use, not a replacement for them.
 - Print: a photo smaller than the export needs is drawn anyway; the export sheet says how many pixels it has against how many the size wants.
 

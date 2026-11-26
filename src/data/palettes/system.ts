@@ -9,3 +9,5 @@ export const EDIT_GREY = '#808080';
 export const PHOTO_ANY = ['#000000', '#767676', '#FFFFFF'];
 /** What a photo with transparency is flattened on when it is kept (spec 8.9). */
 export const PHOTO_FLAT = '#ffffff';
+/** The two flat pictures the photo-shows proof paints the photo as (review R14 S1): pixels that differ are the photo's. */
+export const PHOTO_PROBE = ['#000000', '#ffffff'] as const;

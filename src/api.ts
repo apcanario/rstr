@@ -13,14 +13,14 @@ import { browserMeasure } from './engine';
 import { clumsyOf, pickForGraphic, picksOf, runAdvanced, runBrutalWidth, runIndependence, runInvariants, runTune, runVariety, specs, type Opts } from './engine/proof';
 import { STYLES } from './engine/styles';
 import type { Format } from './engine/formats';
-import { bench, copierProof, photoPixels, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
+import { bench, copierProof, photoPixels, photoShows, finishProof, ghostShows, graphicLeak, knockLeak, pixelHash } from './engine/pixels';
 import { labelsOf, markOverlaps } from './engine/marks';
 import { thumb } from './engine';
 import { withStyle } from './app/state';
 import { migrate, type Spec, type StyleId } from './engine/spec';
 import { advancedOf } from './engine/advanced';
 import type { Control } from './engine/controls';
-import { photoOf, registerPhoto, testPicture, gridSize } from './engine/photo';
+import { photoOf, registerPhoto, registeredIds, testPicture, gridSize } from './engine/photo';
 import { decodePhoto, testBlob } from './engine/photoload';
 import { storedIds } from './photos';
 
@@ -109,13 +109,17 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
         const blob = await testBlob(gw, gh, testPicture(gw, gh, seed));
         const p = await decodePhoto(id, blob);
         // the picture is drawn at its grid size; layout reads it as the size asked for
-        registerPhoto({ ...p, w, h });
+        registerPhoto({ ...p, w, h, held: true });
         return { id, w, h };
       },
       /** Whether a photo is ready to draw, and its pixel size. */
       info: (id: string) => { const p = photoOf(id); return p ? { w: p.w, h: p.h, img: !!p.img } : null; },
+      /** Ids of the photos decoded in memory now (review R14 S4: only the current design's and the shown Kept page's). */
+      registered: () => registeredIds(),
       /** Ids of the photos kept on this phone (IndexedDB). */
       stored: () => storedIds(),
+      /** How much of the photo's box shows, read on pixels (review R14 S1). */
+      shows: (raw: unknown) => { const s = migrate(raw); return photoShows(s, useOf(s)); },
       /** Text over the photo read on pixels (spec 9.4). */
       pixels: (raw: unknown) => { const s = migrate(raw); return photoPixels(s, useOf(s)); },
     },

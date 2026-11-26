@@ -1,5 +1,5 @@
 /** Pixel reads for the tools: a hash of a render, and the knock-out proof. Kept in the engine (CLAUDE.md). */
-import { MARKER, MASK } from '../data/palettes/system';
+import { MARKER, MASK, PHOTO_PROBE } from '../data/palettes/system';
 import { FORMATS } from './formats';
 import { bounds, contains, overlaps } from './geom';
 import type { Ctx } from './graphics/types';
@@ -354,4 +354,35 @@ export function photoPixels(spec: Spec, use: Use = {}): { items: number; measure
     if (worst < need - 1e-6 && out.lows.length < 6) out.lows.push({ part: `${it.slot}.${it.part}`, ratio: Math.round(worst * 100) / 100 });
   });
   return out;
+}
+
+/**
+ * Review R14 S1 (spec 8.9: at least PHOTO_FLOOR of the photo's box shows), read on pixels: the design painted twice
+ * with its photo as a flat black and a flat white picture (no surface pass, no finish), and once the photo alone.
+ * `share`: the pixels of the photo's clip that differ between the two, over the clip's pixels; `scene`: the share the
+ * engine estimated on the Scene. Null when the design draws no photo.
+ */
+export function photoShows(spec: Spec, use: Use = {}): { share: number; scene: number; box: number; role: string } | null {
+  const [W, H] = FORMATS[spec.format];
+  const sc0: Scene = sceneOf(spec, browserMeasure(), use);
+  const items = sc0.items.filter((i) => !(i.kind === 'graphic' && i.pass));
+  const at = items.findIndex((i) => i.kind === 'graphic' && i.name === 'photo');
+  if (at < 0) return null;
+  const g = items[at] as import('./scene').GraphicItem;
+  // an id no photo has: the photo draws as a flat plate of `missing`, in its clip and frame
+  const flat = (c: string) => ({ ...g, params: { ...g.params, id: '\u0000flat' }, colours: { ...g.colours, missing: c } });
+  const black = flat(PHOTO_PROBE[0]), white = flat(PHOTO_PROBE[1]);
+  const a = canvas(W, H), b = canvas(W, H), m = canvas(W, H);
+  paint(a, { ...sc0, items: items.map((it, j) => (j === at ? black : it)) });
+  const wsc = { ...sc0, items: items.map((it, j) => (j === at ? white : it)) };
+  paint(b, wsc);
+  paint(m, wsc, null, { noGround: true, only: (it) => it === white });
+  const A = a.getImageData(0, 0, W, H).data, B = b.getImageData(0, 0, W, H).data, M = m.getImageData(0, 0, W, H).data;
+  let box = 0, shown = 0;
+  for (let i = 0; i < A.length; i += 4) {
+    if (M[i + 3] < 128) continue;
+    box++;
+    if (Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]) >= 24) shown++;
+  }
+  return { share: box ? shown / box : 0, scene: Number(g.params.share), box, role: String(g.params.role) };
 }
