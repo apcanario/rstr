@@ -29,7 +29,7 @@ A phone app in Simple and Advanced modes: pick a style (Swiss, Postmodern, Bruta
 | 2 | Parts and variety, Swiss | Done: R13 (parts, variety engine) and R5 (Swiss finished) and the viewer check. Closed 24 Nov 2026 |
 | 3 | Postmodern (both dialects), finishes, marks | Done: R6 (Postmodern) and R7 (finishes, marks) closed; bundle viewer check (fix) applied. Closed 24 Nov 2026 |
 | 4 | Brutalist, Vaporwave, Advanced mode | Done: R8 (Brutalist: eight layouts, size classes, a band of 12 blunt graphics, a free strip for marks) and R9 (Vaporwave: eight layouts, six new graphics, cut-ins, a sky title that reads in every palette; Shuffle no longer repeats one of the last 59 designs) and R10 (Advanced mode: six tabs generated from each part's controls, per-design colour edit, finish strengths, marks allowed) closed; bundle viewer check applied. Closed 25 Nov 2026 (Pedro looks at Brutalist, Vaporwave and Advanced before bundle 5) |
-| 5 | Photo and export, A3 print | R14 (photo), R15 (treatments) and R16 (export, A3) closed; bundle viewer check (fix) applied, bundle close next |
+| 5 | Photo and export, A3 print | Done: R14 (photo), R15 (treatments) and R16 (export, A3) and the viewer check. Closed 26 Nov 2026 |
 | 6 | Text layers, retouch | Queued |
 | 7 | Mix | Queued |
 

@@ -8,7 +8,7 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 | 2 | R13, R5 | Styles rebuilt as parts with the variety rules; Swiss finished. Pedro looks at Swiss before bundle 3. Closed 24 Nov 2026 |
 | 3 | R6, R7 | Both Postmodern dialects finished Closed 24 Nov 2026; five finishes; marks |
 | 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit. Closed 25 Nov 2026 |
-| 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print |
+| 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print. Closed 26 Nov 2026 |
 | 6 | R17, R12 | Text layers with hierarchy; retouch from notes |
 | 7 | R18 | Mix: crosses of two styles (experimental, Advanced) |
 | 8 | R19 | Finishes retouched: Grunge as a real photocopy, stronger Grain, stronger VHS (Pedro, 24 Nov 2026, from bundle 3) |
@@ -38,6 +38,8 @@ Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they 
 
 - **R14 (spec).** 25 Nov 2026, added by the R14 fixer (review R14 S1). Spec 8.9 gained an "It shows" rule: at least 35% of the photo's box shows once text, plates and graphics are drawn; where no placement reaches it the placement that shows most is drawn. Swiss misses the floor 2 times in 100 even unpinned; with the role pinned Brutalist misses it 23 to 32 times in 100 (its page is full of type), and Ground shows less than before. Pedro to say from the phone whether the rule, its 35% and the Brutalist photo matter; fix with his Notes.
 
+- **R12 (from bundle 5).** 26 Nov 2026, found by the bundle 5 viewer fixer. At 360 x 640 the second row of Treatment tiles sets its labels at 12 px against 14 px in the first, and 'Duotone' fills its tile edge to edge when the tile is marked as drawn; both pass the layout check. Pedro to say from the phone whether it matters; fix with his Notes.
+
 ## By hand (Pedro)
 
 - **H3. Run the online type checks.** Where Google Fonts is reachable (your computer): `npm ci`, `npm run smoke`, `python3 tools/fetch_fonts.py --check`, `npm run sheet`; report the output or send it as `Notes:`. Detail in Carried R3. Open until done.
@@ -53,10 +55,6 @@ Read spec 7, 8.0, 8.2, 8.5 and 8.7, `docs/design/elements.md`, and look at `docs
 ## Bundle 4: Brutalist, Vaporwave, Advanced
 
 Read spec 5, 8.0, 8.3, 8.4 and 10.3.
-
-## Bundle 5: photo and export
-
-Read spec 3 (formats), 8.9, 9.4 and 10.1 (export sheet).
 
 ## Bundle 6: text layers, retouch
 
@@ -100,6 +98,7 @@ Read spec 7.1 and `docs/design/elements.md`; look at `docs/design/refs/v2-grunge
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **Bundle 5 viewer check.** 26 Nov 2026. Fix: 0 errors, 3 should-fix, 7 minor; 10 applied by the fixer, 0 rejected. `docs/reviews/bundle-5.md`.
 - **R16. Export.** 26 Nov 2026, 1 chat (bundle 5; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R16 applied (fix: 0 errors, 4 should-fix, 9 minor; 13 applied, M7 and M8 recorded as Choices for Pedro to veto, none rejected); Carried R16 (from R7) and R16 (from R14) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R16.md`.
 - **R15. Photo treatments.** 26 Nov 2026, 1 chat (bundle 5; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R15 applied (fix: 0 errors, 5 should-fix, 8 minor; 12 applied (11 by the fixer, M8 by the main chat at close), M5 kept as built and recorded for Pedro to veto, none rejected); Carried R15 (from R14) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R15.md`.
 - **R14. Photo.** 25 Nov 2026, 1 chat (bundle 5; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R14 applied (fix: 2 errors, 7 should-fix, 6 minor; 13 applied by the fixer, M4 and M5 to Carried (R15, R16), none rejected); spec 8.9 gained the 'It shows' rule; see `docs/CHANGELOG.md` and `docs/reviews/R14.md`.
