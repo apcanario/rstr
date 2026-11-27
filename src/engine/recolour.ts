@@ -6,11 +6,12 @@
  * the best plate and the Scene lists it in `colourWarn` (the Colour tab warns). The edit is never refused.
  *
  * The faint pattern's recorded fill is mixed again from the edited ground and ink, as it is drawn (review R10 M1);
- * the other colours the styles mix from roles (photocopy contours and tape, `GraphicItem.mixed`) are mixed again from
- * the edited colours too (Carried R10 from R10). Pure and deterministic: no randomness.
+ * the other colours the styles mix from roles (photocopy contours and tape, `GraphicItem.mixed`; the photocopy info
+ * label's plate and the caption's two faded copies, `RectItem.mixed` and `TextItem.mixed`, review R12 S1) are mixed
+ * again from the edited colours too (Carried R10 from R10). Pure and deterministic: no randomness.
  */
 import type { Form } from '../data/palettes';
-import { contrast, mixHex, needRatio } from './colour';
+import { contrast, mixOf, needRatio } from './colour';
 import { patternFill } from './graphics/pattern';
 import { paletteTreat, treatColours, treatFills } from './treat';
 import { designRoles, editedForm } from './controls';
@@ -35,14 +36,19 @@ function mapPaint(p: Paint, f: (c: string) => string): Paint {
 }
 function mapItem(it: Item, f: (c: string) => string, ground: string): Item {
   if (it.kind === 'text') {
+    // a fill mixed from two palette colours (the photocopy caption's faded copies) is mixed again from them as edited,
+    // its ink with it (review R12 S1)
+    const fill0 = typeof it.fill === 'string' ? it.fill.toLowerCase() : null, re = it.mixed ? mixOf(it.mixed.fill, f) : null;
+    const g = (c: string) => (re && c.toLowerCase() === fill0 ? re : f(c));
     return {
-      ...it, fill: mapPaint(it.fill, f), ink: it.ink.map(f),
+      ...it, fill: re ?? mapPaint(it.fill, f), ink: it.ink.map(g),
       ...(it.stroke ? { stroke: { ...it.stroke, paint: mapPaint(it.stroke.paint, f) } } : {}),
       ...(it.echoes ? { echoes: it.echoes.map((e) => ({ ...e, paint: mapPaint(e.paint, f), ...(e.halo ? { halo: mapPaint(e.halo, f) } : {}) })) } : {}),
     };
   }
   if (it.kind === 'rect') {
-    return { ...it, fill: mapPaint(it.fill, f), ...(it.shadow ? { shadow: { ...it.shadow, fill: f(it.shadow.fill) } } : {}), ...(it.stroke ? { stroke: { ...it.stroke, colour: f(it.stroke.colour) } } : {}) };
+    // the photocopy info label's plate, mixed from paper and toner, is mixed again from them as edited (review R12 S1)
+    return { ...it, fill: it.mixed ? mixOf(it.mixed.fill, f) : mapPaint(it.fill, f), ...(it.shadow ? { shadow: { ...it.shadow, fill: f(it.shadow.fill) } } : {}), ...(it.stroke ? { stroke: { ...it.stroke, colour: f(it.stroke.colour) } } : {}) };
   }
   // the photo's colours are its pixels, not palette roles: an edit never touches them, except a treatment drawn in
   // palette colours (R15): those follow the edit, and what was measured under text is read again as every colour the
@@ -58,7 +64,7 @@ function mapItem(it: Item, f: (c: string) => string, ground: string): Item {
   // recorded fill with it
   const remix = new Map<string, string>();
   for (const [k, m] of Object.entries(it.mixed ?? {})) {
-    const c = mixHex(f(m.a), f(m.b), m.k);
+    const c = mixOf(m, f);
     if (it.colours[k]) remix.set(it.colours[k].toLowerCase(), c);
     colours[k] = c;
   }

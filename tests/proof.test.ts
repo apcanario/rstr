@@ -1,5 +1,6 @@
 import { FORMAT_LIST } from '../src/engine/formats';
-import { describe, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test } from 'vitest';
+import { PHOTO_ROLES, registerPhoto, testPhoto } from '../src/engine/photo';
 import { CORE_FAMILIES, CORE_FONTS, defaultPairing, faceKey, facesOf, isCoreFace, PAIRINGS, type Pairing } from '../src/data/pairings';
 import { PALETTES } from '../src/data/palettes';
 import { stubMeasure } from '../src/engine/measure';
@@ -75,6 +76,26 @@ describe('9.3 stream independence on the stub measure, light and dark', () => {
       const p = runIndependence(stubMeasure, { styles: [style], n: 6, picks: 'each', variants: 'cycle' });
       expect(p.failures, show(p.failures)).toEqual([]);
     }, 240000);
+  }
+});
+
+describe('9.3 with a test photo in every role, and unpinned (review R12 E1)', () => {
+  beforeAll(() => { registerPhoto(testPhoto('proof-photo', 3000, 4000, 7)); });
+  for (const style of STYLE_IDS) {
+    test(style, () => {
+      const type: string[] = [];
+      for (const role of [null, ...PHOTO_ROLES]) {
+        const photo = { id: 'proof-photo', treatment: null, place: role ? { role } : null };
+        const r = runIndependence(stubMeasure, { styles: [style], n: role ? 4 : 12, variants: 'cycle', photo });
+        // the colour seed, the graphic seed and the mode: the photo's place is chosen over every form, so none moves it
+        const f = r.failures.filter((x) => x.facet !== 'type moved a graphic');
+        expect(f, `${role ?? 'unpinned'}\n${show(f)}`).toEqual([]);
+        type.push(`${role ?? 'unpinned'} ${r.failures.length - f.length}/${r.count}`);
+      }
+      // the type seed can still move it: the 'It shows' floor (spec 8.9) reads the set glyphs, which the pairing
+      // changes. Not fixable within the spec: Carried as an error (review R12 E1)
+      console.log(`9.3 photo ${style}: type seed moved the photo in`, type.join(', '));
+    }, 600000);
   }
 });
 

@@ -283,8 +283,8 @@ export function copierProof(spec: Spec, use: Use = {}, wash = 0): { words: numbe
       if (r == null || r0 == null) continue;
       cells++;
       const at = { part: it.part, cell: j, ratio: Math.round(r * 100) / 100, need };
-      // `boxed`: a boxed word read against its toner box (Carried R12 from bundle 3: the smoke fails on these)
-      if (r0 < need - 1e-6) before.push({ ...at, ratio: Math.round(r0 * 100) / 100, boxed: !it.stroke?.halo && it.slot === 'title' });
+      // `boxed`: the boxed word read against its toner box (Carried R12 from bundle 3), as its item marks it (review R12 M5)
+      if (r0 < need - 1e-6) before.push({ ...at, ratio: Math.round(r0 * 100) / 100, boxed: !!it.boxed });
       else if (r < need - 1e-6) low.push(at);
     }
   });

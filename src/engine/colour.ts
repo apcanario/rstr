@@ -27,6 +27,21 @@ export function mixHex(a: string, b: string, k: number): string {
   const A = parseHex(a), B = parseHex(b);
   return toHex([A[0] + (B[0] - A[0]) * k, A[1] + (B[1] - A[1]) * k, A[2] + (B[2] - A[2]) * k]);
 }
+/** a mixed toward b until it is `ratio`:1 against a (b itself where b is under that already). */
+export function fadeTo(a: string, b: string, ratio: number): string {
+  let lo = 0, hi = 1;
+  if (contrast(b, a) < ratio) return b;
+  for (let i = 0; i < 24; i++) { const k = (lo + hi) / 2; if (contrast(mixHex(a, b, k), a) >= ratio) hi = k; else lo = k; }
+  return mixHex(a, b, hi);
+}
+/**
+ * A colour a style mixes from two palette colours (Carried R10 from R10, review R12 S1): `k`, the share of b
+ * (`mixHex`); or `fade`, b faded toward a until it is that ratio against a (`fadeTo`).
+ */
+export interface Mix { a: string; b: string; k?: number; fade?: number; }
+/** The colour a recipe makes, from its two colours as `f` maps them (an edit). */
+export const mixOf = (m: Mix, f: (c: string) => string = (c) => c): string =>
+  m.fade !== undefined ? fadeTo(f(m.a), f(m.b), m.fade) : mixHex(f(m.a), f(m.b), m.k ?? 0);
 /** Size at and above which 3:1 is enough (spec 5), in px at 1080 wide. */
 export const LARGE_TEXT_PX = 60;
 export const needRatio = (px: number) => (px >= LARGE_TEXT_PX ? 3 : 4.5);

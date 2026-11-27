@@ -11,7 +11,7 @@ import { choosePalette, solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { COPY_LAYOUTS, ICE_LAYOUTS, POMO_POS } from '../src/engine/parts/layout/pomo';
 import { copier } from '../src/engine/graphics/copier';
-import { BOX_PAD, coverOf, GHOST, inksMeet, OVER, unitsOf, type Ink } from '../src/engine/parts/type/pomo-copy';
+import { BOX_PAD, coverOf, GHOST, HALO, inksMeet, OVER, unitsOf, type Ink } from '../src/engine/parts/type/pomo-copy';
 import { fit, fitShort, inkW } from '../src/engine/text';
 import { blendDist } from '../src/engine/pixels';
 import { rng } from '../src/engine/rng';
@@ -222,6 +222,26 @@ describe('photocopy (spec 8.2)', () => {
     }
     expect(n).toBeGreaterThan(50);
   });
+  test('inksMeet on known pairs: apart, touching, overlapping, grown, and a 45 degree box by a corner (review R12 M1)', () => {
+    // a: the square x 0..10, y -10..0 (baseline origin at its bottom left)
+    const a: Ink = { x: 0, y: 0, rot: 0, l: 0, r: 10, a: 10, d: 0 };
+    const at = (x: number): Ink => ({ ...a, x });
+    expect(inksMeet(a, 0, at(20), 0)).toBe(false);
+    expect(inksMeet(a, 0, at(10), 0)).toBe(false);   // edges touching do not meet
+    expect(inksMeet(a, 0, at(9), 0)).toBe(true);
+    expect(inksMeet(a, 1, at(12), 1)).toBe(false);   // grown to 11 and from 11: touching
+    expect(inksMeet(a, 1.5, at(12), 1)).toBe(true);
+    expect(inksMeet(at(12), 1, a, 1.5)).toBe(true);
+    // a square of side 10 turned 45 degrees about its centre (16, 6): its bounds overlap a's corner, its ink does not
+    const d: Ink = { x: 16, y: 6, rot: Math.PI / 4, l: 5, r: 5, a: 5, d: 5 };
+    expect(inksMeet(a, 0, d, 0)).toBe(false);
+    expect(inksMeet(d, 0, a, 0)).toBe(false);
+    // a grown by 3: its corner (13, 3) lies inside the turned square
+    expect(inksMeet(a, 3, d, 0)).toBe(true);
+    expect(inksMeet(d, 0, a, 3)).toBe(true);
+    // the turned square moved onto a's corner meets it
+    expect(inksMeet(a, 0, { ...d, x: 13, y: 3 }, 0)).toBe(true);
+  });
   test('the boxed word\'s toner box meets no earlier title word\'s paper halo or ghost, over 400 designs in every format (Carried R12 from bundle 3)', () => {
     const bad: unknown[] = [];
     let n = 0;
@@ -236,7 +256,7 @@ describe('photocopy (spec 8.2)', () => {
       n++;
       const box = words[j];
       for (const t of words.slice(0, j)) {
-        const reach = t.size * (0.06 + (t.echoes?.length ? GHOST[1] + 0.06 : 0));
+        const reach = t.size * (HALO + (t.echoes?.length ? GHOST[1] + HALO : 0));
         if (inksMeet(inkOf(t), reach, inkOf(box), box.size * BOX_PAD)) bad.push({ spec: s, word: t.part, boxed: box.part });
       }
     }

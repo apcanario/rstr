@@ -138,8 +138,17 @@ export function runInvariants(m: Measure, o: Opts = {}, resolve?: Resolve): Repo
 
 const round = (q: number[][]) => q.map((p) => p.map((v) => Math.round(v * 100) / 100));
 // a mark's params hold its micro label, which may name the palette: a mark is compared by where it is (spec 7.2)
-const boxes = (sc: Scene, keep: (i: Item) => boolean) =>
-  JSON.stringify(sc.items.filter(keep).map((i) => [i.kind, i.kind === 'graphic' ? (i.layer === 'mark' ? [i.name, i.box] : [i.name, i.box, i.seed, i.skip, i.params, i.xf]) : i.kind === 'text' ? [i.slot, i.part] : 0, round(i.quad)]));
+/**
+ * What a facet may change on the photo item that is not where it is (review R12 E1). The colour seed and the mode: the
+ * treatment values that come from the palette (spec 8.9: duotone's two roles, halftone's light-on-dark in a dark design,
+ * posterise's colour count, a treatment a small palette cannot draw), its colours. The type seed: the share of its box
+ * that shows, a reading of the text over it (the text moves with the type seed).
+ */
+const PHOTO_FREE = { colour: ['treat', 'duo', 'inv', 'levels'], type: ['share'] } as const;
+const paramsOf = (i: Item & { kind: 'graphic' }, free?: keyof typeof PHOTO_FREE) =>
+  free && i.name === 'photo' ? Object.fromEntries(Object.entries(i.params).filter(([k]) => !(PHOTO_FREE[free] as readonly string[]).includes(k))) : i.params;
+const boxes = (sc: Scene, keep: (i: Item) => boolean, free?: keyof typeof PHOTO_FREE) =>
+  JSON.stringify(sc.items.filter(keep).map((i) => [i.kind, i.kind === 'graphic' ? (i.layer === 'mark' ? [i.name, i.box] : [i.name, i.box, i.seed, i.skip, paramsOf(i, free), i.xf]) : i.kind === 'text' ? [i.slot, i.part] : 0, round(i.quad)]));
 /** Marks sit where the text leaves room (spec 7.2): a new type seed may move them, as it moves the text. */
 const notMark = (i: Item) => !(i.kind === 'graphic' && i.layer === 'mark');
 
@@ -159,16 +168,16 @@ export function runIndependence(m: Measure, o: Opts = {}, resolve?: Resolve): { 
       return go(s);
     };
     const c = vary('colour');
-    if (boxes(base, () => true) !== boxes(c, () => true)) out.failures.push({ spec, facet: 'colour moved a box' });
+    if (boxes(base, () => true, 'colour') !== boxes(c, () => true, 'colour')) out.failures.push({ spec, facet: 'colour moved a box' });
     const t = vary('type');
-    if (boxes(base, (i) => i.kind === 'graphic' && notMark(i)) !== boxes(t, (i) => i.kind === 'graphic' && notMark(i))) out.failures.push({ spec, facet: 'type moved a graphic' });
+    if (boxes(base, (i) => i.kind === 'graphic' && notMark(i), 'type') !== boxes(t, (i) => i.kind === 'graphic' && notMark(i), 'type')) out.failures.push({ spec, facet: 'type moved a graphic' });
     // the check means something only where the type seed changed the pairing and so the text
     if (t.pairing !== base.pairing && boxes(base, (i) => i.kind === 'text') !== boxes(t, (i) => i.kind === 'text')) out.typeMoved++;
     const g = vary('graphic');
     if (boxes(base, (i) => i.kind === 'text') !== boxes(g, (i) => i.kind === 'text')) out.failures.push({ spec, facet: 'graphic moved a text box' });
     const md = structuredClone(spec);
     md.mode = spec.mode === 'light' ? 'dark' : 'light';
-    if (boxes(base, () => true) !== boxes(go(md), () => true)) out.failures.push({ spec, facet: 'mode moved a box' });
+    if (boxes(base, () => true, 'colour') !== boxes(go(md), () => true, 'colour')) out.failures.push({ spec, facet: 'mode moved a box' });
   }
   return out;
 }

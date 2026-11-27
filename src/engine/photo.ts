@@ -23,8 +23,12 @@ import { treatedRange, treatFields, treatFills, type Treat } from './treat';
 
 export const PHOTO_ROLES = ['ground', 'box', 'disc', 'column', 'band'] as const;
 export type PhotoRole = (typeof PHOTO_ROLES)[number];
-/** What Advanced (and New crop) pins: absent fields are the layout stream's. `crop` reseeds the crop alone. */
-export interface PhotoPlace { role?: PhotoRole; scale?: number; x?: number; y?: number; crop?: number; }
+/**
+ * What Advanced (and New crop) pins: absent fields are the layout stream's. `crop` reseeds the crop alone. `held`: the
+ * role was pinned by a Shuffle with Layout locked (spec 8.9: the lock holds the role), not by hand: the Photo tab shows
+ * Auto, with what the design draws, while it is set (review R12 M3).
+ */
+export interface PhotoPlace { role?: PhotoRole; held?: boolean; scale?: number; x?: number; y?: number; crop?: number; }
 export interface PhotoSpec { id: string; treatment: string | null; place: PhotoPlace | null; }
 
 /** The scale range of spec 8.9: from fitting the box to 2.5 times. */
@@ -299,10 +303,12 @@ export function photoItem(p: PhotoData, s: PhotoSpot, scale: number, x: number, 
  * Text over the photo (spec 8.9): where the measured contrast against the photo's pixels under a text item passes
  * (by MEASURE_MARGIN, its ink lighter or darker than every pixel there), the photo records what it shows there; else
  * the text gets a plate (a scrim) of the design colour that reads best with its ink, under every text item. Repeated
- * until nothing more is added, since a plate may sit under a neighbour too. Returns false if some text over the photo
- * still fails: the candidate fails. `items` is changed in place.
+ * until nothing more is added, since a plate may sit under a neighbour too. `force`: text items (ordinals among the
+ * text after the photo) plated whatever they read, because another form of the palette needs them plated (spec 9.3:
+ * the colours move no box). `ok` is false if some text over the photo still fails: the candidate fails. `plated`: the
+ * ordinals that got a plate. `items` is changed in place.
  */
-export function photoText(items: Item[], at: number, plateAt: number, p: PhotoData, colours: string[], W: number, H: number, ground: string, format: string): boolean {
+export function photoText(items: Item[], at: number, plateAt: number, p: PhotoData, colours: string[], W: number, H: number, ground: string, format: string, force: ReadonlySet<number> = new Set()): { ok: boolean; plated: number[] } {
   const g = items[at] as GraphicItem;
   const sc = { w: W, h: H, format, ground, items } as Scene;
   // measured: each text item the photo shows behind, wholly inside its clip, ink outside the pixels' range
@@ -318,24 +324,31 @@ export function photoText(items: Item[], at: number, plateAt: number, p: PhotoDa
     if (ok) regions.push({ quad: q, fills: [m.lo, m.hi] });
   }
   g.regions = regions;
+  const ord = new Map<TextItem, number>();
+  for (let i = at + 1; i < items.length; i++) if (items[i].kind === 'text') ord.set(items[i] as TextItem, ord.size);
   const plated = new Set<TextItem>();
+  // the design colour that reads best with every ink of the text
+  const plate = (t: TextItem) => {
+    let best = colours[0], score = -1;
+    for (const c of colours) { const s = Math.min(...inkOf(t).map((k) => contrast(k, c))); if (s > score + 1e-9) { score = s; best = c; } }
+    items.splice(plateAt, 0, plateUnder(t, best, Math.max(6, t.size * 0.16)));
+    plated.add(t);
+  };
+  for (const [t, o] of [...ord]) if (force.has(o) && !t.waive?.includes(4) && overlaps(g.quad, t.quad)) plate(t);
   for (let pass = 0; pass < 4; pass++) {
     let added = false;
     for (let i = at + 1; i < items.length; i++) {
       const t = items[i];
       if (t.kind !== 'text' || plated.has(t) || t.waive?.includes(4) || !overlaps(g.quad, t.quad) || !lowContrast(sc, i)) continue;
-      // the design colour that reads best with every ink of the text
-      let best = colours[0], score = -1;
-      for (const c of colours) { const s = Math.min(...inkOf(t).map((k) => contrast(k, c))); if (s > score + 1e-9) { score = s; best = c; } }
-      items.splice(plateAt, 0, plateUnder(t, best, Math.max(6, t.size * 0.16)));
-      plated.add(t);
+      plate(t);
       added = true;
       i++;
     }
     if (!added) break;
   }
-  for (let i = at + 1; i < items.length; i++) if (items[i].kind === 'text' && !(items[i] as TextItem).waive?.includes(4) && lowContrast(sc, i)) return false;
-  return true;
+  const out = [...plated].map((t) => ord.get(t)!).sort((a, b) => a - b);
+  for (let i = at + 1; i < items.length; i++) if (items[i].kind === 'text' && !(items[i] as TextItem).waive?.includes(4) && lowContrast(sc, i)) return { ok: false, plated: out };
+  return { ok: true, plated: out };
 }
 
 /**

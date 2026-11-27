@@ -297,4 +297,36 @@ describe('colours mixed from two roles follow an edit (Carried R10 from R10)', (
     expect(tape).toBeGreaterThan(5);
     expect(topo).toBeGreaterThan(5);
   });
+  test('the photocopy info label\'s plate and the caption\'s faded copies are mixed again from the edited paper and toner (review R12 S1)', async () => {
+    const { fadeTo, luminance, mixHex } = await import('../src/engine/colour');
+    const { CAPTION_FAINT, CAPTION_MID } = await import('../src/engine/parts/type/pomo-copy');
+    const { contains } = await import('../src/engine/geom');
+    let labels = 0, copies = 0, stale = 0;
+    for (const s0 of specs({ styles: ['pomo'], n: 80, pick: { dialect: 'photocopy' } })) {
+      const P = choosePalette(s0), p0 = P.paper ?? P.ground, t0 = P.toner ?? P.ink;
+      const edit = { paper: '#f3e1c8', toner: '#1b2a4a' };
+      const s: Spec = { ...s0, pick: { ...s0.pick, colours: { [s0.mode]: edit } } };
+      const after = solve(s, stubMeasure).scene;
+      const label = after.items.find((t) => t.kind === 'text' && t.slot === 'info' && t.part === 'label');
+      if (label) {
+        // the label's plate: the smallest rect that holds the label text (the paper sheet holds it too)
+        const area = (q: [number, number][]) => Math.abs(q.reduce((a, [x, y], i) => a + x * q[(i + 1) % q.length][1] - q[(i + 1) % q.length][0] * y, 0)) / 2;
+        const plate = after.items.filter((r) => r.kind === 'rect' && contains(r.quad, label.quad)).sort((a, b) => area(a.quad) - area(b.quad))[0];
+        const want = luminance(p0) > 0.4 ? mixHex(edit.paper, edit.toner, -0.16) : mixHex(edit.toner, edit.paper, 0.06);
+        expect(plate && plate.kind === 'rect' && String(plate.fill).toLowerCase()).toBe(want.toLowerCase());
+        labels++;
+      }
+      for (const [part, ratio] of [['copy1', CAPTION_MID], ['copy2', CAPTION_FAINT]] as const) {
+        const t = after.items.find((x) => x.kind === 'text' && x.slot === 'caption' && x.part === part);
+        if (!t || t.kind !== 'text') continue;
+        // the edited fade, unless rule 4 swapped its ink for another design colour; never the palette's old fade
+        const fill = String(t.fill).toLowerCase();
+        if (fill === fadeTo(edit.paper, edit.toner, ratio).toLowerCase()) copies++;
+        if (fill === fadeTo(p0, t0, ratio).toLowerCase()) stale++;
+      }
+    }
+    expect(labels).toBeGreaterThan(5);
+    expect(copies).toBeGreaterThan(10);
+    expect(stale).toBe(0);
+  });
 });

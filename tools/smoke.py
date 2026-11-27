@@ -162,8 +162,8 @@ with served() as url, browser() as b:
     # R15 S3: the caption's faintest copy, title words before). Each item's
     # fill, in cells, against its paper halo (or a boxed word's paper against its toner box), on the Clean render
     # (pass included) and on the Scene drawn without the pass: no cell at needRatio without the pass may fall under
-    # it with the pass. Cells already under it without the pass are counted and reported (colliding words, Carried
-    # R12 from bundle 3). N seed sets per format, light and dark, every text variant in turn (the 9.2 photocopy
+    # it with the pass. Cells already under it without the pass fail too (review R12 M5: none was read at R12; a
+    # boxed word's are named as such). N seed sets per format, light and dark, every text variant in turn (the 9.2 photocopy
     # designs at one text variant each, for time). A paper wash over the Clean render must fail it.
     t1 = time.time()
     for fmt in FORMATS:
@@ -184,7 +184,10 @@ with served() as url, browser() as b:
             nboxed += len(bx)
             if bx:
                 fail(f'copier {fmt}: a boxed word under its ratio on its toner box (before the pass): {bx[:3]}', spec)
-        print(f'copier pass {fmt:4}  {nd} photocopy designs, {nw} text items, {ncell} cells read with and without the pass; {nbefore} cells under their ratio before the pass, {nboxed} of them a boxed word\'s (must be 0)' + ('' if not fails else ' (failures above)'))
+            # review R12 M5: every format read 0 cells under their ratio before the pass at R12, so any such cell fails
+            elif r['before']:
+                fail(f'copier {fmt}: text under its ratio before the pass: {r["before"][:3]}', spec)
+        print(f'copier pass {fmt:4}  {nd} photocopy designs, {nw} text items, {ncell} cells read with and without the pass; {nbefore} cells under their ratio before the pass (must be 0), {nboxed} of them a boxed word\'s' + ('' if not fails else ' (failures above)'))
         # review R17 S6: the same over text layer lists
         nw = ncell = nd = nbefore = nboxed = 0
         for spec in pg.evaluate('(o) => window.__rstr.specs(o)', {'styles': ['pomo'], 'formats': [fmt], 'n': max(25, N // 8), 'start': 64, 'variants': 'cycle', 'layers': True, 'pick': {'dialect': 'photocopy'}}):
@@ -202,7 +205,9 @@ with served() as url, browser() as b:
             nboxed += len(bx)
             if bx:
                 fail(f'copier layers {fmt}: a boxed word under its ratio on its toner box (before the pass): {bx[:3]}', spec)
-        print(f'copier pass {fmt:4}  layers: {nd} photocopy designs, {nw} text items, {ncell} cells; {nbefore} cells under their ratio before the pass, {nboxed} of them a boxed word\'s (must be 0)')
+            elif r['before']:
+                fail(f'copier layers {fmt}: text under its ratio before the pass: {r["before"][:3]}', spec)
+        print(f'copier pass {fmt:4}  layers: {nd} photocopy designs, {nw} text items, {ncell} cells; {nbefore} cells under their ratio before the pass (must be 0), {nboxed} of them a boxed word\'s')
     nwash = 0
     for i in range(3):
         spec = pg.evaluate('(i) => { const x = window.__rstr.spec(); x.style = "pomo"; x.format = "1:1"; x.pick.dialect = "photocopy"; x.seeds = {layout: 70 + i, colour: 71 + i, graphic: 72 + i, type: 73 + i}; return x; }', i)

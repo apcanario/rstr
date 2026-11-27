@@ -214,6 +214,8 @@ export function App({ ready }: { ready: Promise<void> }) {
   const drawn = useRef<Drawn | null>(null);
   const pending = useRef<Promise<void>>(Promise.resolve());
   const drawnSpec = useRef<Spec | null>(null);
+  /** The Scene drawn from drawnSpec (review R12 M4: a locked Shuffle reads the photo's role from it, not a new solve). */
+  const drawnScene = useRef<Scene | null>(null);
   const token = useRef(0);
   const lastKey = useRef<string | null>(null);
   const hold = useRef<{ t: number; fired: boolean }>({ t: 0, fired: false });
@@ -232,6 +234,7 @@ export function App({ ready }: { ready: Promise<void> }) {
       releasePhotos([s.photo?.id, ...keptShown.current]);
       drawn.current = d;
       drawnSpec.current = s;
+      drawnScene.current = sc;
       setNote(d.note);
       setScene(sc);
     });
@@ -258,7 +261,9 @@ export function App({ ready }: { ready: Promise<void> }) {
   const shuffleKey = (s: Spec) => `${s.style}|${s.format}|${varietyKey(sceneOf(s))}`;
   const doShuffle = () => commit((s) => {
     // Layout locked: the photo keeps the role it is drawn in (spec 8.9, Carried R12 from R17)
-    const held = locksRef.current.layout && s.photo ? holdPhoto(s, sceneOf(s, undefined, scene ? { pairing: scene.pairing } : {})) : s;
+    // the Scene on the stage when it was drawn from this spec (review R12 M4), else one solve of it
+    const drawnOf = (x: Spec) => (drawnSpec.current === x && drawnScene.current ? drawnScene.current : sceneOf(x, undefined, scene ? { pairing: scene.pairing } : {}));
+    const held = locksRef.current.layout && s.photo ? holdPhoto(s, drawnOf(s)) : s;
     const r = shuffleFresh(held, locksRef.current, recentShuffles.current, shuffleKey);
     recentShuffles.current = r.recent;
     return preferAvailable(r.spec, locksRef.current.type);

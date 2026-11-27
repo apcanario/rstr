@@ -62,13 +62,14 @@ export function shuffle(s: Spec, locks: Locks, seed: () => number = newSeed): Sp
  * a Shuffle with Layout locked could move it (Carried R12 from R17: 5 to 7 in 100 Swiss and Brutalist shuffles moved
  * it). Before such a Shuffle the role the design draws is pinned in `photo.place`, as New crop keeps it; the crop
  * seed and the scale already come from the layout stream. Unlocked, Shuffle clears it with the rest of the place.
+ * The pin is marked `held` (review R12 M3), so the Photo tab shows Auto and what the design draws, not a hand pick.
  */
 export function holdPhoto(s: Spec, drawn: Scene | null): Spec {
   if (!s.photo || s.photo.place?.role || !drawn) return s;
   const g = drawn.items.find((i) => i.kind === 'graphic' && i.name === 'photo');
   const role = g && g.kind === 'graphic' ? g.params.role : null;
   if (typeof role !== 'string' || !(PHOTO_ROLES as readonly string[]).includes(role)) return s;
-  return { ...s, photo: { ...s.photo, place: { ...(s.photo.place ?? {}), role: role as PhotoRole } } };
+  return { ...s, photo: { ...s.photo, place: { ...(s.photo.place ?? {}), role: role as PhotoRole, held: true } } };
 }
 
 /**
@@ -108,8 +109,8 @@ export const withPhoto = (s: Spec, id: string | null): Spec => ({ ...s, photo: i
  */
 export function newCrop(s: Spec, seed: () => number = newSeed): Spec {
   if (!s.photo) return s;
-  const role = s.photo.place?.role;
-  return { ...s, photo: { ...s.photo, place: { ...(role ? { role } : {}), crop: seed() } } };
+  const role = s.photo.place?.role, held = s.photo.place?.held;
+  return { ...s, photo: { ...s.photo, place: { ...(role ? { role } : {}), ...(role && held ? { held } : {}), crop: seed() } } };
 }
 
 /** Push the design before a change onto Back, keeping the newest BACK_STEPS. */

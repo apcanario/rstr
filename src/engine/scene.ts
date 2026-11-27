@@ -1,6 +1,7 @@
 /** A Scene is plain data: what to draw and where. layout() makes it, paint() draws it. */
 import type { Quad, Rect, Xf } from './geom';
 import type { Slot } from './spec';
+import type { Mix } from './colour';
 
 export interface FontRef { family: string; weight: number; italic?: boolean; }
 export const fontCss = (f: FontRef, px: number) => `${f.italic ? 'italic ' : ''}${f.weight} ${px}px "${f.family}"`;
@@ -42,6 +43,9 @@ export interface TextItem {
   lid?: string;
   /** Set by the shared layer placer (a layer beyond the four slots), not by the style's own slot rules. */
   extra?: boolean;
+  /** A fill (and its ink) mixed from two palette colours: a colour edit mixes it again (recolour.ts, review R12 S1). */
+  mixed?: { fill: Mix };  /** The photocopy title's boxed word (paper letters on a toner box, spec 8.2): marked for the smoke's read (review R12 M5). */
+  boxed?: true;
 }
 
 export interface RectItem {
@@ -54,6 +58,8 @@ export interface RectItem {
   stroke?: { colour: string; width: number };
   quad: Quad;                // world, fill only (the shadow is in shadowQuad)
   shadowQuad?: Quad;
+  /** A fill mixed from two palette colours: a colour edit mixes it again (recolour.ts, review R12 S1). */
+  mixed?: { fill: Mix };
 }
 
 export interface GraphicItem {
@@ -77,7 +83,7 @@ export interface GraphicItem {
    * Colours mixed from two palette colours at layout time (photocopy contours and tape): colour key -> the two
    * colours and the share of the second. A colour edit mixes them again from the edited colours (recolour.ts).
    */
-  mixed?: Record<string, { a: string; b: string; k: number }>;
+  mixed?: Record<string, Mix>;
   /** Depth (spec 8.0): ground, back graphics, front graphics. Text is the top layer. A mark (spec 7.2) sits in free space over all of them. */
   layer?: 'ground' | 'back' | 'front' | 'mark';
   /** The first graphic of the design when it is drawn after the graphics cut into it (Swiss shapes): counted first. */

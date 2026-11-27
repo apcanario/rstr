@@ -66,7 +66,8 @@ export interface ControlQuery { spec: Spec; scene: Scene; }
 export function read(s: Spec, w: Where): Value {
   if (w.at === 'params') return w.key in s.params ? s.params[w.key] : null;
   if (w.at === 'pick') return s.pick[w.key] ?? null;
-  if (w.at === 'photo') return s.photo?.place?.[w.key] ?? null;
+  // a role the Layout lock holds is not a pick: the control shows Auto (review R12 M3)
+  if (w.at === 'photo') return w.key === 'role' && s.photo?.place?.held ? null : s.photo?.place?.[w.key] ?? null;
   if (w.at === 'treatment') return s.photo?.treatment ?? null;
   if (w.at === 'layer') return s.text.find((l) => l.id === w.id)?.pos ?? null;
   return leadsOf(s.text)[w.slot]?.pos ?? null;
@@ -84,6 +85,8 @@ export function write(s: Spec, w: Where, v: Value): Spec {
     if (!s.photo) return s;
     const place: Record<string, unknown> = { ...(s.photo.place ?? {}) };
     if (v === null) delete place[w.key]; else place[w.key] = v;
+    // a role set or cleared by hand is no longer the lock's
+    if (w.key === 'role') delete place.held;
     return { ...s, photo: { ...s.photo, place: Object.keys(place).length ? (place as never) : null } };
   }
   if (w.at === 'treatment') return s.photo ? { ...s, photo: { ...s.photo, treatment: v === null ? null : String(v) } } : s;

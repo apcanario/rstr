@@ -10,7 +10,8 @@ import { extrasOf, flagWeight, hasContent, pairsOf, slotsOf, stringOf, type Spec
 import { layerBans, roomFor } from './parts/shared/layers';
 import { STYLES } from './styles';
 import { textArea, type PartCtx } from './parts/types';
-import { compose5 } from './styles/compose';
+import { compose5, composeBase, composeFinish, photoPick, type Base } from './styles/compose';
+import { photoOf } from './photo';
 import { addMarks } from './marks';
 import { applyColourEdits } from './recolour';
 import { typeCap } from './controls';
@@ -170,9 +171,25 @@ function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name:
 
 function passesOnce(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name: string, measured: Map<string, FontRef>): { first: Scene | null; failures: Failure[] } {
   let first: Scene | null = null;
-  for (const Q of formsFor(spec, P)) {
-    const r = build(spec, m, Q, T, k);
-    if (!r) return { first: null, failures: [{ rule: 0, part: '-', msg: 'text does not fit' }] };
+  const forms = formsFor(spec, P);
+  const unfit = { first: null, failures: [{ rule: 0, part: '-', msg: 'text does not fit' }] };
+  // with a photo, its place is chosen once for every form (spec 9.3, review R12 E1): each form is set up to the
+  // photo, the photo's role, placement and plates are picked over all of them, then each form is finished with it
+  let built: (Built | null)[] | null = null;
+  if (photoOf(spec.photo?.id)) {
+    const parts = STYLES[spec.style].parts, bases: Base[] = [];
+    for (const Q of forms) {
+      const b = composeBase(parts, partCtx(spec, m, Q, T, k));
+      if (!b) return unfit;
+      bases.push(b);
+    }
+    const pick = photoPick(bases);
+    if (!pick) return { first: null, failures: [{ rule: 4, part: 'photo', msg: 'text over the photo fails in some form' }] };
+    built = bases.map((b) => { const r = composeFinish(b, pick); return { items: r.items, frame: r.plan.frame, transform: r.plan.transform, inert: r.plan.inert }; });
+  }
+  for (const [qi, Q] of forms.entries()) {
+    const r = built ? built[qi] : build(spec, m, Q, T, k);
+    if (!r) return unfit;
     const sc = sceneOf(spec, r.items, Q, T, name, measured, r.frame, r.transform, r.inert);
     const f = check(sc, Q === P ? [1, 2, 3, 4, 5] : [4]);
     if (f.length) return { first: null, failures: f };

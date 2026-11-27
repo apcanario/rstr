@@ -21,12 +21,14 @@ import { FORMAT_LIST } from '../src/engine/formats';
  * The fixture: 672 v1 specs (every style x format x mode x text variant, 3 seed sets; a quarter with marks, some with
  * the test photo, Swiss and Postmodern with positions set) and a hash of the whole Scene each drew, written by the
  * engine at e510dbc, the commit before R17. The hash leaves out only what R17 adds to a Scene (`lid`, `flagged`) and
- * what R12 adds (`mixed`, the recipe of a colour mixed from two roles). R12 (Carried from bundle 3) pushes a photocopy
- * boxed word clear of earlier words' paper halos on purpose: the 16 entries marked `since: "R12"` (photocopy
- * copy-stack designs whose boxed word moved) were recorded again at R12; the other 656 still hold the pre-R17 Scene.
+ * what R12 adds (`mixed`, the recipe of a colour mixed from two roles; `boxed`, the photocopy boxed word's mark). R12
+ * (Carried from bundle 3) pushes a photocopy boxed word clear of earlier words' paper halos on purpose: the 16 entries
+ * marked `since: "R12"` (photocopy copy-stack designs whose boxed word moved) were recorded again at R12. Review R12 E1
+ * chooses the photo's place once over every form of the palette list: the 6 entries marked `since: "R12 E1"` (Swiss
+ * designs with the test photo, of 101 with it) were recorded again then; the other 650 still hold the pre-R17 Scene.
  */
 const FIX: { spec: Record<string, unknown>; fp: string; frame: string }[] = JSON.parse(readFileSync(new URL('./fixtures/v1-kept.json', import.meta.url), 'utf8'));
-const strip = (k: string, v: unknown) => (k === 'lid' || k === 'flagged' || k === 'mixed' ? undefined : v);
+const strip = (k: string, v: unknown) => (k === 'lid' || k === 'flagged' || k === 'mixed' || k === 'boxed' ? undefined : v);
 function fp(sc: unknown): string {
   const s = JSON.stringify(sc, strip);
   let h = 2166136261;

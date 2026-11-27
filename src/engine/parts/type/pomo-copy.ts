@@ -14,7 +14,7 @@
  * Info and caption share a band at the free end (opposite sides of it); the title and subtitle take the zone.
  * Word attitudes come from the layout seed (a stream of their own per candidate), never the graphic stream.
  */
-import { contrast, firstInk, luminance, mixHex, needRatio } from '../../colour';
+import { firstInk, luminance, mixOf, needRatio, type Mix } from '../../colour';
 import type { Rect, Xf } from '../../geom';
 import { mkRect, mkText } from '../../items';
 import { mix, rng, type Rng } from '../../rng';
@@ -27,7 +27,8 @@ import type { PartCtx, Plan } from '../types';
 const MIN = { title: 40, subtitle: 20, info: 16, caption: 16 };
 /** Ghost, box and slice choices for each title unit. */
 const RELS = [0.62, 0.85, 1, 1.25, 1.6];
-const HALO = 0.06;
+/** The paper halo round a photocopy title word, in em. */
+export const HALO = 0.06;
 /** Negative leading: a word's padded top runs this share of itself into the word above. */
 const LEAD = 0.78;
 /** The ghost copy's offset, each axis, in em: clear of the 0.06 em halo so it shows as its own copy (review R6 E1). */
@@ -78,13 +79,6 @@ export const CAPTION_FAINT = 7;
 /** The middle copy's contrast on the paper: a step stronger than the faintest. */
 export const CAPTION_MID = 9;
 /** The mix of a toward b with the least share of b that reaches the ratio on a (so the copy fades as far as it may). */
-function fadeTo(a: string, b: string, ratio: number): string {
-  let lo = 0, hi = 1;
-  if (contrast(b, a) < ratio) return b;
-  for (let i = 0; i < 24; i++) { const k = (lo + hi) / 2; if (contrast(mixHex(a, b, k), a) >= ratio) hi = k; else lo = k; }
-  return mixHex(a, b, hi);
-}
-
 /** Title units: the words, or past five words, pairs of them; a typed line break is kept as a unit break. */
 export function unitsOf(title: string): string[] {
   const paras = title.split('\n').map((p) => p.trim().split(/\s+/).filter(Boolean)).filter((p) => p.length);
@@ -107,7 +101,9 @@ export function copyType(c: PartCtx, plan: Plan): Item[] | null {
   const { W, spec, m, P, T } = c;
   const tx = c.tx, force = c.fallback, pos = plan.pos ?? {};
   const paper = P.paper ?? P.ground, toner = P.toner ?? P.ink, spot = P.spot ?? toner;
-  const label = luminance(paper) > 0.4 ? mixHex(paper, toner, -0.16) : mixHex(toner, paper, 0.06);
+  // the label's plate, mixed from paper and toner: recorded, so a colour edit mixes it again (review R12 S1)
+  const labelMix: Mix = luminance(paper) > 0.4 ? { a: paper, b: toner, k: -0.16 } : { a: toner, b: paper, k: 0.06 };
+  const label = mixOf(labelMix);
   const edge = spec.params['pomo.paperEdge'] !== false;
   const area = plan.boxes.text, tz = plan.boxes.title ?? area;
   const rw: Rng = rng(mix(spec.seeds.layout, 0x9a9e5 + Math.max(0, c.k)));
@@ -129,7 +125,7 @@ export function copyType(c: PartCtx, plan: Plan): Item[] | null {
         const xf: Xf = { x: 0, y: 0, rot: (rw() - 0.5) * 0.07 };
         const ink = firstInk([toner, paper], [label], 4.5);
         infoB = { w: 0, h: 0, items: [
-          mkRect({ x: 0, y: 0, w: bw, h: bh }, label, { xf, plate: true }),
+          { ...mkRect({ x: 0, y: 0, w: bw, h: bh }, label, { xf, plate: true }), mixed: { fill: labelMix } },
           mkRect({ x: 0, y: 0, w: bw, h: fs * 0.28 }, toner, { xf, plate: true }),
           mkText(m, { slot: 'info', part: 'label', font: T.mono, size: fs, runs: f.lines.map((l, i) => ({ s: l, x: fs * 0.7, y: fs * 1.5 + i * fs * 1.25 })), xf, fill: ink, ink: [ink], min: MIN.info }),
         ] };
@@ -152,8 +148,13 @@ export function copyType(c: PartCtx, plan: Plan): Item[] | null {
       // three copies, the strongest at the bottom; the faintest still 4.5:1 on the paper (spec 5) once the copier pass
       // has run over it: at 4.6 the pass's streaks took it to 3.99 in cells (R15, read over a photo); at 5.4 to 3.52
       // and at 6.2 to 4.22 on paper with no photo (review R15 S3, every text item read); 7 holds over 600 designs
-      const cols = [toner, fadeTo(paper, toner, CAPTION_MID), fadeTo(paper, toner, CAPTION_FAINT)];
-      const items = cols.map((col, i) => mkText(m, { slot: 'caption', part: i ? 'copy' + i : 'line0', font: T.mono, size: fs, runs: [{ s: line, x: i * fs * 0.5, y: -i * fs * 1.22 }], fill: col, ink: [col], min: MIN.caption }));
+      // the two faded copies record their fade, so a colour edit fades them again from the edited colours (review R12 S1)
+      const fades: (Mix | null)[] = [null, { a: paper, b: toner, fade: CAPTION_MID }, { a: paper, b: toner, fade: CAPTION_FAINT }];
+      const items = fades.map((mx, i) => {
+        const col = mx ? mixOf(mx) : toner;
+        const t = mkText(m, { slot: 'caption', part: i ? 'copy' + i : 'line0', font: T.mono, size: fs, runs: [{ s: line, x: i * fs * 0.5, y: -i * fs * 1.22 }], fill: col, ink: [col], min: MIN.caption });
+        return mx ? { ...t, mixed: { fill: mx } } : t;
+      });
       const b = boxOf(items);
       capB = { items: moveItems(items, { x: -b.x, y: -b.y, rot: 0 }), w: b.w, h: b.h };
     }
@@ -358,7 +359,7 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
     if (isBox) {
       const p = sz * BOX_PAD;
       rects.push(mkRect({ x: -Math.max(0, mt.left) - p, y: -mt.ascent - p, w: w + 2 * p, h: mt.ascent + mt.descent + 2 * p }, ink.toner, { xf, plate: true }));
-      texts.push(mkText(m, { ...base, part: 'word' + i, runs: [{ s: u.s, x: 0, y: 0 }], clip: clipX, fill: ink.paper, ink: [ink.paper] }));
+      texts.push({ ...mkText(m, { ...base, part: 'word' + i, runs: [{ s: u.s, x: 0, y: 0 }], clip: clipX, fill: ink.paper, ink: [ink.paper] }), boxed: true });
       return;
     }
     const look = {

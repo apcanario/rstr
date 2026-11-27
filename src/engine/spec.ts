@@ -172,6 +172,7 @@ export function photoRef(raw: unknown): PhotoSpec | null {
   if (r.place && typeof r.place === 'object' && !Array.isArray(r.place)) {
     const p: PhotoPlace = {};
     if ((PHOTO_ROLES as readonly string[]).includes(r.place.role)) p.role = r.place.role;
+    if (p.role && r.place.held === true) p.held = true;
     const s = unit(r.place.scale, 1, 2.5), x = unit(r.place.x, 0, 1), y = unit(r.place.y, 0, 1);
     if (s !== undefined) p.scale = s;
     if (x !== undefined) p.x = x;

@@ -216,7 +216,7 @@ describe('Layout lock holds the photo (spec 8.9, Carried R12 from R17)', () => {
       const g0 = photoOf(s)!;
       let k = 0;
       const held = holdPhoto(s, layout(s, stubMeasure));
-      expect(held.photo?.place).toEqual({ crop: 5, role: g0.params.role });
+      expect(held.photo?.place).toEqual({ crop: 5, role: g0.params.role, held: true });
       // pinning the role the design draws keeps it (the candidate may differ: another form of the palette list may
       // have needed another role in that candidate)
       expect([photoOf(held)!.params.role, photoOf(held)!.params.scale]).toEqual([g0.params.role, g0.params.scale]);
@@ -229,5 +229,24 @@ describe('Layout lock holds the photo (spec 8.9, Carried R12 from R17)', () => {
     // unlocked, Shuffle clears the pinned role with the rest of the place
     const s = { ...defaultSpec(seedSet(1)), photo: { id: 'lock-photo', treatment: null, place: { role: 'disc' as const, crop: 3 } } };
     expect(shuffle(s, NO_LOCKS).photo?.place).toBeNull();
+  });
+  test('a role the lock holds shows as Auto on the Photo tab, survives a save, and a hand pick or Auto clears the hold (review R12 M3)', async () => {
+    const { registerPhoto, testPhoto } = await import('../src/engine/photo');
+    const { holdPhoto } = await import('../src/app/state');
+    const { photoControls, read, write } = await import('../src/engine/controls');
+    const { photoRef } = await import('../src/engine/spec');
+    registerPhoto(testPhoto('lock-photo', 3000, 4000, 7));
+    const s: Spec = { ...defaultSpec(), photo: { id: 'lock-photo', treatment: null, place: null } };
+    const held = holdPhoto(s, layout(s, stubMeasure));
+    const ctl = photoControls({ spec: held, scene: layout(held, stubMeasure) }).find((c) => c.id === 'photo.role')!;
+    expect(held.photo?.place?.held).toBe(true);
+    expect(read(held, ctl.where)).toBeNull();
+    expect(photoRef(JSON.parse(JSON.stringify(held.photo)))?.place).toEqual(held.photo?.place);
+    const picked = write(held, ctl.where, 'disc');
+    expect(picked.photo?.place).toEqual({ role: 'disc' });
+    expect(read(picked, ctl.where)).toBe('disc');
+    expect(write(held, ctl.where, null).photo?.place).toBeNull();
+    // a role pinned by hand is not marked held, and holdPhoto leaves it alone
+    expect(holdPhoto(picked, layout(picked, stubMeasure))).toBe(picked);
   });
 });
