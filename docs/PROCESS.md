@@ -51,6 +51,7 @@ How RSTR was made, chat by chat: who asked for what, which model did what, what 
 - Commits: one on main (see `git log` for the hash; it cannot name itself).
 - Usage: not visible.
 - Carried out of this chat: none added. Taken out with a spec decision: R10 (from R8) cropped title, R10 (from R10) margin. Renamed: R21 (from R10) title weight. H7 added to By hand.
+- Correction, 27 Nov 2026, same chat: the heading's end time was written before the clock was read. The session clock read 20:12 Lisbon at the commit (6718b6c), not "about 20:35". The commit line above could not name its own hash: it is 6718b6c, and this correction is the commit after it.
 
 ### 27 Nov 2026 · Bundle 6 · chat 1 (started Thu 26 Nov 19:16 Lisbon; wrote this entry on 27 Nov by the session clock)
 - Started from: "Clone apcanario/rstr (shallow, push access).\nRSTR, next bundle. Thin main chat on Sonnet 5.5; every agent a fresh Opus 5.5 agent. Read docs/RUN.md and work the next open bundle of docs/BACKLOG.md in full, unattended.\nNotes: the rstr logo should be all lowercase\nRepo allowed"
