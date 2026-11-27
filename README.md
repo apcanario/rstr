@@ -10,10 +10,11 @@ A phone app in Simple and Advanced modes: pick a style (Swiss, Postmodern, Bruta
 
 - **Plug and play:** fonts, palettes and graphics are built in. Nothing to manage.
 - **Four styles:** Swiss, Postmodern (ice cream and photocopy grunge), Brutalist, Vaporwave, each with wide variety: many layouts, tilts and turns, graphics combined and pushed to extremes.
-- **Five finishes** over any style: Clean, Grain, Grunge, VHS, Glitch.
+- **Two prime styles:** Swiss (dialects Zurich, Basel, Programme, Now) and Brutalist (Heavy, Raw, Neo), with the most layouts, graphics, palettes and faces; constructed geometry on named progressions, graded grids and shaped gradients, and topography drawn many ways. An Elements filter picks which graphics Shuffle may use.
+- **Five finishes** over any style: Clean, Grain, Grunge (to become a photocopy of the whole page), VHS, Glitch.
 - **Marks:** an optional layer of small technical graphics.
 - **Light and dark** for every palette; the colours of the design on screen can be edited.
-- **42 font pairings** from free Google Fonts.
+- **80 font pairings** from free Google Fonts (42 today).
 - **One photo** you upload: Shuffle moves and crops it; monochrome, duotone, halftone and more.
 - **Text:** four slots at first, then layers you add, remove and rank.
 - **Sizes:** 1:1, 3:4, 9:16 and paper ratio; JPEG, PNG or WebP at 1x to 3x; a print file good for A3.
@@ -31,9 +32,14 @@ A phone app in Simple and Advanced modes: pick a style (Swiss, Postmodern, Bruta
 | 4 | Brutalist, Vaporwave, Advanced mode | Done: R8 (Brutalist: eight layouts, size classes, a band of 12 blunt graphics, a free strip for marks) and R9 (Vaporwave: eight layouts, six new graphics, cut-ins, a sky title that reads in every palette; Shuffle no longer repeats one of the last 59 designs) and R10 (Advanced mode: six tabs generated from each part's controls, per-design colour edit, finish strengths, marks allowed) closed; bundle viewer check applied. Closed 25 Nov 2026 (Pedro looks at Brutalist, Vaporwave and Advanced before bundle 5) |
 | 5 | Photo and export, A3 print | Done: R14 (photo), R15 (treatments) and R16 (export, A3) and the viewer check. Closed 26 Nov 2026 |
 | 6 | Text layers, retouch | Done: R17 (text layers) and R12 (retouch: layer room checked in every palette form, the photo placed once over every palette form, a locked Shuffle holds the photo's role, photocopy boxed word clear of halos, earlier words' and, since the viewer check, later words' too) closed; bundle viewer check (fix) applied. Closed 27 Nov 2026. Left in Carried: the photo's type-seed move and Pedro's taste calls (for the next retouch chat with his notes), tracking outside Swiss and a Brutalist marks defect (R20) |
-| 7 | Mix | Queued |
-| 8 | Finishes retouched: Grunge as a real photocopy, stronger Grain and VHS | Queued (R19) |
-| 9 | Carried engineering: tracking for Brutalist, Postmodern and Vaporwave, the Brutalist marks defect | Queued (R20; its tracking needs Google Fonts, Carried R3) |
+| 7 | Finishes retouched (Grunge as a real photocopy, stronger Grain and VHS); real fonts in the workspace, 80 pairings, title weight for Swiss | Next (R19, R21) |
+| 8 | The graphics library: ten constructed graphics, topography in many renders and landforms | Queued (R22, R23) |
+| 9 | Swiss as a prime style: grids, constructive layouts, the Elements filter, 14 palettes; dialects Basel, Programme, Now | Queued (R24, R25) |
+| 10 | Brutalist as a prime style: cropped title, more Heavy layouts and fills, 14 palettes; dialects Raw, Neo | Queued (R26, R27) |
+| 11 | Mix | Queued (R18; was bundle 7 until 27 Nov 2026) |
+| 12 | Carried engineering: tracking for Brutalist, Postmodern and Vaporwave, the Brutalist marks defect | Queued (R20; was bundle 9) |
+
+Bundles 7 to 12 were re-planned by a design chat on 27 Nov 2026 (`docs/CHANGELOG.md`); nothing in "What it does today" changed.
 
 ## How it is built
 

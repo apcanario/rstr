@@ -1,6 +1,6 @@
 # Font pairings
 
-The starting list for row R3. Every family here is meant to be on Google Fonts (free to use). The R3 builder checks each one resolves from Google Fonts, drops or swaps any that does not, and records the change. Weights are the ones the styles use; load nothing else.
+The starting list for row R3, extended on 27 Nov 2026 for row R21 (Swiss 16 to 32, Brutalist 10 to 32; 80 pairings in all). Every family here is meant to be on Google Fonts (free to use). The R3 builder checks each one resolves from Google Fonts, drops or swaps any that does not, and records the change. Weights are the ones the styles use; load nothing else.
 
 Sources: Pedro's own picks (23 Nov 2026), Typewolf's "Five Fresh Headline & Body Text Pairings on Google Fonts" (https://www.typewolf.com/blog/google-fonts-combinations), the spike, and this plan's own additions. The Muzli article Pedro linked (https://medium.muz.li/15-google-font-pairings-every-designer-should-save-6468e3534a0e) could not be opened on 23 Nov 2026; add from it when someone can read it.
 
@@ -30,6 +30,33 @@ Single grotesque families first: that is the idiom. Serif contrasts last.
 | sw-archivo-instrument | Archivo 800 | Instrument Serif 400, 400 italic | Archivo 500 | Plan |
 
 In a serif contrast the serif sets the subtitle only; title, info and caption stay in the grotesque.
+
+### Added 27 Nov 2026 (row R21)
+
+Swiss goes from 16 to 32 pairings. A Swiss pairing now has up to five roles, so that one pairing serves every dialect of spec 8.1 and the type seed never depends on the dialect (spec 6): **display**, **text**, **labels** (a mono, or "same"), **narrow** and **wide** (optional: a second width of the same design, for the width contrast of the Now dialect; where a pairing has none, Now contrasts weights instead), and **serif** (optional, the subtitle of a serif contrast, as before).
+
+Roles the 16 pairings above did not have: labels is the mono already listed where there is one; `sw-inter-tight` takes DM Mono 400 (core, so the default pairing still needs no fetch); the rest use their grotesque at 500, tracked. `sw-archivo` takes narrow Archivo 800 at width 62 and wide at width 125.
+
+Every family below was checked on 27 Nov 2026 against its `@fontsource` package metadata (type `google`, weights and axes as used): `swiss-brutalist.md` section 3.
+
+| Id | Display | Text | Labels | Narrow / wide | Note |
+|---|---|---|---|---|---|
+| sw-chivo | Chivo 900 | Chivo 400 | Chivo Mono 400 | | A grotesque with a real black weight |
+| sw-host | Host Grotesk 800 | Host Grotesk 400 | same | | |
+| sw-public | Public Sans 800 | Public Sans 400 | same | | Franklin model |
+| sw-albert | Albert Sans 800 | Albert Sans 400 | same | | |
+| sw-onest | Onest 800 | Onest 400 | same | | |
+| sw-golos | Golos Text 800 | Golos Text 400 | same | | |
+| sw-radio-canada | Radio Canada Big 700 | Radio Canada Big 400 | same | | 700 is its heaviest |
+| sw-be-vietnam | Be Vietnam Pro 800 | Be Vietnam Pro 400 | same | | |
+| sw-rethink | Rethink Sans 800 | Rethink Sans 400 | same | | |
+| sw-reddit | Reddit Sans 800 | Reddit Sans 400 | Reddit Mono 400 | | |
+| sw-barlow | Barlow 800 | Barlow 400 | same | Barlow Condensed 700 | Two widths as two families |
+| sw-sofia | Sofia Sans 800 | Sofia Sans 400 | same | Sofia Sans Extra Condensed 800 | |
+| sw-mona | Mona Sans 800 | Mona Sans 400 | same | Mona Sans 800 at width 75 / at width 125 | One family, a width axis: the Univers idea with a free face |
+| sw-hubot | Hubot Sans 800 | Hubot Sans 400 | same | Hubot Sans 800 at width 75 / at width 125 | |
+| sw-archivo-widths | Archivo 800 | Archivo 400 | same | Archivo 800 at width 62 / at width 125 | |
+| sw-arimo | Arimo 700 | Arimo 400 | Cousine 400 | | The free metric stand-in for Arial: the nearest thing to the default grotesque |
 
 ## Postmodern
 
@@ -62,6 +89,39 @@ Heavy only. The display face carries the poster; everything else is mono.
 | br-dela | Dela Gothic One 400 | Space Mono 400 | Plan |
 | br-bowlby | Bowlby One 400 | Courier Prime 400 | Plan |
 | br-archivo-wide | Archivo 900 at width 125 | Archivo Narrow 500 (in place of mono) | Pedro's Archivo + Archivo Narrow, pushed to the extremes |
+
+### Added 27 Nov 2026 (row R21)
+
+Brutalist goes from 10 to 32 pairings. A Brutalist pairing now has three roles, so that one pairing serves every dialect of spec 8.3: **display** (Heavy and Neo titles), **mono**, and **plain** (the Raw dialect's face: a default-looking serif, sans or mono). Tinos, Arimo and Cousine are the free metric stand-ins for Times New Roman, Arial and Courier New.
+
+Plain for the 10 pairings above: `br-anton` DM Mono 400, 500 (core, so the default pairing still needs no fetch); `br-archivo-black` Instrument Serif 400 (core); `br-bebas`, `br-league`, `br-alfa` Tinos 400, 700; `br-big-shoulders`, `br-oswald`, `br-archivo-wide` Arimo 400, 700; `br-dela`, `br-bowlby` Cousine 400, 700.
+
+| Id | Display | Mono | Plain | Note |
+|---|---|---|---|---|
+| br-anybody | Anybody 900, width 50 to 150 | JetBrains Mono 400 | Arimo 400, 700 | A width axis: lines can be set narrow or wide before the stretch |
+| br-climate | Climate Crisis 400 | Space Mono 400 | Tinos 400, 700 | Very heavy |
+| br-rubik-mono | Rubik Mono One 400 | DM Mono 400 | Cousine 400, 700 | |
+| br-sofia-xc | Sofia Sans Extra Condensed 900 | IBM Plex Mono 400 | Tinos 400, 700 | |
+| br-saira-xc | Saira Extra Condensed 900 | Space Mono 400 | Arimo 400, 700 | |
+| br-barlow-c | Barlow Condensed 900 | Courier Prime 400 | Tinos 400, 700 | |
+| br-antonio | Antonio 700 | DM Mono 400 | Cousine 400, 700 | |
+| br-six | Six Caps 400 | Cousine 400 | Tinos 400, 700 | Ultra-condensed |
+| br-fjalla | Fjalla One 400 | IBM Plex Mono 400 | Arimo 400, 700 | |
+| br-chivo | Chivo 900 | Chivo Mono 400 | Tinos 400, 700 | |
+| br-lexend | Lexend Zetta 900 | Martian Mono 400 | Arimo 400, 700 | Ultra-wide |
+| br-unbounded | Unbounded 900 | DM Mono 400 | DM Mono 400, 500 | Core fonts only |
+| br-stencil | Big Shoulders Stencil 900 | JetBrains Mono 400 | Cousine 400, 700 | Stencil |
+| br-saira-stencil | Saira Stencil One 400 | Space Mono 400 | Arimo 400, 700 | Stencil |
+| br-stardos | Stardos Stencil 700 | Courier Prime 400 | Tinos 400, 700 | Stencil serif |
+| br-ultra | Ultra 400 | Courier Prime 400 | Tinos 400, 700 | Heavy slab (Apache-2.0) |
+| br-abril | Abril Fatface 400 | DM Mono 400 | Tinos 400, 700 | Heavy didone |
+| br-martian | Martian Mono 800 | Martian Mono 400 | Cousine 400, 700 | A mono as the display |
+| br-space-mono | Space Mono 700 | Space Mono 400 | Cousine 400, 700 | A mono as the display |
+| br-tinos | Tinos 700 | Cousine 400 | Tinos 400, 700 | The default serif, stretched |
+| br-arimo | Arimo 700 | Cousine 400 | Arimo 400, 700 | The default sans, stretched |
+| br-doto | Doto 900 | DM Mono 400 | Cousine 400, 700 | Dot matrix |
+
+R21 measures every display face in the Heavy title (spec 8.3: every line at full width inside the 0.55 to 1.9 stretch, in every format) with its real font files. A face that cannot do it is dropped from this table with a changelog line; it is not kept with a fallback.
 
 ## Vaporwave
 

@@ -10,30 +10,33 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 | 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit. Closed 25 Nov 2026 |
 | 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print. Closed 26 Nov 2026 |
 | 6 | R17, R12 | Text layers with hierarchy; retouch from notes. R17 closed 27 Nov 2026, R12 closed 27 Nov 2026 |
-| 7 | R18 | Mix: crosses of two styles (experimental, Advanced) |
-| 8 | R19 | Finishes retouched: Grunge as a real photocopy, stronger Grain, stronger VHS (Pedro, 24 Nov 2026, from bundle 3) |
-| 9 | R20 | Carried engineering: tracking for Brutalist, Postmodern and Vaporwave (needs Google Fonts for its 9.2 range), the Brutalist marks bar defect |
+| 7 | R19, R21 | Finishes retouched: Grunge as a real photocopy, stronger Grain, stronger VHS (Pedro, 24 Nov 2026, from bundle 3). Real font files in the workspace through npm; Swiss and Brutalist go from 16 and 10 pairings to 32 each; title weight for Swiss |
+| 8 | R22, R23 | The graphics library grows for the prime styles: ten constructed graphics (graded grids, shaped gradients, arcs, rays, quarter tiles and more) on named progressions; topography in seven renders and seven landforms, with ridges, flow, relief and sections |
+| 9 | R24, R25 | Swiss as a prime style: grids of 4 to 12 columns, four constructive layouts, the Elements filter, 14 palettes; then three new dialects: Basel, Programme, Now. Pedro looks at Swiss before bundle 10 |
+| 10 | R26, R27 | Brutalist as a prime style: the cropped title, three more Heavy layouts, line fills, four graphics, 14 palettes; then two new dialects: Raw, Neo |
+| 11 | R18 | Mix: crosses of two styles (experimental, Advanced) |
+| 12 | R20 | Carried engineering: tracking for Brutalist, Postmodern and Vaporwave, the Brutalist marks bar defect |
 | later | M | Motion, then the APK. Needs a Fable chat first (spec 11) |
 
 Bundle numbers changed on 23 Nov 2026 when the old bundle 2 was split in two so Pedro can look at Swiss before Postmodern is built: old 2 is now 2 and 3, old 3 to 6 are now 4 to 7. Row ids did not change.
 
-Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they had when bundle 1's reviews and Carried items named them; R11 (my palettes, own fonts, spec in and out) was dropped on 23 Nov 2026; R13 to R18 are new.
+Bundle numbers changed again on 27 Nov 2026 (design chat, Fable 5.2; Pedro's additions of that day made Swiss and Brutalist the prime styles). Old bundle 8 (R19, finishes) is now 7 and gains R21. New bundles 8 to 10 hold R22 to R27. Old bundle 7 (R18, Mix) is now 11: Mix tunes six pairs of styles part by part, five of the six pairs have Swiss or Brutalist as a parent, and bundles 8 to 10 replace or widen those parts, so tuning first would be done twice. Old bundle 9 (R20) is now 12, after the Brutalist type parts it touches have settled. Row ids did not change. Closed entries of the changelog, the process log and the reviews keep the bundle numbers they were written with (bundles 1 to 6 are unchanged).
+
+Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they had when bundle 1's reviews and Carried items named them; R11 (my palettes, own fonts, spec in and out) was dropped on 23 Nov 2026; R13 to R18 are new; R19 and R20 were added by bundles 3 and 6; R21 to R27 were added on 27 Nov 2026.
 
 ## Carried
 
 Items named **Retouch** were targeted at R12, closed 27 Nov 2026 (review bundle 6 S2): they go to the next retouch chat with Pedro's notes, which opens its row from his notes and works every note and every Retouch item.
 
-- **R3.** Needs a run where fonts.googleapis.com, fonts.gstatic.com and raw.githubusercontent.com are reachable (this workspace's proxy blocks Google Fonts). (1) `npm run smoke` must end `smoke: passed` with no `online checks SKIPPED`: every pairing passes 9.2 and 9.3 with its real fonts, and the used-pairing-offline check runs against Google itself. Review R3 S1, M5. (2) `python3 tools/fetch_fonts.py --check` must report 0 problems; if `Big Shoulders Display` or any other family fails, swap it for the family that replaced it as a `sources` alias in `src/data/pairings.json` (as `Archivo Expanded` is) and record the swap in the changelog. Review R3 S5; also confirm Archivo's wdth axis reaches 125. (3) `npm run sheet` must print no `pairings NOT LOADED` line, so the four `shots/pairings-*.jpg` show all 42 pairings; then Pedro looks at them, the Vaporwave sheet with Monoton, Syncopate and Krona One first. Review R3 S2. (4) Re-derive the vapor picked-fallback ceiling of 12 in `tests/proof.test.ts` from that run's real metrics. Review R3 M6. (5) For Brutalist, every pairing keeps every title line at full width with no fallback in the unpicked run, and the share of one-word-per-line titles is reported per pairing (the band is sized from the bundled faces only). Review R8 M7.
-- **Retouch (from R5).** (1) 19 of 300 Swiss designs are still flagged `empty` by the restored clumsiness rule (2 also `small graphic`): vertical, quarter-turned centred-low and lone-disc layouts look sparse; specs in `docs/tuning-R5.md`; `tools/tune.py` lists them. Review R5 S2. (2) The Yellow light palette has near-black accent and ink, so heavy waves draw as a solid black box (`shots/palettes-swiss.jpg`); the tuning rule counts it as covered. (3) Pedro to say from the phone whether the 19 and the Yellow waves matter. Fix with his Notes.
+- **R3.** 27 Nov 2026 (design chat): the npm registry is reachable from the workspace and carries the same Google Fonts files as `@fontsource` packages; R21 uses them, so items (1) to (5) below can run in the workspace with real fonts. R21 removes what it proves; what only Google itself can prove (the offline check against Google's own servers, and `fetch_fonts.py --check` against the css2 API) stays here and in H3. As first written: Needs a run where fonts.googleapis.com, fonts.gstatic.com and raw.githubusercontent.com are reachable (this workspace's proxy blocks Google Fonts). (1) `npm run smoke` must end `smoke: passed` with no `online checks SKIPPED`: every pairing passes 9.2 and 9.3 with its real fonts, and the used-pairing-offline check runs against Google itself. Review R3 S1, M5. (2) `python3 tools/fetch_fonts.py --check` must report 0 problems; if `Big Shoulders Display` or any other family fails, swap it for the family that replaced it as a `sources` alias in `src/data/pairings.json` (as `Archivo Expanded` is) and record the swap in the changelog. Review R3 S5; also confirm Archivo's wdth axis reaches 125. (3) `npm run sheet` must print no `pairings NOT LOADED` line, so the four `shots/pairings-*.jpg` show all 42 pairings; then Pedro looks at them, the Vaporwave sheet with Monoton, Syncopate and Krona One first. Review R3 S2. (4) Re-derive the vapor picked-fallback ceiling of 12 in `tests/proof.test.ts` from that run's real metrics. Review R3 M6. (5) For Brutalist, every pairing keeps every title line at full width with no fallback in the unpicked run, and the share of one-word-per-line titles is reported per pairing (the band is sized from the bundled faces only). Review R8 M7.
+- **Retouch (from R5).** 27 Nov 2026 (design chat): R24 adds layouts, graphics and grids to Swiss, so the counts below go stale; R24 runs `tools/tune.py swiss 300` again and writes the new counts here. (1) 19 of 300 Swiss designs are still flagged `empty` by the restored clumsiness rule (2 also `small graphic`): vertical, quarter-turned centred-low and lone-disc layouts look sparse; specs in `docs/tuning-R5.md`; `tools/tune.py` lists them. Review R5 S2. (2) The Yellow light palette has near-black accent and ink, so heavy waves draw as a solid black box (`shots/palettes-swiss.jpg`); the tuning rule counts it as covered. (3) Pedro to say from the phone whether the 19 and the Yellow waves matter. Fix with his Notes.
 - **Retouch (from R6).** 24 Nov 2026, found by R6. The tuning pass on Postmodern (`python3 tools/tune.py pomo 300`, real bundled fonts) still flags 9 of 300 (8 `empty`, 4 `small graphic`): 7 photocopy (copy-column, copy-centre, copy-low, copy-cover, copy-stack; 3:4 and 9:16), 2 ice cream (title-middle). In 9:16, ice cream `title-side` and photocopy designs with narrow serif words leave the title smaller than the refs. Review R6 M9 adds five legal but clumsy seeds, 9:16 and 3:4 titles small over an empty page: `sheet-pomo-photocopy` cell 6 (9:16 light, seeds 44695, 528845, 6503845, 5555, copy-centre tilt, riso), cell 8 (3:4 dark, 60533, 738303, 9103263, 5617, copy-column quarter, milano), cell 12 (9:16 dark, 92209, 1157219, 14302099, 5741, copy-column, lilac); `sheet-pomo-icecream` cell 6 (9:16 light, 44695, 528845, 6503845, 5555, title-middle tilt, riso), cell 12 (9:16 dark, 92209, 1157219, 14302099, 5741, title-side, lilac). Seeds as the review found them, before the R6 fixes moved the photocopy title. Pedro to say from the phone whether they matter; fix with his Notes.
-- **R10 (from R8).** 24 Nov 2026, found by R8. The cropped title of spec 8.3 (Advanced only, off by default) is not built; it needs a rule 1 waiver for the title (9.2), written into spec 8.3 by Pedro or a Fable chat, before R10 builds it and its control. Review R8 S3. R10 (25 Nov 2026) did not build the cropped title or its control: rule 1 of spec 9.2 has no written waiver in spec 8.3 from Pedro or a Fable chat.
 - **R20 (from R8).** 24 Nov 2026, found by R8 (was R12 (from R8) item 1; renamed by review bundle 6 S2). 27 Nov 2026 (R12 close): left by R12, an engine defect with no Pedro gate (about 1 design in 600; needs a look at how marks sit around the full-bleed accent bar); re-targeted to R20. One Brutalist design in 600 (3:4 boxed, quarter turn, stub measure), and in the A format 2 of 800, still gets two marks, not three: the full-bleed accent bar blocks the edge strip; the marks test allows at most 1.
-- **Retouch (from R8).** 24 Nov 2026, found by R8. (1) Moved to R20 (from R8) above. (2) Fixed 25 Nov 2026 by the bundle 4 viewer fixes (review bundle 4 S2: a numeral only where it is drawn at least a quarter of the width tall, first graphic or cut-in; tested). (3) `python3 tools/tune.py brutal 300` flags 102 of 300 (47 empty, 84 small graphic), mostly the thin band in the screen layout and tilted pages; small titles in condensed faces can join into one line, so a 9:16 title can look small. Pedro to say from the phone whether they matter; fix with his Notes.
+- **Retouch (from R8).** 24 Nov 2026, found by R8. (1) Moved to R20 (from R8) above. (2) Fixed 25 Nov 2026 by the bundle 4 viewer fixes (review bundle 4 S2: a numeral only where it is drawn at least a quarter of the width tall, first graphic or cut-in; tested). (3) (27 Nov 2026, design chat: R26 runs the tuning pass again after widening Heavy and writes the new count here.) `python3 tools/tune.py brutal 300` flags 102 of 300 (47 empty, 84 small graphic), mostly the thin band in the screen layout and tilted pages; small titles in condensed faces can join into one line, so a 9:16 title can look small. Pedro to say from the phone whether they matter; fix with his Notes.
 - **Retouch (from R9).** 24 Nov 2026, found by R9 (the builder's tuning pass). `python3 tools/tune.py vapor 300` flagged 12 of 300 at the build: 9 `small graphic`, 3 `tiny title`. After the R9 review fixes the same run flags 10 (7 `small graphic`, 3 `tiny title`, 1 `empty`; one design can carry two). Pedro to say from the phone whether they matter; fix with his Notes.
-- **R10 (from R10).** 25 Nov 2026, found by R10 (review R10 E1). Spec 10.3 lists a margin control on the Layout tab; it is not built. Each style fixes its margin in its own section (8.1 "one margin, 72 px at 1080"; 8.3 "about 48 px"), so a margin control contradicts the style rules: Pedro or a Fable chat to say whether Advanced may move a style's margin and over what range, then build it as `layout.margin` with its 9.2 test.
-- **R10 (from R10).** 25 Nov 2026, found by R10 (review R10 E1). Spec 10.3's title weight ("where the family has it") is not built. A pairing names one display weight; other weights of the family are fonts the app does not fetch for that pairing, and spec 6 forbids laying out with a face that is not loaded. Needs: the weights each display family offers listed in `src/data/pairings.json`, fetched with the 4 s wait of spec 6, a `type.weight` key per type part, and its 9.2 test with real fonts.
-- **R20 (from R10).** 25 Nov 2026, found by R10 (review R10 E1; was R10 (from R10), renamed by review bundle 6 S2). Tracking (`type.track`) is built for Swiss only, the one type part that sets the title's tracking (8.1 "tight tracking on the title"). Brutalist (lines scaled to the full width, 8.3), Postmodern (strips, tiles, per-word faces) and Vaporwave set the title at no tracking; a control there needs the type part to read a tracking first, and the range found by its 9.2 test. 27 Nov 2026 (R12 close): left by R12 as engineering, not a Pedro or spec call; its 9.2 range needs every pairing's real fonts (Google Fonts, Carried R3); re-targeted to R20.
-- **R10 (from R10).** 25 Nov 2026, found by R10 (review R10 E1). A title case control (spec 10.3: as typed, upper, lower) is built for Swiss only. Brutalist, Postmodern and Vaporwave set the title in upper case by their own rules (8.2, 8.3, 8.4; photocopy sets a case per word): Pedro or a Fable chat to say whether Advanced may override a style's case.
+- **R21 (from R10).** (Was R10 (from R10); re-targeted 27 Nov 2026 by the design chat: R21 puts real font files and each family's weights in the workspace, which is what this needed.) 25 Nov 2026, found by R10 (review R10 E1). Spec 10.3's title weight ("where the family has it") is not built. A pairing names one display weight; other weights of the family are fonts the app does not fetch for that pairing, and spec 6 forbids laying out with a face that is not loaded. Needs: the weights each display family offers listed in `src/data/pairings.json`, fetched with the 4 s wait of spec 6, a `type.weight` key per type part, and its 9.2 test with real fonts.
+- **R20 (from R10).** 25 Nov 2026, found by R10 (review R10 E1; was R10 (from R10), renamed by review bundle 6 S2). Tracking (`type.track`) is built for Swiss only, the one type part that sets the title's tracking (8.1 "tight tracking on the title"). Brutalist (lines scaled to the full width, 8.3), Postmodern (strips, tiles, per-word faces) and Vaporwave set the title at no tracking; a control there needs the type part to read a tracking first, and the range found by its 9.2 test. 27 Nov 2026 (R12 close): left by R12 as engineering, not a Pedro or spec call; its 9.2 range needs every pairing's real fonts (Google Fonts, Carried R3); re-targeted to R20. 27 Nov 2026 (design chat): once R21 has landed the real fonts are in the workspace, so R20 no longer waits on Google Fonts; for Brutalist the control is Heavy's (Raw and Neo set their own type, spec 8.3).
+- **R10 (from R10).** 27 Nov 2026 (design chat): settled for Brutalist in spec 10.3 (the case belongs to the dialect; `type.case` in Raw, built at R27); still open for Postmodern and Vaporwave only. As first written: 25 Nov 2026, found by R10 (review R10 E1). A title case control (spec 10.3: as typed, upper, lower) is built for Swiss only. Brutalist, Postmodern and Vaporwave set the title in upper case by their own rules (8.2, 8.3, 8.4; photocopy sets a case per word): Pedro or a Fable chat to say whether Advanced may override a style's case.
 - **R10 (from R10).** 25 Nov 2026, found by R10 (review R10 E2). Postmodern has no second-graphic picker and no cut-in control: its graphics part cuts nothing into a first graphic (ice cream scatters five to eight shapes, photocopy lays four to six found graphics, spec 8.2), so 8.0's combination rule is not built for it and there is no second to pick. Pedro or a Fable chat to say what "second graphic" and "how it is cut in" mean for each dialect; then build them as Swiss and Brutalist have them (`graphics.second`, `graphics.cutShape`).
 - **Retouch (from bundle 4).** 25 Nov 2026, found by the bundle 4 viewer. Pedro to say from the phone whether they matter; fix with his Notes. (1) The refs' Vaporwave, the slit sun over the perspective grid floor, is rare unpinned: in the 48 cells of `sheet-vapor-*` and `variety-vapor` the two never appear together; spec 8.4 allows every sky and floor, so whether the classic pairing is weighted up is a taste call (review bundle 4 M2). (2) Vaporwave dark forms on the field layouts (windows, `palettes-vapor.jpg` bottom row: sunset, miami, mint) are saturated mid-tones as bright as the light forms; on the horizon layouts the dark skies are dark. Whether the field layouts take the dark sky in dark mode (review bundle 4 M8). (3) Brutalist one-word titles (`text-brutal.jpg` cells 1 to 3): the title is one stretched line of about a fifth of the height at 3:4 and a sixth at 9:16, the band the rest. The fix applied (review bundle 4 S4) draws a band taller than the title with its first graphic alone, no cut-in; the title's height is still capped by the least tall bundled face at the 1.9 stretch of spec 8.3, so that every face fills it. Whether a short title should take more of the page (a stretch above 1.9, or the band capped) is Pedro's call or a Fable chat's, since it changes 8.3.
 
@@ -50,7 +53,8 @@ Items named **Retouch** were targeted at R12, closed 27 Nov 2026 (review bundle 
 
 ## By hand (Pedro)
 
-- **H3. Run the online type checks.** Where Google Fonts is reachable (your computer): `npm ci`, `npm run smoke`, `python3 tools/fetch_fonts.py --check`, `npm run sheet`; report the output or send it as `Notes:`. Detail in Carried R3. Open until done.
+- **H7. Judge the new dialects.** They have no reference image (spec 8). After bundle 9: `shots/sheet-swiss-zurich.jpg`, `-basel`, `-programme`, `-now`, and each on the phone through the Dialect control. After bundle 10: `sheet-brutal-heavy`, `-raw`, `-neo`. Say which to keep, which to change and which to drop; a dropped dialect is switched off in the data with a changelog line. Open until Pedro says done.
+- **H3. Run the online type checks.** (Once R21 has landed, only the two Google-only checks of Carried R3 are left for this.) Where Google Fonts is reachable (your computer): `npm ci`, `npm run smoke`, `python3 tools/fetch_fonts.py --check`, `npm run sheet`; report the output or send it as `Notes:`. Detail in Carried R3. Open until done.
 - **H4. Try the A3 export on the phone** once bundle 5 lands: export a design with a photo and Grunge at Print size, and say whether it saves and how long it takes; also say whether the Export sheet lags the first time it opens, and time a Print PNG (A3 with bleed, written in strips).
 - **H5. Shuffle with Grunge on the phone.** Turn Grunge on, tap Shuffle a dozen times, and say whether the stage lags (review R7 M6: under a 4x CPU throttle in headless Chrome one 3:4 Grunge render took 1.24 s and a Clean one 0.17 s in the R7 fix smoke).
 - **H6. Try the photo treatments on the phone.** Pick a photo, leave Treatment on Auto and shuffle a dozen times, then step through all seven by hand (Simple and Advanced): say which look wrong, whether Swiss duotone reads as mono (review R15 M1), whether halftone lags, and whether the Brutalist list (mono, no colour) is right. Open until Pedro says done.
@@ -64,35 +68,195 @@ Read spec 7, 8.0, 8.2, 8.5 and 8.7, `docs/design/elements.md`, and look at `docs
 
 Read spec 5, 8.0, 8.3, 8.4 and 10.3.
 
-## Bundle 7: mix
+## Bundle 7: finishes retouched, real fonts
+
+Read spec 6, 7.1 and 9.4, `docs/design/pairings.md` and `docs/design/swiss-brutalist.md` section 3; look at `docs/design/refs/v2-grunge-*.jpg` and `shots/finish-*.jpg` (run `npm run sheet` first: `shots/` is not committed). Pedro's verdict on the bundle 3 finishes, 24 Nov 2026, after looking at the sheets: "The grunge only puts a black ragged border on the page, it's nothing like a photocopy. The grain could be stronger, the glitch is good, the vhs also could use more oomph." Glitch stays as it is. The design chat of 27 Nov 2026 looked at the same sheets: Grunge is R7's ragged edge with faint streaks, and Grain and VHS are hard to tell from Clean at sheet size.
+
+### R19. Finishes retouched
+
+- First, before any change: measure the R7 build (commit e41f8ef) on the seeds of the tests below and record, per style, the mean change in brightness against Clean for Grain, Grunge and VHS (VHS outside the held text). These are the baselines of spec 9.4.
+- **Grunge** becomes a photocopy of the whole page, the seven steps of spec 7.1 in order: tone curve, uneven toner, feed streaks and bands, speckle and dropout, dust and hair, the edge shadow with R7's nibbles at half depth, ink spread and the lighter title stamp. Port ideas from the spike's `grunge` and `photocopy` functions in `docs/archive/spike/engine.js`. On the photocopy dialect it runs as the second generation (steps 2, 4 and 5 at half).
+- **Grain** as spec 7.1: fine layer, clumped layer, tone weighting, the 24% vignette. The strength dial (`finish.<name>.strength`) still scales it.
+- **VHS** as spec 7.1: the eight steps. Still under the text, never on it.
+- Glitch unchanged except where the shared two-pass code requires; its pixels on the R7 test seeds do not change.
+- Each kernel keeps its terms separable (a term can be switched off in a test).
+
+**Done when:**
+- Grain, Grunge and VHS meet the thresholds of spec 9.4 at strength 1 over 100 seeds per style, with the R7 baselines recorded in the test file and any threshold raised to 1.5 times its baseline recorded in the changelog (tested).
+- Grunge marks the inside of the page: the two interior figures of spec 9.4 hold (tested).
+- Each term of each kernel changes pixels when it alone is on (tested).
+- On a photocopy-dialect design Grunge's steps 2, 4 and 5 run at half (tested on the kernel's inputs), and the design still passes the 3:1 guard (tested).
+- The two-pass rule, the 3:1 text guard and "VHS and Glitch leave text ink as Clean" hold for all five finishes over the same seeds as R7's tests (tested); the guard puts back fewer than 5% of text items per finish at strength 1 (tested).
+- Glitch draws the same pixels as the R7 build on R7's test seeds (tested).
+- A finish at 3x differs from the stage only by scale: the count of streaks, bands, hairs and tracking bands is the same at 1x and 3x for one seed (tested).
+- Export time for 9:16 with each retouched finish is recorded and is not more than twice the R7 figures (Grunge photocopy 688 ms) without a changelog line saying why; one 3:4 Grunge render under a 4x CPU throttle is recorded against R7's 1.24 s (review R7 M6, H5).
+- `shots/finish-*.jpg` show every style under every finish; the reviewer compares Grunge with `refs/v2-grunge-*.jpg` and says where it falls short.
+- Whether the finishes now read as a photocopy, as grain, as a tape is Pedro's call.
+
+### R21. Real fonts in the workspace; more faces for Swiss and Brutalist
+
+- `tools/fetch_fonts.py --from npm`: the same faces, taken from the `@fontsource/<family>` packages with `npm pack` into a temporary folder (no entry in `package.json`), written as the Google route writes them (`public/fonts/gf/`, `manifest.json`, licences). It refuses a package whose metadata does not say `type: google`. Width-axis faces (Archivo, Mona Sans, Hubot Sans, Anybody, Martian Mono) come from the matching variable package.
+- `src/data/pairings.json` takes the pairings and roles of `docs/design/pairings.md` (80 in all; Swiss roles `labels`, `narrow`, `wide`, `serif`; Brutalist role `plain`) and, per display family, the weights it offers. The app fetches a role's faces only when a dialect draws with them; until R25 and R27 the new roles are data.
+- The new Swiss pairings draw in Swiss as built; the new Brutalist display faces draw in Brutalist as built. Each Brutalist display face is measured in the title with its real files; one that cannot hold every line at full width inside the 0.55 to 1.9 stretch in every format is dropped from the data and from `pairings.md`, with a changelog line.
+- With the files in place, run Carried R3 items (1) to (5) and remove from Carried what the run proves. A pairing of any style that fails 9.2 or 9.3 with its real fonts is fixed, or dropped with a changelog line.
+- Title weight for Swiss (Carried R21 from R10): `type.weight`, the weights of the display family, fetched when picked with the 4 s wait of spec 6.
+- Core set unchanged: the eight bundled families. Each style's default pairing still draws from them alone.
+
+**Done when:**
+- `python3 tools/fetch_fonts.py --from npm` ends with every face of every pairing written and 0 problems, and a fixture package without `type: google` is refused (tested).
+- `pairings.json` holds 80 pairings less any dropped by name in the changelog; every Swiss and Brutalist pairing has its roles and every family named resolves in the manifest (tested).
+- With the files in place `npm run smoke` passes with every pairing's real fonts under 9.2 and 9.3 and prints `online checks SKIPPED` for nothing but the check against Google's own servers (tested); `npm run sheet` prints no `pairings NOT LOADED` line.
+- Every Brutalist display face kept holds every title line at full width with no fallback, in every format, over 200 seeds (tested); the share of one-word-per-line titles is reported per face.
+- `type.weight` in Swiss passes 9.2 over 200 seeds in every format at every weight offered (tested); a weight not yet fetched waits or falls back as spec 6 says (tested).
+- No file under `src/` imports from `@fontsource`, `package.json` gains no dependency, and each style's default pairing draws offline with no fetch (tested).
+- `shots/pairings-*.jpg` show all pairings in their real faces. Which faces stay is Pedro's call.
+
+## Bundle 8: the graphics library
+
+Read spec 5, 8.0 (Construction, Topography), 8.1 and 8.3 (the graphics lists and what each style may render) and `docs/design/swiss-brutalist.md`. Look at `docs/design/refs/v2-swiss-*.jpg` and `swiss-topo-*.jpg` for how dots, lines and topo are drawn today.
+
+### R22. Constructed graphics
+
+- The progression and module helpers of spec 8.0, shared by every graphic that repeats an element, and the ten graphics of its table: `gradgrid`, `shade`, `arcs`, `rays`, `quarter`, `tri`, `steps`, `squares`, `moire`, `overprint`. Each is a small pure function in `src/engine/graphics/` with at least three parameters taken to their extremes, takes `t`, and exposes its geometry as data a test can read.
+- `shade` has five renders; a style lists the ones it may draw. Swiss: steps, halftone, line screen (blend waits for the Now dialect, R25). Brutalist: steps, halftone, line screen, dither.
+- `overprint` mixes its overlap from two roles, and the mix is made again from edited colours (spec 5).
+- Text over a graded grid, a shade or an overprint is read on pixels as text over a photo is, or set on a plate.
+- All ten join Swiss's list (Zurich, as built) and eight join Brutalist's (not `moire`, not `overprint`), so they show on the phone at once; cut-ins and Advanced controls come from the parts as for every graphic.
+- A sheet per graphic: twelve cells across its parameter extremes.
+
+**Done when:**
+- Each of the ten draws inside its box, is deterministic, and for every parameter its two extremes give different pixels (tested).
+- Sizes, widths, gaps or angles read from the geometry of `arcs`, `rays`, `steps`, `squares` and `gradgrid` follow the named progression and module to within 1 px or 0.1 degree (tested).
+- Over 300 shuffles Swiss draws no blend and Brutalist draws neither a blend nor a smooth gradient of any kind (tested on the Scene).
+- An `overprint` overlap equals the two roles multiplied, before and after a colour edit (tested).
+- Swiss with 22 graphics and Brutalist with 20 pass the three variety tests of spec 8.0 and 9.2 over 200 seeds in every format and mode, with and without a photo (tested).
+- A 1080 render of each graphic at its densest setting is timed and recorded; none takes longer than the slowest graphic of the R9 build without a changelog line.
+- `shots/graphics-<id>.jpg` exists for the ten. Whether they look right is Pedro's call.
+
+### R23. Topography
+
+- One height field per design from the graphic seed, read by every graphic of the topo family.
+- `topo` gains render (seven), landform (seven), interval and crop, as spec 8.0.
+- Four graphics: `ridges`, `flow`, `relief`, `sections`. All four and the new topo join Swiss's list.
+- No figures on a map.
+- A sheet of topo: every render against every landform, and a row of crops; a sheet for each of the four.
+
+**Done when:**
+- The 49 pairs of render and landform each draw, and no two give the same pixels (tested).
+- A `topo` and a `relief` in one design put the summit in the same place (tested on the geometry).
+- In 300 Swiss shuffles every render and every landform appears at least once (tested).
+- In `ridges` a nearer row hides the rows behind it (tested on a two-row case).
+- Each render at 1080 is timed; none takes more than twice the R5 topo without a changelog line.
+- Swiss with 26 graphics passes the variety tests and 9.2 as in R22 (tested).
+- `shots/topo-variety.jpg` and the four sheets exist. Whether the maps look like maps is Pedro's call.
+
+## Bundle 9: Swiss, the prime style
+
+Read spec 3, 5, 8.0, 8.1, 8.6, 9 and 10, and `docs/design/swiss-brutalist.md` section 1. Look at every `docs/design/refs/v2-swiss-*.jpg` and `swiss-*.jpg`: they are the Zurich dialect and stay its target. Basel, Programme and Now have no reference image; build them from the spec and say in the reply what you were unsure of.
+
+### R24. Swiss: grids, constructions, elements
+
+- Spec v3 and its migration (spec 3); `pick.elements`.
+- The Elements filter for every style: family tiles on a page of the Look tab in Simple, every graphic by name on the Graphic tab in Advanced (spec 8.0, 10.2, 10.3).
+- The grid of 4, 6, 8 or 12 columns with `layout.cols`; `layout.margin` at 0.5 to 1.5 (spec 8.1, 10.3; the margin decision of 27 Nov 2026).
+- The four constructive layouts of Zurich: `diagonal`, `centre`, `bands`, `corner`. `arrow` joins the Swiss list.
+- The lower-case roll, about one title in five.
+- Swiss palettes from 8 to 14, every one with `accent2` and `gradient` in both forms (spec 5).
+- The Style tab's order: Swiss, Brutalist, Postmodern, Vaporwave.
+- `tools/tune.py swiss 300` again; the new counts go into Carried Retouch (from R5).
+
+**Done when:**
+- A v2 Swiss or Brutalist design loads as v3 with `pick.dialect` `zurich` or `heavy`, and a dialect id of another style reads as null (tested); the number of kept fixtures that still draw the same Scene is in the changelog.
+- With a filter set, 200 shuffles per style draw no graphic outside it except one a layout fixes (tested, all four styles); Shuffle and New graphic keep the filter and a style change clears it (tested in smoke); the family tiles are at least 48 px and fit their page at 360 x 640 and 412 x 915 (tested).
+- All four column counts appear in 300 shuffles, and every text item's left edge sits on a column line to within 1 px (tested).
+- `layout.margin` at 0.5 and at 1.5 passes 9.2 over 200 seeds in every format (tested).
+- Each of the four layouts passes 9.2 over 200 seeds in every format and mode, with and without a photo (tested); in `diagonal` no text item is turned (tested).
+- Zurich's 12 layouts: none takes more than 25% of 300 shuffles; Swiss passes the variety tests with 27 graphics and 14 palettes (tested).
+- All 14 palettes pass the contrast maths in both forms and carry `accent2` and `gradient` (tested).
+- Between 15% and 25% of 300 unpinned shuffles set the title in lower case (tested).
+- `shots/sheet-swiss-*.jpg`, `variety-swiss.jpg` and `palettes-swiss.jpg` are redrawn. Whether it is better Swiss is Pedro's call.
+
+### R25. Swiss: Basel, Programme, Now
+
+- The three dialects of spec 8.1, each as five parts: three layouts each, their type rules, the graphics each allows, the series of Programme, the blends and width contrast of Now, the glyph of Basel's `letter`.
+- The Dialect control on the Look tab for Swiss (Any, Zurich, Basel, Programme, Now); the layout stream's weights.
+- Every text level of 8.6 in each dialect; Advanced controls from the parts.
+- A sheet per dialect, 12 designs each across the formats and modes.
+
+**Done when:**
+- Each dialect's three layouts pass 9.2 over 200 seeds in every format and mode, with and without a photo, with 1, 3 and 8 title words (tested).
+- Each dialect alone passes the 60-shuffle test; Swiss passes the variety tests counting all four (tested).
+- With the dialect unpinned, changing the layout seed changes neither the palette nor the pairing, and the colour and type seeds move no box (tested, spec 9.4).
+- In 600 unpinned shuffles the dialects fall within 6 points of 40, 25, 20 and 15 in 100 (tested).
+- Basel: the glyph does not change with the type seed; the accent is on one Scene item at most; no design has a third graphic (tested).
+- Programme: the cells of a series differ in one parameter only and that parameter follows its progression; no item is turned; the title is never oversize and is lower case (tested).
+- Now: no ground item is a blend; every blend sits inside a shape or a field; text over a blend passes contrast on pixels; a title uses `narrow` and `wide` where the pairing has them (tested).
+- Zurich, Basel and Programme draw no blend in 300 shuffles each (tested).
+- Eight layers of every level draw in each dialect with the flagged share under Swiss's smoke ceiling of 9% (tested).
+- The Dialect control shows for Swiss, Shuffle keeps it, a style change clears it (tested in smoke); each dialect's default pairing draws offline from the core fonts (tested).
+- `shots/sheet-swiss-zurich.jpg`, `-basel`, `-programme`, `-now` exist. Which dialects stay is Pedro's call (H7).
+
+## Bundle 10: Brutalist, the prime style
+
+Read spec 5, 8.0, 8.3, 8.6, 9 and 10.3, and `docs/design/swiss-brutalist.md` section 2. Look at `docs/design/refs/brutal-*.jpg` and `ui-4-brutal.jpg`: they are the Heavy dialect and stay its target. Raw and Neo have no reference image.
+
+### R26. Brutalist: Heavy widened
+
+- Four graphics: `hazard`, `cells`, `placeholder`, `burst`; the Brutalist list at 24.
+- Brutalist palettes from 8 to 14, every one with `accent2` and `accent3` in both forms.
+- `layout.margin` at 0.5 to 1.5.
+- The cropped title under its waiver (spec 8.3), with `layout.crop`; Advanced only, never rolled.
+- Three layouts: `wall`, `repeat`, `cells`.
+- Line fills: solid, outline, split, with `type.fill`.
+- `tools/tune.py brutal 300` again; the new count goes into Carried Retouch (from R8) item 3.
+
+**Done when:**
+- `cropped` never appears in 600 shuffles and is offered in the Advanced Layout picker (tested).
+- In `cropped`, over 200 seeds in every format with real fonts: the crop is at one side by at most 12% of a line's width, or at the top or bottom by at most 15% of the block's height, never both; in 9:16 only at a side; at least 60% of every glyph's width is on the canvas; rules 2 to 5 hold, and rule 1 holds for every other item (tested).
+- `wall`, `repeat` and `cells` pass 9.2 over 200 seeds in every format and mode, with and without a photo (tested); in `repeat` the repeats are part of the title item and cover no other text (tested); in `wall` the title's box covers at least 80% of the page (tested).
+- An outlined line reaches 3:1 as drawn, read on pixels (tested); a split line's two parts are in register (tested); no design has two fills other than solid (tested).
+- No Scene item of any Brutalist design carries a blend, a blur or a soft shadow in 300 shuffles (tested).
+- `layout.margin` at 0.5 and at 1.5 passes 9.2 over 200 seeds in every format (tested).
+- The four graphics pass the tests of R22 (box, determinism, extremes); Brutalist passes the variety tests with 24 graphics and 14 palettes, and all 14 palettes pass the contrast maths with `accent2` and `accent3` (tested).
+- `shots/sheet-brutal-*.jpg`, `variety-brutal.jpg` and `palettes-brutal.jpg` are redrawn. Whether it is heavier is Pedro's call.
+
+### R27. Brutalist: Raw and Neo
+
+- The two dialects of spec 8.3, each as five parts: three layouts each, their type rules, the graphics each allows, Raw's tables and underline, Neo's cards, outlines, shadows, windows and pill.
+- The Dialect control on the Look tab for Brutalist (Any, Heavy, Raw, Neo); the layout stream's weights.
+- `type.case` in Raw (the case decision of 27 Nov 2026).
+- Every text level of 8.6 in each dialect; Advanced controls from the parts.
+- A sheet per dialect, 12 designs each.
+
+**Done when:**
+- Each dialect's three layouts pass 9.2 over 200 seeds in every format and mode, with and without a photo, with 1, 3 and 8 title words (tested).
+- Each dialect alone passes the 60-shuffle test; Brutalist passes the variety tests counting all three (tested).
+- With the dialect unpinned, changing the layout seed changes neither the palette nor the pairing, and the colour and type seeds move no box (tested).
+- In 600 unpinned shuffles the dialects fall within 6 points of 50, 25 and 25 in 100 (tested).
+- Raw: the title is in the `plain` face and is not stretched (one scale both ways); no other text item is larger than a quarter of the title's size; every table cell has its border in the Scene; the accent is on two items at most (tested).
+- Neo: every card has an outline and a shadow; all shadows of a design share one offset and are flat ink; no card is turned on its own; the only rounded item is the pill; text is never under a card (tested).
+- Heavy and Raw designs paint with ground, ink and one accent only (tested).
+- Eight layers of every level draw in each dialect with the flagged share under Brutalist's smoke ceiling of 12% (tested).
+- The Dialect control shows for Brutalist, Shuffle keeps it, a style change clears it (tested in smoke); each dialect's default pairing draws offline from the core fonts (tested).
+- `shots/sheet-brutal-heavy.jpg`, `-raw`, `-neo` exist. Which dialects stay is Pedro's call (H7).
+
+## Bundle 11: mix
 
 Read spec 8.7 and 8.8.
 
 ### R18. Mix (experimental)
 
 - Crosses of two styles by part, in Advanced only, labelled Experimental; the per-part parent switches; the fallback to parent A's part; the pair table.
-- A tuning pass per pair (six pairs), with sheets; pairs that only make mud are switched off, each with a reason in the changelog.
+- A parent with dialects gives its parts in one dialect: `pick.dialect` for parent A, `mix.dialect` for parent B (spec 8.8, added 27 Nov 2026).
+- A tuning pass per pair (six pairs), with sheets, each parent's dialect left to the layout stream; pairs, or one dialect inside a pair, that only make mud are switched off, each with a reason in the changelog.
 
 **Done when:** every allowed pair passes 9.2 over 200 seeds in every format (tested); a failed part falls back and the design still draws (tested); Mix is unreachable in Simple (tested); a sheet per pair exists. Which crosses are worth keeping is Pedro's call.
 
-## Bundle 8: finishes retouched
-
-Read spec 7.1 and `docs/design/elements.md`; look at `docs/design/refs/v2-grunge-*.jpg` and `shots/finish-*.jpg`. Pedro's verdict on the bundle 3 finishes, 24 Nov 2026, after looking at the sheets: "The grunge only puts a black ragged border on the page, it's nothing like a photocopy. The grain could be stronger, the glitch is good, the vhs also could use more oomph." Glitch stays as it is.
-
-### R19. Finishes retouched
-
-- **Grunge** becomes a photocopy of the whole page, not a border: toner speckle and dropout across the page, streaks and banding along the copier's scan direction, crushed contrast, uneven toner density, dust and hair, with the edge as one part of it. Port ideas from the spike's `grunge` and `photocopy` functions in `docs/archive/spike/engine.js`; the photocopy dialect's own copier pass (spec 8.2) stays separate and Grunge must not double it.
-- **Grain** stronger: visibly present at 1x on a phone at Simple's default, with the strength dial (`finish.<name>.strength`, Carried R10 from R7) still scaling it.
-- **VHS** stronger: more tracking noise, chroma bleed, head-switching band and scanline weight, more visible at the default strength.
-- Glitch unchanged except where the shared two-pass code requires.
-
-**Done when:** at the default strength each of Grain, Grunge and VHS differs from Clean by more than a stated pixel-difference threshold over the page, measured over 100 seeds per style (tested); Grunge marks the interior of the page, not only the edge: the share of changed pixels in the central 60% is at least a stated fraction of the border's (tested); the two-pass rule, the 3:1 text guard and "VHS and Glitch leave text ink as Clean" still hold for all five finishes over the same seeds as R7's tests (tested); export time for 9:16 with each retouched finish recorded and not more than twice the R7 figures (Grunge photocopy 688 ms) without a changelog line saying why; sheets show every style under every finish and are compared with `refs/v2-grunge-*.jpg`. Whether the finishes now read as a photocopy, as grain, as VHS is Pedro's call.
-
-## Bundle 9: carried engineering
+## Bundle 12: carried engineering
 
 ### R20. Carried engineering
 
-- Tracking (`type.track`) for Brutalist, Postmodern and Vaporwave: the type part reads a tracking, the range found by its 9.2 test with every pairing's real fonts (run where Google Fonts is reachable, Carried R3).
+- Tracking (`type.track`) for Brutalist (the Heavy dialect), Postmodern and Vaporwave: the type part reads a tracking, the range found by its 9.2 test with every pairing's real fonts (in the workspace since R21, Carried R3).
 - Brutalist marks: the one design in 600 (3:4 boxed, quarter turn, stub measure) and 2 of 800 in format A that still get two marks, not three, because the full-bleed accent bar blocks the edge strip (Carried R20 (from R8)).
 
 **Done when:** a tracking control for each of the three styles passes 9.2 over 200 seeds in every format with the real fonts of every pairing (tested); every Brutalist design gets three marks or the test names why not (tested).
