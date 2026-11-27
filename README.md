@@ -17,7 +17,7 @@ A phone app in Simple and Advanced modes: pick a style (Swiss, Postmodern, Bruta
 - **One photo** you upload: Shuffle moves and crops it; monochrome, duotone, halftone and more.
 - **Text:** four slots at first, then layers you add, remove and rank.
 - **Sizes:** 1:1, 3:4, 9:16 and paper ratio; JPEG, PNG or WebP at 1x to 3x; a print file good for A3.
-- **Simple and Advanced** modes on one switch. Advanced has seven tabs (Style, Layout, Graphic, Type, Colour, Text, Photo) built from each style's own controls, and a colour edit for the design in hand (3 to 5 colours, contrast repaired and warned). Shuffle clears hand-set values except for the facets you locked.
+- **Simple and Advanced** modes on one switch. Advanced has seven tabs (Style, Layout, Graphic, Type, Colour, Text, Photo) built from each style's own controls, and a colour edit for the design in hand (3 to 5 colours, contrast repaired and warned; photocopy tape, contours, info label and faded caption copies are mixed again from the edited colours). Shuffle clears hand-set values except for the facets you locked.
 - **Mix (experimental):** crosses of two styles.
 - Then motion (MP4), then the APK.
 
@@ -30,7 +30,7 @@ A phone app in Simple and Advanced modes: pick a style (Swiss, Postmodern, Bruta
 | 3 | Postmodern (both dialects), finishes, marks | Done: R6 (Postmodern) and R7 (finishes, marks) closed; bundle viewer check (fix) applied. Closed 24 Nov 2026 |
 | 4 | Brutalist, Vaporwave, Advanced mode | Done: R8 (Brutalist: eight layouts, size classes, a band of 12 blunt graphics, a free strip for marks) and R9 (Vaporwave: eight layouts, six new graphics, cut-ins, a sky title that reads in every palette; Shuffle no longer repeats one of the last 59 designs) and R10 (Advanced mode: six tabs generated from each part's controls, per-design colour edit, finish strengths, marks allowed) closed; bundle viewer check applied. Closed 25 Nov 2026 (Pedro looks at Brutalist, Vaporwave and Advanced before bundle 5) |
 | 5 | Photo and export, A3 print | Done: R14 (photo), R15 (treatments) and R16 (export, A3) and the viewer check. Closed 26 Nov 2026 |
-| 6 | Text layers, retouch | R17 (text layers) built, in review; R12 queued |
+| 6 | Text layers, retouch | R17 (text layers) and R12 (retouch: layer room checked in every palette form, the photo placed once over every palette form, a locked Shuffle holds the photo's role, photocopy boxed word clear of halos) closed; bundle viewer check pending. R12 left the photo's type-seed move, tracking outside Swiss and a Brutalist marks defect in Carried (R20) |
 | 7 | Mix | Queued |
 
 ## How it is built
