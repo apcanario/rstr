@@ -19,26 +19,27 @@ import { boxOf, moveItems } from '../shared/block';
 import { fitLines, upper } from '../shared/text';
 import type { PartCtx, Plan, TypePart } from '../types';
 import { copyType } from './pomo-copy';
-import { lv } from '../shared/layers';
+import { bothPlaces, lv, soloPlan } from '../shared/layers';
 import type { LevelSets } from '../types';
 /** Text layers beyond the slots (spec 8.6), ice cream: display upper, serif italic, mono, each on a ground plate. */
-export const POMO_LEVELS: LevelSets = {
-  headline: lv('display', true, 0.09, 40, 1, 3, 0),
-  subhead: lv('serif', false, 0.04, 20, 1.15, 2, 0),
-  body: lv('text', false, 0.03, 16, 1.3, 5, 0),
-  label: lv('mono', true, 0.019, 16, 1, 1, 0.14),
-  caption: lv('mono', true, 0.019, 16, 1, 1, 0.18, 'bottom'),
-  data: lv('mono', false, 0.025, 16, 1.2, 1, 0, 'bottom'),
-};
+// ice cream sets every text on a plate of its own (strips, highlight, box, ground strip): a layer's plate may cross a shape
+export const POMO_LEVELS: LevelSets = bothPlaces({
+  headline: lv('display', true, 0.09, 40, 1, 3, 0, 'top', 'left', 'ground', true),
+  subhead: lv('serif', false, 0.04, 20, 1.15, 2, 0, 'top', 'left', 'ground', true),
+  body: lv('text', false, 0.03, 16, 1.3, 5, 0, 'top', 'left', 'ground', true),
+  label: lv('mono', true, 0.019, 16, 1, 1, 0.14, 'top', 'left', 'ground', true),
+  caption: lv('mono', true, 0.019, 16, 1, 1, 0.18, 'bottom', 'left', 'ground', true),
+  data: lv('mono', false, 0.025, 16, 1.2, 1, 0, 'bottom', 'left', 'ground', true),
+});
 /** Photocopy: heavy words and mono on cut-out paper. */
-export const COPY_LEVELS: LevelSets = {
-  headline: lv('heavy', true, 0.09, 40, 0.95, 3, 0, 'top', 'left', 'paper'),
-  subhead: lv('text', true, 0.034, 20, 1.15, 2, 0, 'top', 'left', 'paper'),
-  body: lv('serif', false, 0.03, 16, 1.3, 5, 0, 'top', 'left', 'paper'),
-  label: lv('mono', true, 0.019, 16, 1, 1, 0.1, 'top', 'left', 'paper'),
-  caption: lv('mono', true, 0.019, 16, 1, 1, 0.1, 'bottom', 'left', 'paper'),
-  data: lv('mono', false, 0.025, 16, 1.2, 1, 0, 'bottom', 'left', 'paper'),
-};
+export const COPY_LEVELS: LevelSets = bothPlaces({
+  headline: lv('heavy', true, 0.09, 40, 0.95, 3, 0, 'top', 'left', 'paper', true),
+  subhead: lv('text', true, 0.034, 20, 1.15, 2, 0, 'top', 'left', 'paper', true),
+  body: lv('serif', false, 0.03, 16, 1.3, 5, 0, 'top', 'left', 'paper', true),
+  label: lv('mono', true, 0.019, 16, 1, 1, 0.1, 'top', 'left', 'paper', true),
+  caption: lv('mono', true, 0.019, 16, 1, 1, 0.1, 'bottom', 'left', 'paper', true),
+  data: lv('mono', false, 0.025, 16, 1.2, 1, 0, 'bottom', 'left', 'paper', true),
+});
 
 
 const MIN = { title: 40, subtitle: 20, info: 16, caption: 16 };
@@ -256,6 +257,18 @@ const paperEdge = (): Switch => ({ kind: 'switch', id: 'pomo.paperEdge', label: 
 
 export const pomoType: TypePart = {
   levels: POMO_LEVELS, levelsOf: { icecream: POMO_LEVELS, photocopy: COPY_LEVELS },
+  // a second layer of a slot's level in its room: ice cream sets a title as strips or tiles, a subtitle on its
+  // highlight, info in its box; a second caption runs up the other edge of the text area. Photocopy sets collided
+  // words, cut strips, a label and three copies.
+  solo(plan, slot, room, region) {
+    if (plan.dialect !== 'photocopy' && slot === 'caption') {
+      const right = plan.pos?.caption === 'right' || !!plan.titleUp;
+      return soloPlan(plan, slot, region, { pos: { ...plan.pos, caption: right ? 'left' : 'right' } });
+    }
+    return soloPlan(plan, slot, room, { boxes: { text: room, title: room } });
+  },
+  // photocopy words carry a paper halo over whatever is under them (8.2)
+  soloOver: (plan) => plan.dialect === 'photocopy',
   id: 'pomo', min: MIN,
   // the size cap; in photocopy the Paper edge switch (spec 8.2: off waives rule 4 for the title words)
   controls: ({ scene }) => [capControl(), ...(scene.frame.startsWith('copy-') ? [paperEdge()] : [])],

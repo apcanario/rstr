@@ -2,9 +2,9 @@
  * Advanced mode's controls for the design on screen (spec 10.3), gathered per tab from the parts' own lists, the
  * finish's and the marks layer's, and the photo's (R14): the app draws whatever this returns. Mix (R18) comes later.
  */
-import { hasContent, leadsOf } from './spec';
+import { extrasOf, hasContent, leadsOf } from './spec';
 import { choosePalette } from './layout';
-import { apply, designColours, photoControls, pairingPicker, palettePicker, positionControls, read, type AdvTab, type Control, type DesignColour, type Value } from './controls';
+import { apply, designColours, layerPlaceControl, photoControls, pairingPicker, palettePicker, positionControls, read, type AdvTab, type Control, type DesignColour, type Value } from './controls';
 import { finishControls } from './finish';
 import { marksControls } from './marks';
 import type { Scene } from './scene';
@@ -16,6 +16,8 @@ export interface Advanced {
   tabs: Record<AdvTab, Control[]>;
   /** Text tab: each slot's position control, where the style's layout reads one. */
   positions: Partial<Record<Slot, Control>>;
+  /** Text tab: the place of each layer beyond the slots, by id, where its level has more than one place (spec 8.6, 10.3). */
+  layerPlaces: Record<string, Control>;
   /** Colour tab: the design's colours (spec 5). */
   colours: DesignColour[];
 }
@@ -57,6 +59,12 @@ export function advancedOf(spec: Spec, scene: Scene, trial?: Trial): Advanced {
   const live = (c: Control) => !inert.has(c.id) && !(trial && TRIED.includes(c.id) && !changes(spec, base(), c, trial));
   const positions: Partial<Record<Slot, Control>> = {};
   for (const c of positionControls(P.layout.positions ?? {})) if (c.where.at === 'pos' && hasText(spec, c.where.slot) && live(c)) positions[c.where.slot] = c;
+  // every layer beyond the slots whose level the style offers more than one place for (review R17 S4)
+  const layerPlaces: Record<string, Control> = {};
+  for (const L of extrasOf(spec.text)) {
+    const places = P.type.levels[L.level].places;
+    if (places.length > 1) layerPlaces[L.id] = layerPlaceControl(L.id, places);
+  }
   // a long list unset shows what the design draws, muted, and steps from it (review R10 M6)
   const drawn: Partial<Record<string, string | undefined>> = { 'pick.layout': scene.frame, 'pick.pairing': scene.pairing, 'pick.palette': scene.palette, 'pick.motif': scene.graphics[0] };
   const mark = (c: Control): Control => {
@@ -70,10 +78,11 @@ export function advancedOf(spec: Spec, scene: Scene, trial?: Trial): Advanced {
       graphic: [...(P.graphics.controls?.(q) ?? []), ...(P.ground.controls?.(q) ?? [])].filter(live).map(mark),
       type: [pairingPicker(spec), ...(P.type.controls?.(q) ?? [])].filter(live).map(mark),
       colour: [palettePicker(P.palette.list)].map(mark),
-      text: Object.values(positions) as Control[],
+      text: [...Object.values(positions), ...Object.values(layerPlaces)] as Control[],
       photo: photoControls(q, choosePalette(spec)),
     },
     positions,
+    layerPlaces,
     colours: designColours(choosePalette(spec), spec, scene),
   };
 }

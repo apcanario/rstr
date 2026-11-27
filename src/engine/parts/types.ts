@@ -7,7 +7,7 @@ import type { Pairing } from '../../data/pairings';
 import type { Rect, Xf } from '../geom';
 import type { Measure } from '../measure';
 import type { Rng } from '../rng';
-import type { Item } from '../scene';
+import type { GraphicItem, Item } from '../scene';
 import type { Dialect, Level, Slot, SlotText, Spec } from '../spec';
 import type { Control, ControlQuery } from '../controls';
 import type { TreatList } from '../treat';
@@ -25,6 +25,8 @@ export interface PartCtx {
   /** The text area before room was kept at its foot for the layers beyond the slots (spec 8.6); absent: top and bot. */
   top0?: number;
   bot0?: number;
+  /** The height kept for those layers (bot0 - bot); 0 without them. A transformed page keeps as much at its own foot. */
+  keep: number;
   m: Measure;
   /** The palette's form for the spec's mode: roles only. */
   P: Form;
@@ -126,6 +128,11 @@ export interface Plan {
    * parts add the ones only they can tell, such as a size class that leaves the band as it is.
    */
   inert?: string[];
+  /**
+   * Set when the type part is called again to set one more layer of a slot's level (spec 8.6, `TypePart.solo`): the
+   * part sets that one slot by its own rules and leaves out the page's furniture (a tag, an accent bar, a panel).
+   */
+  solo?: boolean;
 }
 
 /** A plan with every shared value at its neutral setting, for a layout to fill in. */
@@ -189,6 +196,16 @@ export interface LevelSet {
   font: 'display' | 'text' | 'label' | 'serif' | 'mono' | 'pixel' | 'heavy';
   upper: boolean; size: number; min: number; lh: number; lines: number; track: number;
   from: 'top' | 'bottom'; align: 'left' | 'centre'; plate: 'ground' | 'paper' | 'window';
+  /**
+   * The places a layer of the level may go, the first its default (spec 8.6, 10.3): `head` looks for room from the
+   * top of the text area, `foot` from the bottom. Two or more places give its row a position control in Advanced.
+   */
+  places: ('head' | 'foot')[];
+  /**
+   * Where a layer set on a plate by the shared placer may go over a graphic (review R17 S3): only where the style sets
+   * text on a plate itself (true, or the frames that do). Elsewhere a layer with no room clear of the graphics is flagged.
+   */
+  over: boolean | string[];
 }
 export type LevelSets = Record<Level, LevelSet>;
 
@@ -199,6 +216,18 @@ export interface TypePart {
   levels: LevelSets;
   /** The same per dialect, where the style has more than one. */
   levelsOf?: Partial<Record<Dialect, LevelSets>>;
+  /**
+   * A second layer of a slot's level (spec 8.6: two layers of one level are set alike): the plan to call `set` with
+   * so that it sets that slot alone, by its own rules, in `room` (local page; `region` is the whole text area). The
+   * shared placer calls `set` with only that slot on and checks where the result lands.
+   */
+  solo(plan: Plan, slot: Slot, room: Rect, region: Rect, c: PartCtx): Plan;
+  /** The style's own text crosses graphics by rule (photocopy words carry a paper halo; Vaporwave's graphics knock out round glyphs). */
+  soloOver?: (plan: Plan) => boolean;
+  /** Slots whose second layer is not held to the lead's size (Brutalist: every title line fills the width, 8.3). */
+  soloFree?: Slot[];
+  /** Graphics no text layer may cover (Vaporwave: the sun, 8.4); the layer keeps off them as off text. */
+  keepOff?: (g: GraphicItem) => boolean;
   /** Text items and their plates in the plan's local frame, or null if this candidate cannot hold the text. `below` is the Scene so far (world). */
   set(c: PartCtx, plan: Plan, below: Item[]): Item[] | null;
   /** Its Advanced controls (spec 10.3), shown on the Type tab. */

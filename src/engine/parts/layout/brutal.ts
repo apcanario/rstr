@@ -74,6 +74,9 @@ function planWith(c: Parameters<LayoutPart['plan']>[0], force: Force): ReturnTyp
     // thin) gives way; an Advanced size still wins
     if (spec.pick.motif) size = 'small';
     if (SIZE_CLASSES.includes(prm['layout.size'] as SizeClass)) size = prm['layout.size'] as SizeClass;
+    // with text layers beyond the slots (spec 8.6) the oversize title would take the room kept for them: normal
+    // (review R17 S5), unless Advanced asks for it
+    if (c.keep && size === 'oversize' && !SIZE_CLASSES.includes(prm['layout.size'] as SizeClass)) size = 'normal';
     if (name === 'screen') size = 'oversize';
     if (name === 'slab') size = 'small';
     const hot = c.cand([0, 1, 2]);
@@ -82,7 +85,7 @@ function planWith(c: Parameters<LayoutPart['plan']>[0], force: Force): ReturnTyp
 
     const BAND = W * 0.09, THIN = W * 0.065;
     const M = Math.round(W * 0.045), gap = Math.round(W * 0.02), { R, ms } = brutalMetrics(W);
-    const up0 = transform === 'none' ? c.top : M, dn0 = transform === 'none' ? c.bot : pg.h - M;
+    const up0 = transform === 'none' ? c.top : M, dn0 = transform === 'none' ? c.bot : pg.h - M - c.keep;
     const plan = basePlan(name, pg, M);
     plan.transform = transform;
     plan.xf = fr.xf;

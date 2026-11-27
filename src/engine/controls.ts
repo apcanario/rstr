@@ -27,6 +27,8 @@ export type Where =
   | { at: 'params'; key: string }
   | { at: 'pick'; key: 'layout' | 'motif' | 'palette' | 'pairing' | 'dialect' }
   | { at: 'pos'; slot: Slot }
+  /** A text layer's place beyond the slots (spec 8.6, 10.3): `pos` of the layer with this id. */
+  | { at: 'layer'; id: string }
   /** Where the photo sits (spec 8.9, 10.3 Photo): a field of `photo.place`. */
   | { at: 'photo'; key: 'role' | 'scale' | 'x' | 'y' }
   /** The photo's treatment (spec 8.9, R15): `photo.treatment`, the graphic stream's while unset. */
@@ -66,6 +68,7 @@ export function read(s: Spec, w: Where): Value {
   if (w.at === 'pick') return s.pick[w.key] ?? null;
   if (w.at === 'photo') return s.photo?.place?.[w.key] ?? null;
   if (w.at === 'treatment') return s.photo?.treatment ?? null;
+  if (w.at === 'layer') return s.text.find((l) => l.id === w.id)?.pos ?? null;
   return leadsOf(s.text)[w.slot]?.pos ?? null;
 }
 
@@ -84,6 +87,7 @@ export function write(s: Spec, w: Where, v: Value): Spec {
     return { ...s, photo: { ...s.photo, place: Object.keys(place).length ? (place as never) : null } };
   }
   if (w.at === 'treatment') return s.photo ? { ...s, photo: { ...s.photo, treatment: v === null ? null : String(v) } } : s;
+  if (w.at === 'layer') return { ...s, text: s.text.map((l) => (l.id === w.id ? { ...l, pos: v === null ? null : String(v) } : l)) };
   // a position belongs to the lead layer of the slot's level (spec 8.6)
   const lead = leadsOf(s.text)[w.slot];
   if (!lead) return s;
@@ -156,6 +160,9 @@ export const typeCap = (s: Spec): number => {
   return typeof v === 'number' && Number.isFinite(v) ? Math.max(TYPE_CAP.min, Math.min(TYPE_CAP.max, v)) : 1;
 };
 /** Positions of each slot a layout part lists (spec 8.5): Text tab. */
+/** The place of a text layer beyond the slots (spec 8.6, 10.3), from its level's places in the style: Auto, Head, Foot. */
+export const layerPlaceControl = (id: string, places: readonly string[]): Choice => choice('layer.' + id, 'Place', { at: 'layer', id }, 'layout', places);
+
 export function positionControls(pos: Partial<Record<Slot, string[]>>): Choice[] {
   return (Object.entries(pos) as [Slot, string[]][]).map(([slot, list]) => choice('pos.' + slot, 'Place', { at: 'pos', slot }, 'layout', list));
 }

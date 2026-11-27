@@ -190,7 +190,7 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     proof: {
       invariants: (o: Opts) => runInvariants(browserMeasure(), o, resolve),
       /** 9.2 over text layers (spec 8.6, R17): layer lists of 1 to 8 in every mix of levels. */
-      layers: (o: { styles?: StyleId[]; n?: number; start?: number }) => runLayers(browserMeasure(), o, resolve),
+      layers: (o: Parameters<typeof runLayers>[1]) => runLayers(browserMeasure(), o, resolve),
       /** Row R10 (review R10 S3): every Advanced value and colour edit of each design through 9.2, real fonts. */
       advanced: (o: Opts) => runAdvanced(browserMeasure(), o, resolve),
       /** Review bundle 4 M5: Brutalist title lines at the full width with the real faces. */

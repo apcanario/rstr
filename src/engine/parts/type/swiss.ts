@@ -18,17 +18,18 @@ import { fieldColour, inkOn } from '../shared/field';
 import { upper } from '../shared/text';
 import type { SizeClass, TypePart } from '../types';
 import { capControl, paramChoice, type Ranged } from '../../controls';
-import { lv } from '../shared/layers';
+import { bothPlaces, lv, soloPlan } from '../shared/layers';
 import type { LevelSets } from '../types';
 /** Text layers beyond the slots (spec 8.6): flush left on the text area, as the slots of 8.1 are set, on ground plates. */
-export const SWISS_LEVELS: LevelSets = {
-  headline: lv('display', false, 0.09, 40, 0.94, 3, -0.028),
-  subhead: lv('serif', false, 0.036, 20, 1.18, 2, 0),
-  body: lv('text', false, 0.028, 16, 1.3, 5, 0),
-  label: lv('label', true, 0.017, 16, 1, 1, 0.14),
-  caption: lv('mono', true, 0.0185, 16, 1, 1, 0.12, 'bottom'),
-  data: lv('text', false, 0.026, 16, 1.2, 1, 0, 'bottom'),
-};
+// a plate of ground across a graphic is a ref look only in the full-bleed layout (8.1): only there may body and label go over one
+export const SWISS_LEVELS: LevelSets = bothPlaces({
+  headline: lv('display', false, 0.09, 40, 0.94, 3, -0.028, 'top', 'left', 'ground', ['full-bleed']),
+  subhead: lv('serif', false, 0.036, 20, 1.18, 2, 0, 'top', 'left', 'ground', ['full-bleed']),
+  body: lv('text', false, 0.028, 16, 1.3, 5, 0, 'top', 'left', 'ground', ['full-bleed']),
+  label: lv('label', true, 0.017, 16, 1, 1, 0.14, 'top', 'left', 'ground', ['full-bleed']),
+  caption: lv('mono', true, 0.0185, 16, 1, 1, 0.12, 'bottom', 'left', 'ground', ['full-bleed']),
+  data: lv('text', false, 0.026, 16, 1.2, 1, 0, 'bottom', 'left', 'ground', ['full-bleed']),
+});
 
 
 /** Title case (spec 10.3 Type): Swiss sets the title as typed unless Advanced asks for upper or lower case. */
@@ -52,6 +53,8 @@ const trackControl = (): Ranged => ({ kind: 'range', id: 'type.track', label: 'T
 
 export const swissType: TypePart = {
   levels: SWISS_LEVELS,
+  // a second layer of a slot's level: the room is its text area, on the axis, over the field where the room is in it
+  solo: (plan, slot, room) => soloPlan(plan, slot, room, { boxes: { text: room, title: room, ...(plan.boxes.field ? { field: plan.boxes.field } : {}) } }),
   id: 'swiss', min: MIN,
   controls: () => {
     const k = paramChoice('type.case', 'Case', ['upper', 'lower'], (v) => (v === 'upper' ? 'Upper' : 'Lower'));

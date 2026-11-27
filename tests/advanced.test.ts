@@ -98,7 +98,7 @@ describe('Advanced controls (spec 10.3): generated from the parts, each changes 
   test('each control says the facet Shuffle clears it with, and that is the facet of its key', () => {
     const pickFacet: Record<string, Facet | null> = { layout: 'layout', motif: 'graphic', palette: 'colour', pairing: 'type', dialect: null };
     for (const style of STYLE_IDS) for (const s of base(style, 1)) for (const c of allControls(advancedOf(s, sceneOf(s)))) {
-      const want = c.where.at === 'params' ? facetOfParam(c.where.key) : c.where.at === 'pos' || c.where.at === 'photo' ? 'layout' : c.where.at === 'treatment' ? 'graphic' : pickFacet[c.where.key];
+      const want = c.where.at === 'params' ? facetOfParam(c.where.key) : c.where.at === 'pos' || c.where.at === 'layer' || c.where.at === 'photo' ? 'layout' : c.where.at === 'treatment' ? 'graphic' : pickFacet[c.where.key];
       expect(c.facet, `${style} ${c.id}`).toBe(want);
     }
     // the keys the engine reads, by facet (spec 10.3)

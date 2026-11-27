@@ -464,19 +464,20 @@ export function App({ ready }: { ready: Promise<void> }) {
       ))}
     </div>,
   ];
-  // a text layer's row (spec 8.6, 10.2, 10.3): its level (a tap steps to the next), its words, on/off and More, which
-  // turns the row to its edit controls (in Advanced Up and Down, then Remove and Done) so the field keeps its width at
-  // 360 px; a layer the design cannot fit is flagged on its row
+  // a text layer's row (spec 8.6, 10.2, 10.3): its level (a tap steps to the next), its words and More, which turns
+  // the row to its edit controls (in Advanced Up and Down, then on/off, Remove and Done) so the field keeps at least
+  // 160 px at 360 (review R17 M2); a layer that is off shows its words dimmed; one the design cannot fit is flagged
   const textRow = (l: TextLayer, i: number) => {
     const flagged = !!scene?.flagged?.includes(l.id);
     const next = LEVELS[(LEVELS.indexOf(l.level) + 1) % LEVELS.length];
     const lvl = <button class="lvl" data-level-of={l.id} aria-label={`${LEVEL_NAME[l.level]}${flagged ? ', does not fit' : ''}: change to ${LEVEL_NAME[next]}`} onClick={() => commit((s) => setLevel(s, l.id, next))}><L t={flagged ? LEVEL_SHORT[l.level] + ' !' : LEVEL_SHORT[l.level]} /></button>;
-    const cls = (flagged ? 'slot layer flagged' : 'slot layer') + (editing === l.id ? ' editing' : '');
+    const cls = (flagged ? 'slot layer flagged' : 'slot layer') + (editing === l.id ? ' editing' : '') + (l.on ? '' : ' off');
     if (editing === l.id) return (
       <div class={cls} data-layer={l.id} data-flagged={flagged ? '' : undefined}>
-        {lvl}
+        {!advanced && lvl}
         {advanced && <button class="icon up" data-up={l.id} aria-label="Move up" disabled={i === 0} onClick={() => commit((s) => moveLayer(s, l.id, -1))}><Icon n="prev" /></button>}
         {advanced && <button class="icon down" data-down={l.id} aria-label="Move down" disabled={i === spec.text.length - 1} onClick={() => commit((s) => moveLayer(s, l.id, 1))}><Icon n="prev" /></button>}
+        <button class={l.on ? 'switch on' : 'switch'} role="switch" aria-checked={l.on} aria-label={`${LEVEL_NAME[l.level]} on`} data-layer-on={l.id} onClick={() => commit((s) => toggleLayer(s, l.id))}><i /></button>
         <button class="icon wide" data-remove={l.id} aria-label={`Remove ${LEVEL_NAME[l.level]}`} onClick={() => { setEditing(null); commit((s) => removeLayer(s, l.id)); }}><Icon n="close" />{!advanced && <L t="Remove" />}</button>
         <button class="icon" data-done={l.id} aria-label="Done" onClick={() => setEditing(null)}><Icon n="check" /></button>
       </div>
@@ -485,8 +486,7 @@ export function App({ ready }: { ready: Promise<void> }) {
       <div class={cls} data-layer={l.id} data-flagged={flagged ? '' : undefined}>
         {lvl}
         <Field key={l.id + l.level} layer={l} onText={onText} />
-        <button class={l.on ? 'switch on' : 'switch'} role="switch" aria-checked={l.on} aria-label={`${LEVEL_NAME[l.level]} on`} data-layer-on={l.id} onClick={() => commit((s) => toggleLayer(s, l.id))}><i /></button>
-        <button class="icon" data-more={l.id} aria-label={`More for ${LEVEL_NAME[l.level]}`} onClick={() => setEditing(l.id)}><Icon n="more" /></button>
+        <button class="icon" data-more={l.id} aria-label={`More for ${LEVEL_NAME[l.level]}${l.on ? '' : ', off'}`} onClick={() => setEditing(l.id)}><Icon n="more" /></button>
       </div>
     );
   };
@@ -684,10 +684,12 @@ export function App({ ready }: { ready: Promise<void> }) {
         <div class="seg rerolls one" role="group">{rerollBtn('colour')}</div>
       </div>,
     ]),
-    // the position of each slot's lead layer follows its row (spec 8.5, 8.6)
+    // the position of each slot's lead layer follows its row (spec 8.5, 8.6), and so does every other layer's place
+    // where its level has more than one (review R17 S4)
     text: paged([...spec.text.flatMap((l, i) => {
       const k = LEVEL_SLOT[l.level], lead = leadsOf(spec.text)[k];
-      return [textRow(l, i), ...(lead?.id === l.id && l.level !== 'body' && l.level !== 'label' && adv?.positions[k] ? [ctlRow(adv.positions[k]!)] : [])];
+      const pos = lead?.id === l.id && l.level !== 'body' && l.level !== 'label' ? adv?.positions[k] : adv?.layerPlaces[l.id];
+      return [textRow(l, i), ...(pos ? [ctlRow(pos)] : [])];
     }), addRow]),
     look: lookPages,
     // the treatment is on its tiles; the generated list adds the rest

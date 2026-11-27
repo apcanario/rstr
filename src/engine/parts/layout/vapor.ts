@@ -58,7 +58,7 @@ export const vaporLayout: LayoutPart = {
     const deg = (ua < 0.5 ? -1 : 1) * (9 + 5 * ((ua * 2) % 1));
     const fr = frameFor(transform, deg, W, H, story), pg = fr.page;
     const M = 72, gap = Math.round(W * 0.025);
-    const up0 = transform === 'none' ? c.top : M, dn0 = transform === 'none' ? c.bot : pg.h - M;
+    const up0 = transform === 'none' ? c.top : M, dn0 = transform === 'none' ? c.bot : pg.h - M - c.keep;
     const plan = basePlan(name, pg, M);
     plan.transform = transform; plan.xf = fr.xf; plan.size = size; plan.gutter = gap;
     const B = plan.boxes = { text: { x: M, y: up0, w: pg.w - 2 * M, h: dn0 - up0 } } as typeof plan.boxes;

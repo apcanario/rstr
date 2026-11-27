@@ -59,6 +59,8 @@ export interface Opts {
   finish?: Spec['finish'];
   /** The photo set on every spec (spec 8.9, 9.4): a registered photo's id, and where it is pinned. */
   photo?: Spec['photo'];
+  /** Text layer list i (`layerMix`) on seed set i in place of the text variants (spec 8.6, review R17 S6). */
+  layers?: boolean;
 }
 /** What layout may use for a spec: the app's font check (spec 6). Absent: every pairing is drawn as asked. */
 export type Resolve = (spec: Spec) => Use;
@@ -99,7 +101,7 @@ export function* specs(o: Opts = {}): Generator<Spec> {
           for (let i = start; i < start + n; i++)
             for (const v of o.variants === 'cycle' ? [variants[i % variants.length]] : variants) {
               const s = defaultSpec(seedSet(i));
-              s.style = style; s.format = format; s.mode = mode; s.text = structuredClone(v.text);
+              s.style = style; s.format = format; s.mode = mode; s.text = o.layers ? layerMix(i) : structuredClone(v.text);
               s.pick = { ...s.pick, ...o.pick, ...pk };
               if (o.params) s.params = { ...o.params };
               if (o.marks) s.marks = o.marks;
@@ -448,20 +450,35 @@ export function layerMix(i: number): TextLayer[] {
   return out;
 }
 
-export interface LayerReport { count: number; layers: number; flagged: number; drawnOrFlagged: string[]; failures: { spec: Spec; failures: Failure[] }[]; }
+export interface LayerReport { count: number; layers: number; flagged: number; fallbacks: number; drawnOrFlagged: string[]; failures: { spec: Spec; failures: Failure[] }[]; }
 /**
- * 9.2 over text layers: n layer lists per style, the format and mode cycling with the seed set. Every layer that is on
- * is drawn or flagged on the Scene, never dropped (`drawnOrFlagged` lists any that is neither).
+ * The format and mode of layer list i (review R17 E2): taken from other bits of i than the layer count (i mod 8), so
+ * every block of 64 lists has every count x format x mode. With `formats` given, i runs over those only.
  */
-export function runLayers(m: Measure, o: { styles?: StyleId[]; n?: number; start?: number; formats?: Format[] } = {}, resolve?: Resolve): LayerReport {
-  const r: LayerReport = { count: 0, layers: 0, flagged: 0, drawnOrFlagged: [], failures: [] };
+export function layerCase(i: number, formats: readonly Format[] = FORMAT_LIST): { format: Format; mode: 'light' | 'dark' } {
+  return { format: formats[Math.floor(i / 8) % formats.length], mode: Math.floor(i / (8 * formats.length)) % 2 ? 'dark' : 'light' };
+}
+
+/**
+ * 9.2 over text layers: n layer lists per style (per format where `formats` is given), every count x format x mode in
+ * each block of 64. Every layer that is on is drawn or flagged on the Scene, never dropped (`drawnOrFlagged` lists any
+ * that is neither). With `marks`, `finish`, `dialect` or `photo` the lists run with them (review R17 S6).
+ */
+export function runLayers(m: Measure, o: { styles?: StyleId[]; n?: number; start?: number; formats?: Format[]; marks?: Spec['marks']; finish?: Spec['finish']; dialect?: Spec['pick']['dialect']; photo?: string } = {}, resolve?: Resolve): LayerReport {
+  const r: LayerReport = { count: 0, layers: 0, flagged: 0, fallbacks: 0, drawnOrFlagged: [], failures: [] };
   const formats = o.formats ?? FORMAT_LIST;
   for (const style of o.styles ?? STYLE_IDS) for (let i = o.start ?? 0; i < (o.start ?? 0) + (o.n ?? 200); i++) {
     const s = defaultSpec(seedSet(i));
-    s.style = style; s.format = formats[i % formats.length]; s.mode = Math.floor(i / formats.length) % 2 ? 'dark' : 'light';
+    const lc = layerCase(i, formats);
+    s.style = style; s.format = lc.format; s.mode = lc.mode;
+    if (o.marks) s.marks = o.marks;
+    if (o.finish) s.finish = o.finish;
+    if (o.dialect) s.pick = { ...s.pick, dialect: o.dialect };
+    if (o.photo) s.photo = { id: o.photo, place: null, treatment: null } as Spec['photo'];
     s.text = layerMix(i);
     r.count++;
     const { scene } = solve(s, m, resolve?.(s));
+    if (scene.layout === 'fallback') r.fallbacks++;
     const f = check(scene);
     if (f.length && r.failures.length < 50) r.failures.push({ spec: s, failures: f });
     for (const L of s.text) {

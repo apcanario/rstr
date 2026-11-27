@@ -9,10 +9,10 @@ import type { Rect, Xf } from '../../geom';
 import { mkRect, mkText } from '../../items';
 import type { Item, TextItem } from '../../scene';
 import { fitLine } from '../../text';
-import { breaksFrom, brutalBlock, brutalFit, brutalLines, brutalMetrics, KX_OK } from '../shared/brutal';
+import { blockInk, breaksFrom, brutalBlock, brutalFit, brutalLines, brutalMetrics, KX_OK } from '../shared/brutal';
 import { upper } from '../shared/text';
 import type { TypePart } from '../types';
-import { lv } from '../shared/layers';
+import { lv, soloPlan } from '../shared/layers';
 import type { LevelSets } from '../types';
 /** Text layers beyond the slots (spec 8.6): upper case, heavy face or mono (8.3), on ground plates. */
 export const BRUTAL_LEVELS: LevelSets = {
@@ -29,6 +29,22 @@ const MIN = { title: 40, subtitle: 16, info: 16, caption: 16 };
 
 export const brutalType: TypePart = {
   levels: BRUTAL_LEVELS,
+  // a second headline is a second full-width block of title lines (8.3), at its own unstretched height where the room
+  // allows; no accent bar (one hot line per page); a second subtitle, table or caption strip as the slot's own row
+  solo(plan, slot, room, _region, c) {
+    // the rows' own measure (inside a boxed page's border), not the whole text area
+    const X = plan.boxes.caption ?? plan.boxes.subtitle ?? plan.boxes.info ?? (plan.titleUp ? undefined : plan.boxes.title);
+    let r = X ? { ...room, x: X.x, w: X.w } : room;
+    if (slot === 'title') {
+      const lines = brutalLines(c.tx.title.v), b = blockInk(c.m, lines, c.T.display, r.w, plan.gutter);
+      r = { ...r, h: Math.min(r.h, b.ink + b.gaps) };
+    } else if (slot === 'info') {
+      const n = Math.max(1, c.tx.info.v.slice(0, 3).filter((p) => p.k.trim() || p.v.trim()).length);
+      r = { ...r, h: Math.min(r.h, n * Math.round(c.W * 0.066)) };
+    } else if (slot === 'subtitle') r = { ...r, h: Math.min(r.h, Math.round(c.W * 0.078)) };
+    return soloPlan(plan, slot, r, { emphasis: -1, titleSide: 'top', boxes: { text: r, [slot]: r } });
+  },
+  soloFree: ['title'],
   id: 'brutal', min: MIN,
   set(c, plan) {
     const { W, H, spec, m, P, T } = c, tx = c.tx, force = c.fallback, B = plan.boxes;
@@ -58,12 +74,13 @@ export const brutalType: TypePart = {
     if (B.caption) {
       const { x, y, w } = B.caption;
       rects.push(mkRect({ x, y, w, h: R }, P.ink));
-      const tag = 'RSTR/' + spec.format, tagW = m(tag, mono, ms).width;
+      // the format tag marks the page once: a second caption strip (spec 8.6) has none
+      const tag = plan.solo ? '' : 'RSTR/' + spec.format, tagW = tag ? m(tag, mono, ms).width : 0;
       const cf = fitLine(m, upper(tx.caption.v), mono, ms, MIN.caption, w - tagW - ms * 2, 0.08, force);
       if (!cf) { if (!force) return null; }
       const base = y + R + ms * 1.45;
       if (cf) texts.push(mkText(m, { slot: 'caption', part: 'line0', font: mono, size: cf.size, tracking: cf.tracking, runs: [{ s: cf.lines[0], x, y: base }], fill: P.ink, ink: [P.ink], min: MIN.caption }));
-      texts.push(mkText(m, { slot: 'caption', part: 'tag', font: mono, size: ms, runs: [{ s: tag, x: x + w - tagW, y: base }], fill: P.ink, ink: [P.ink], min: MIN.caption }));
+      if (tag) texts.push(mkText(m, { slot: 'caption', part: 'tag', font: mono, size: ms, runs: [{ s: tag, x: x + w - tagW, y: base }], fill: P.ink, ink: [P.ink], min: MIN.caption }));
       rects.push(mkRect({ x, y: y + R + ms * 2.1, w, h: R / 2 }, P.ink));
     }
     if (B.info) {
@@ -131,7 +148,7 @@ export const brutalType: TypePart = {
         set.push({ box: p.box, f, side: p.side });
         count += f.ls.length;
       }
-      const hotAt = count ? hot % count : -1;
+      const hotAt = count && hot >= 0 ? hot % count : -1;
       for (const { box, f, side } of set) {
         const len = up ? box.h : box.w, A = up ? box.w : box.h;
         const xf: Xf | undefined = up ? { x: box.x, y: box.y + box.h, rot: -Math.PI / 2 } : undefined;

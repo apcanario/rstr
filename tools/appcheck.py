@@ -385,11 +385,14 @@ EIGHT = [
 ]
 
 
+CROWD = [{'id': f't{i + 1}', 'level': 'headline', 'v': 'Eight plain words make a long poster title and six more words of it', 'on': True, 'pos': None} for i in range(8)]
+
+
 def run_layers(pg, at, fail):
     """Text layers (spec 8.6, 10.2, 10.3, row R17): at 8 layers the Text tab fits without scrolling (page chips), in Simple
     and Advanced, every style; Add is off at 8; add, remove, level and move up reach the spec; a flagged layer's row is marked."""
     s0 = spec(pg)
-    n = 0
+    n = nflag = 0
     for adv in [False, True]:
         if (pg.get_attribute('[data-testid="advanced"]', 'aria-pressed') == 'true') != adv:
             pg.click('[data-tab="style"]')
@@ -422,6 +425,23 @@ def run_layers(pg, at, fail):
                 marked |= set(pg.evaluate('() => [...document.querySelectorAll("[data-layer][data-flagged]")].map((e) => e.dataset.layer)'))
             if marked != set(flagged):
                 fail(f'{at}: {style} flags {flagged} but the rows marked are {sorted(marked)}')
+            # a list that always flags (review R17 S7): eight long headlines on 1:1; at least one row is marked and its
+            # level button says so
+            pg.evaluate('([x, st, t]) => window.__rstr.app.load({ ...x, style: st, format: "1:1", text: t })', [s0, style, CROWD])
+            idle(pg)
+            flagged = pg.evaluate('(x) => window.__rstr.scene(x).flagged || []', spec(pg))
+            if not flagged:
+                fail(f'{at}: {style}: eight long headlines on 1:1 flagged nothing')
+            marked, bangs = set(), set()
+            for i in range(npages(pg)):
+                goto(pg, i)
+                marked |= set(pg.evaluate('() => [...document.querySelectorAll("[data-layer][data-flagged]")].map((e) => e.dataset.layer)'))
+                bangs |= set(pg.evaluate('() => [...document.querySelectorAll("[data-layer][data-flagged] [data-level-of]")].filter((b) => b.textContent.trim().endsWith("!")).map((b) => b.dataset.levelOf)'))
+            if not marked or marked != set(flagged):
+                fail(f'{at}: {style}, eight long headlines: flags {flagged} but the rows marked are {sorted(marked)}')
+            if bangs != marked:
+                fail(f'{at}: {style}, eight long headlines: marked rows {sorted(marked)} but level buttons reading "!" {sorted(bangs)}')
+            nflag += len(marked)
         # the row's controls reach the spec
         pg.evaluate('(x) => window.__rstr.app.load({ ...x, style: "swiss", text: x.text.slice(0, 4) })', s0)
         idle(pg)
@@ -465,7 +485,7 @@ def run_layers(pg, at, fail):
         tap(pg, f'[data-remove="{new}"]')
         if any(l['id'] == new for l in spec(pg)['text']):
             fail(f'{at}: Remove did not remove the layer')
-    print(f'{at}: Text tab at 8 layers checked on {n} pages (Simple and Advanced, every style): no scroll, controls at least 48 px, nothing wraps; Add off at 8; add, level, type, move up and down, remove reach the spec; flagged rows marked')
+    print(f'{at}: Text tab at 8 layers checked on {n} pages (Simple and Advanced, every style): no scroll, controls at least 48 px, nothing wraps; Add off at 8; add, level, type, move up and down, remove reach the spec; flagged rows marked ({nflag} rows of eight long headlines marked "!")')
     pg.evaluate('(x) => window.__rstr.app.load(x)', s0)
     idle(pg)
     pg.click('[data-tab="text"]')
@@ -647,10 +667,13 @@ def run(b, url, fail):
         idle(pg)
         pg.click('[data-tab="text"]')
         before = spec(pg)
+        # the switch is under the row's More (review R17 M2: the field keeps its width)
+        tap(pg, '[data-more="t1"]')
         tap(pg, 'button[data-layer-on="t1"]')
         if layer(spec(pg), 't1')['on'] == layer(before, 't1')['on']:
             fail(f'{at}: the headline switch did nothing')
         tap(pg, 'button[data-layer-on="t1"]')
+        tap(pg, '[data-done="t1"]')
         pg.fill('[data-field="t1"]', 'Typed title')
         idle(pg)
         if layer(spec(pg), 't1')['v'] != 'Typed title':
@@ -699,7 +722,7 @@ def run(b, url, fail):
         steps = [
             ('[data-testid="shuffle"]', None), ('button[data-style="pomo"]', None), ('button[data-format="3:4"]', None),
             ('[data-tab="look"]', 'mode'), (None, 'mode'),
-            ('[data-tab="text"]', 'type'), (None, 'button[data-layer-on="t2"]'), ('[data-tab="style"]', 'button[data-style="vapor"]'),
+            ('[data-tab="text"]', 'type'), ('[data-more="t2"]', 'button[data-layer-on="t2"]'), ('[data-tab="style"]', 'button[data-style="vapor"]'),
             (None, '[data-testid="shuffle"]'), (None, 'button[data-format="1:1"]'), ('[data-tab="look"]', 'button[data-reroll-page]'),
             ('[data-tab="style"]', '[data-testid="shuffle"]'),
             # Advanced (review R10 S4): a range dragged (three input events, one Back step, spec 10.1) and a colour

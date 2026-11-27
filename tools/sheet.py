@@ -251,6 +251,35 @@ with served() as url, browser() as b:
                 pg.wait_for_timeout(150)
                 pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-{t}-{i + 1}.png'))
             appcheck.goto(pg, 0)
+        # the Text tab at eight layers with flagged rows and one row's edit controls open (review R17 M6): Simple and
+        # Advanced, the page holding the first flagged row
+        cur8 = pg.evaluate('() => JSON.stringify(window.__rstr.spec())')
+        pg.evaluate('([s, t]) => { const x = JSON.parse(s); x.style = "brutal"; x.format = "A"; x.text = t; window.__rstr.app.load(x); }', [cur8, appcheck.EIGHT])
+        idle(pg)
+        for mode in ['simple', 'advanced']:
+            if mode == 'advanced':
+                pg.click('[data-tab="style"]')
+                pg.click('[data-testid="advanced"]')
+                idle(pg)
+            pg.click('[data-tab="text"]')
+            for i in range(appcheck.npages(pg)):
+                appcheck.goto(pg, i)
+                if pg.query_selector('[data-layer][data-flagged]'):
+                    break
+            pg.wait_for_timeout(150)
+            pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-text8-{mode}.png'))
+            lid = pg.evaluate('() => (document.querySelector("[data-layer][data-flagged]") || document.querySelector("[data-layer]")).dataset.layer')
+            pg.click(f'[data-more="{lid}"]')
+            idle(pg)
+            pg.wait_for_timeout(150)
+            pg.screenshot(path=os.path.join(OUT, f'screen-{w}x{h}-text8-{mode}-more.png'))
+            pg.click(f'[data-done="{lid}"]')
+            appcheck.goto(pg, 0)
+        pg.click('[data-tab="style"]')
+        pg.click('[data-testid="advanced"]')
+        idle(pg)
+        pg.evaluate('(s) => window.__rstr.app.load(JSON.parse(s))', cur8)
+        idle(pg)
         # the Postmodern Look tab in Simple (review R6 M5), then every Advanced tab and page (R10) for a photocopy
         # design (the most Type and Graphic rows), a Vaporwave one, a Swiss and a Brutalist one, marks and a finish on so their controls show
         cur = pg.evaluate('() => JSON.stringify(window.__rstr.spec())')

@@ -114,14 +114,15 @@ export const stringOf = (l: TextLayer): string => (typeof l.v === 'string' ? l.v
 export const hasContent = (l: TextLayer): boolean => l.on && (l.level === 'data' ? pairsOf(l).length > 0 : !!stringOf(l).trim());
 
 /**
- * The lead layer of each slot's level: the first layer of the level that is on, else its first layer (so a v1 slot
- * that was off stays off with its words). With two headlines the first in the list leads (spec 8.6).
+ * The lead layer of each slot's level: the first layer of the level that is on and has words, else the first that is
+ * on, else its first layer (so a v1 slot that was off stays off with its words). With two headlines the first in the
+ * list leads (spec 8.6).
  */
 export function leadsOf(layers: readonly TextLayer[]): Partial<Record<Slot, TextLayer>> {
   const out: Partial<Record<Slot, TextLayer>> = {};
   for (const k of SLOTS) {
     const of = layers.filter((l) => l.level === SLOT_LEVEL[k]);
-    const lead = of.find((l) => l.on) ?? of[0];
+    const lead = of.find(hasContent) ?? of.find((l) => l.on) ?? of[0];
     if (lead) out[k] = lead;
   }
   return out;
@@ -143,6 +144,16 @@ export function slotsOf(layers: readonly TextLayer[]): SlotText {
 export function extrasOf(layers: readonly TextLayer[]): TextLayer[] {
   const leads = new Set(Object.values(leadsOf(layers)).map((l) => l!.id));
   return layers.filter((l) => !leads.has(l.id) && hasContent(l));
+}
+
+/**
+ * How much a set of flagged layers weighs (spec 8.6: the lowest levels give way first): one flagged layer of a level
+ * outweighs any number of flagged layers below it. Lower is better; 0 is nothing flagged.
+ */
+export function flagWeight(layers: readonly TextLayer[], ids: readonly string[]): number {
+  let w = 0;
+  for (const id of ids) { const L = layers.find((l) => l.id === id); if (L) w += 9 ** (LEVEL_RANK.length - 1 - LEVEL_RANK.indexOf(L.level)); }
+  return w;
 }
 
 /** A fresh id: t<n>, the first n not taken. */

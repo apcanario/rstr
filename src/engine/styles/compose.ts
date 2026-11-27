@@ -7,7 +7,7 @@ import { compose, xfQuad, type Xf } from '../geom';
 import type { GraphicItem, Item } from '../scene';
 import type { Parts, PartCtx, Plan } from '../parts/types';
 import { PHOTO_FLOOR, PHOTO_TRIES, photoChoice, photoItem, photoOf, photoShare, photoSpot, photoText } from '../photo';
-import { COLOUR_ROLES, extrasOf, leadsOf } from '../spec';
+import { COLOUR_ROLES, LEVEL_RANK, SLOT_LEVEL, SLOTS, extrasOf, flagWeight, hasContent, leadsOf } from '../spec';
 import { placeLayers } from '../parts/shared/layers';
 import { treatOf } from '../treat';
 
@@ -23,16 +23,33 @@ export function compose5(parts: Parts, c: PartCtx): { items: Item[]; plan: Plan 
   if (!plan) return null;
   const ground = parts.ground.ground(c, plan);
   const below = [...ground, ...parts.graphics.place(c, plan).map((i) => place(i, plan.xf))];
-  const text = parts.type.set(c, plan, below);
+  let text = parts.type.set(c, plan, below);
   if (!text) return null;
   // text layers (spec 8.6): each slot's items draw the lead layer of its level; every other layer is set by the shared
-  // placer in the room left, by the treatment the style gives its level
+  // placer in the room left (parts/shared/layers.ts)
   const leads = leadsOf(c.spec.text);
   for (const it of text) if (it.kind === 'text' && leads[it.slot]) it.lid = leads[it.slot]!.id;
   const extras = extrasOf(c.spec.text);
   if (extras.length) {
-    const sets = (plan.dialect && parts.type.levelsOf?.[plan.dialect]) || parts.type.levels;
-    text.push(...placeLayers(c, plan, below, text, sets, extras).items);
+    let r = placeLayers(c, plan, below, text, parts.type, extras);
+    // the lowest levels give way first (spec 8.6, review R17 S1): where a layer is flagged while the lead of a lower
+    // level is drawn, the slots of the lower leads are set again without them and those leads placed after the
+    // flagged layer, in what it leaves; the arrangement whose flags weigh least is kept
+    const rank = (id: string) => LEVEL_RANK.indexOf(c.spec.text.find((l) => l.id === id)!.level);
+    const hi = r.flagged.length ? Math.min(...r.flagged.map(rank)) : Infinity;
+    const lower = SLOTS.filter((s) => leads[s] && hasContent(leads[s]!) && LEVEL_RANK.indexOf(SLOT_LEVEL[s]) > hi);
+    if (lower.length) {
+      const tx = { ...c.tx };
+      for (const s of lower) tx[s] = { ...tx[s], on: false } as never;
+      const c2 = { ...c, tx }, plan2 = { ...plan };
+      const text2 = parts.type.set(c2, plan2, below);
+      if (text2) {
+        for (const it of text2) if (it.kind === 'text' && leads[it.slot]) it.lid = leads[it.slot]!.id;
+        const r2 = placeLayers(c2, plan2, below, text2, parts.type, [...extras, ...lower.map((s) => leads[s]!)]);
+        if (flagWeight(c.spec.text, r2.flagged) < flagWeight(c.spec.text, r.flagged)) { text = text2; r = r2; plan.inert = plan2.inert; }
+      }
+    }
+    text.push(...r.items);
   }
   const items = [...below, ...text.map((i) => place(i, plan.xf))];
   parts.graphics.after?.(c, plan, items);

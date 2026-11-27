@@ -97,8 +97,9 @@ export const swissLayout: LayoutPart = {
     if (transform !== 'none') axis = Math.min(axis, 1);
     const fr = frameFor(transform, deg, W, H, story), pg = fr.page;
     const M = Math.round(W * 0.0667), G = Math.round(W * 0.028), mod = (pg.w - 2 * M) / 6;
-    const top = transform === 'none' ? c.top : M, bot = transform === 'none' ? c.bot : pg.h - M, innerH = bot - top, innerW = pg.w - 2 * M;
-    const any = SLOTS.some((s) => c.tx[s].on);
+    const top = transform === 'none' ? c.top : M, bot = transform === 'none' ? c.bot : pg.h - M - c.keep, innerH = bot - top, innerW = pg.w - 2 * M;
+    // text layers beyond the slots are text too (spec 8.6): a design of body or labels alone keeps its text area
+    const any = SLOTS.some((s) => c.tx[s].on) || c.keep > 0;
     const turned = transform !== 'none', tilted = transform === 'tilt';
     const tall = story && transform === 'none', square = Math.abs(pg.h / pg.w - 1) < 0.05;
     /** The graphic's share of the text area's height. */

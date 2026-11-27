@@ -61,15 +61,31 @@ with served() as url, browser() as b:
             fallback_check(f'9.2 palette {style} {fmt}', r, 0)
             for f in r['failures'][:5]:
                 fail(f'9.2 palette {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
-    # 9.2 over text layers with the real fonts (spec 8.6, R17): 1 to 8 layers in every mix of levels, formats and
-    # modes cycling; every layer drawn or flagged, never dropped
+    # 9.2 over text layers with the real fonts (spec 8.6, R17): 1 to 8 layers in every mix of levels, N lists per
+    # style and format (review R17 E2: every count in both modes in each 16), every layer drawn or flagged, never
+    # dropped; fallbacks reported (a list whose slots fit no candidate draws the style's own fallback, flags listed)
+    t1 = time.time()
     for style in STYLES:
-        r = pg.evaluate('(o) => window.__rstr.proof.layers(o)', {'styles': [style], 'n': 200})
-        print(f'9.2 {style:6} layers: {r["count"]} designs, {r["layers"]} layers, {r["flagged"]} flagged, {len(r["failures"])} failing, {len(r["drawnOrFlagged"])} neither drawn nor flagged')
-        for f in r['failures'][:5]:
-            fail(f'9.2 layers {style}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
-        for d in r['drawnOrFlagged'][:5]:
-            fail(f'9.2 layers {style}: a layer neither drawn nor flagged: {d}')
+        for fmt in FORMATS:
+            r = pg.evaluate('(o) => window.__rstr.proof.layers(o)', {'styles': [style], 'formats': [fmt], 'n': N})
+            print(f'9.2 {style:6} {fmt:4}  layers: {r["count"]} designs, {r["layers"]} layers, {r["flagged"]} flagged, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing, {len(r["drawnOrFlagged"])} neither drawn nor flagged')
+            for f in r['failures'][:5]:
+                fail(f'9.2 layers {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+            for d in r['drawnOrFlagged'][:5]:
+                fail(f'9.2 layers {style} {fmt}: a layer neither drawn nor flagged: {d}')
+    # review R17 S6: the layer lists also through marks light and full (no mark on a text item, labels from the spec),
+    # with a photo (9.2 and the "It shows" run inside it), and below through the finishes and the copier pass
+    LN = max(25, N // 8)
+    for style in STYLES:
+        for fmt in FORMATS:
+            for label, o in [('marks light', {'marks': 'light'}), ('marks full', {'marks': 'full'}), ('photo', {'photo': {'id': 'test-portrait', 'treatment': None, 'place': None}})]:
+                if label == 'photo':
+                    pg.evaluate('([i, w, h, s]) => window.__rstr.photo.test(i, w, h, s)', ['test-portrait', 3000, 4000, 7])
+                r = pg.evaluate('(o) => window.__rstr.proof.invariants(o)', {'styles': [style], 'formats': [fmt], 'n': LN, 'start': 400, 'variants': 'cycle', 'layers': True, **o})
+                print(f'9.2 {style:6} {fmt:4}  layers, {label}: {r["count"]} designs, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing')
+                for f in r['failures'][:5]:
+                    fail(f'9.2 layers {label} {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
+    print(f'layers: {time.time() - t1:.0f} s')
     # 9.2 with each transform forced on Swiss (spec 8.0): a tilted or turned page keeps every text item legal
     for fmt in FORMATS:
         for tr in ['tilt', 'quarter']:
@@ -161,6 +177,20 @@ with served() as url, browser() as b:
             if r['low']:
                 fail(f'copier {fmt}: text under its ratio after the copier pass: {r["low"][:3]}', spec)
         print(f'copier pass {fmt:4}  {nd} photocopy designs, {nw} text items, {ncell} cells read with and without the pass; {nbefore} cells under their ratio before the pass (reported, Carried R12 from bundle 3)' + ('' if not fails else ' (failures above)'))
+        # review R17 S6: the same over text layer lists
+        nw = ncell = nd = nbefore = 0
+        for spec in pg.evaluate('(o) => window.__rstr.specs(o)', {'styles': ['pomo'], 'formats': [fmt], 'n': max(25, N // 8), 'start': 64, 'variants': 'cycle', 'layers': True, 'pick': {'dialect': 'photocopy'}}):
+            r = pg.evaluate('(s) => window.__rstr.copierProof(s)', spec)
+            if r is None:
+                fail(f'copier layers {fmt}: no copier pass on a photocopy design', spec)
+                continue
+            nd += 1
+            nw += r['words']
+            ncell += r['cells']
+            nbefore += len(r['before'])
+            if r['low']:
+                fail(f'copier layers {fmt}: text under its ratio after the copier pass: {r["low"][:3]}', spec)
+        print(f'copier pass {fmt:4}  layers: {nd} photocopy designs, {nw} text items, {ncell} cells; {nbefore} cells under their ratio before the pass (reported)')
     nwash = 0
     for i in range(3):
         spec = pg.evaluate('(i) => { const x = window.__rstr.spec(); x.style = "pomo"; x.format = "1:1"; x.pick.dialect = "photocopy"; x.seeds = {layout: 70 + i, colour: 71 + i, graphic: 72 + i, type: 73 + i}; return x; }', i)
@@ -229,6 +259,12 @@ with served() as url, browser() as b:
     for fin in ['grain', 'grunge', 'vhs', 'glitch']:
         for st, fm, md, mk, d, seeds in found:
             cases.append(('([s, f, md, mk, d, seeds, fin]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = md; x.marks = mk; x.finish = fin; x.seeds = seeds; x.pick = {palette: null, pairing: null, motif: null, layout: null, dialect: d}; x.params = {}; return x; }', [st, fm, md, mk, d, seeds, fin]))
+    # review R17 S6: layer lists through every finish, two per style, format and finish
+    for style in STYLES:
+        for fmt in FORMATS:
+            for fin in ['grain', 'grunge', 'vhs', 'glitch']:
+                for spec in pg.evaluate('(o) => window.__rstr.specs(o)', {'styles': [style], 'formats': [fmt], 'modes': ['light'] if fin in ['grain', 'vhs'] else ['dark'], 'n': 2, 'start': 64 + FORMATS.index(fmt) * 2, 'variants': 'cycle', 'layers': True, 'finish': fin, 'marks': 'full' if fin in ['vhs', 'grunge'] else 'off'}):
+                    cases.append(('(s) => s', spec))
     nf, nrest, worst = 0, 0, 0
     for js, args in cases:
         spec = pg.evaluate(js, args)
@@ -476,6 +512,20 @@ with served() as url, browser() as b:
                     fail(f'photo shows {style} unpinned {r["role"]}: {r["share"]:.2f} of its box on pixels, the Scene said {r["scene"]:.2f}', spec)
     under = {key: sum(1 for v in vs if v < 0.35) for key, vs in shows.items()}
     print(f'photo shows (pixels): {sum(len(v) for v in shows.values())} designs; under 35% of the box: ' + ', '.join(f'{key} {n}/{len(shows[key])}' for key, n in sorted(under.items()) if n) + f'; {time.time() - t1:.0f} s')
+    # review R17 S6: the photo's "It shows" floor (8.9) with up to four more plates of text layers on the page
+    nsh, low = 0, 0
+    for style in STYLES:
+        for fmt in FORMATS:
+            for spec in pg.evaluate('(o) => window.__rstr.specs(o)', {'styles': [style], 'formats': [fmt], 'modes': ['light', 'dark'], 'n': 3, 'start': 64 + FORMATS.index(fmt) * 3, 'variants': 'cycle', 'layers': True, 'photo': {'id': 'test-portrait', 'treatment': None, 'place': None}}):
+                r = pg.evaluate('(s) => window.__rstr.photo.shows(s)', spec)
+                if not r:
+                    fail(f'photo shows layers {style} {fmt}: the design drew no photo', spec)
+                    continue
+                nsh += 1
+                low += r['share'] < 0.35
+                if r['scene'] >= 0.35 and r['share'] < 0.35:
+                    fail(f'photo shows layers {style} {fmt} {r["role"]}: {r["share"]:.2f} of its box on pixels, the Scene said {r["scene"]:.2f}', spec)
+    print(f'photo shows (pixels), text layers: {nsh} designs, {low} under 35% of the box (where no placement reaches it, spec 8.9)')
     print(f'engine checks took {time.time() - t0:.0f} s')
     # row R16 (spec 10.1, 9.4): export sizes, files, strips, the bleed, the honest failure, the export size of marks,
     # finishes and photo

@@ -6,7 +6,7 @@ import { check, type Failure } from './invariants';
 import type { Measure } from './measure';
 import { counted, mix, pick, rng } from './rng';
 import type { FontRef, GraphicItem, Item, Scene, TextItem } from './scene';
-import { extrasOf, hasContent, pairsOf, slotsOf, stringOf, type Spec } from './spec';
+import { extrasOf, flagWeight, hasContent, pairsOf, slotsOf, stringOf, type Spec } from './spec';
 import { roomFor } from './parts/shared/layers';
 import { STYLES } from './styles';
 import { textArea, type PartCtx } from './parts/types';
@@ -58,7 +58,7 @@ export function partCtx(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, 
   const rf = rng(spec.seeds.layout);
   const rc = k > 0 ? rng(mix(spec.seeds.layout, k)) : null;
   return {
-    spec, tx: slotsOf(spec.text), W, H, story, top, bot, m, P, T, rf, k, fallback: k < 0, cap: capFor(k) * typeCap(spec), ...(keep ? { top0: area.top, bot0: area.bot } : {}), rg: counted(rng(spec.seeds.graphic)),
+    spec, tx: slotsOf(spec.text), W, H, story, top, bot, m, P, T, rf, k, fallback: k < 0, cap: capFor(k) * typeCap(spec), keep, ...(keep ? { top0: area.top, bot0: area.bot } : {}), rg: counted(rng(spec.seeds.graphic)),
     cand<V>(list: readonly V[], safe?: V): V {
       const v = list[Math.floor(rf() * list.length)];
       if (k === 0) return v;
@@ -190,17 +190,18 @@ export function solve(spec: Spec, m0: Measure, use: Use = {}): Solved {
     return { ...out, faces: [...faces].sort() };
   };
   // with layers beyond the four slots (spec 8.6), a candidate that flags a layer is kept only as a stand-by: a later
-  // one that draws every layer wins, else the one that flags fewest. A v1 design's four slots never flag here.
+  // one that draws every layer wins, else the one whose flags weigh least (a flagged caption weighs less than a flagged
+  // headline: the lowest levels give way first, review R17 S1). A v1 design's four slots never flag here.
   const many = extrasOf(spec.text).length > 0;
   let best: { sc: Scene; k: number; n: number } | null = null;
   for (let k = 0; k < CANDIDATES; k++) {
     if (many && best) {
       const pre = build(spec, m, P, T, k);
-      if (!pre || flaggedOf(spec, pre.items).length >= best.n) continue;
+      if (!pre || flagWeight(spec.text, flaggedOf(spec, pre.items)) >= best.n) continue;
     }
     const r = passesAll(spec, m, P, T, k, 'c' + k, measured);
     if (r.first) {
-      const n = many ? r.first.flagged?.length ?? 0 : 0;
+      const n = many ? flagWeight(spec.text, r.first.flagged ?? []) : 0;
       if (!n) return { scene: done(r.first), tried: k + 1, failures: [] };
       if (!best || n < best.n) best = { sc: r.first, k, n };
       continue;

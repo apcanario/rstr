@@ -81,7 +81,7 @@ export const pomoLayout: LayoutPart = {
     const deg = (ua < 0.5 ? -1 : 1) * (9 + 5 * ((ua * 2) % 1));
     const fr = frameFor(transform, deg, W, H, story), pg = fr.page;
     const M = Math.round(W * 0.0667);
-    const T0 = transform === 'none' ? c.top : M * 0.6, B0 = transform === 'none' ? c.bot : pg.h - M * 0.6;
+    const T0 = transform === 'none' ? c.top : M * 0.6, B0 = transform === 'none' ? c.bot : pg.h - M * 0.6 - c.keep;
     const text: Rect = { x: M, y: T0, w: pg.w - 2 * M, h: B0 - T0 };
     const plan = basePlan(name, pg, M);
     plan.transform = transform;
