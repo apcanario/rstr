@@ -31,6 +31,29 @@ How RSTR was made, chat by chat: who asked for what, which model did what, what 
 
 ## Entries
 
+### 27 Nov 2026 · Bundle 6 · chat 1 (started Thu 26 Nov 19:16 Lisbon; wrote this entry on 27 Nov by the session clock)
+- Started from: "Clone apcanario/rstr (shallow, push access).\nRSTR, next bundle. Thin main chat on Sonnet 5.5; every agent a fresh Opus 5.5 agent. Read docs/RUN.md and work the next open bundle of docs/BACKLOG.md in full, unattended.\nNotes: the rstr logo should be all lowercase\nRepo allowed"
+- Main chat model: Sonnet 5.5 (thin).
+- Rows: R17, R12 attempted and closed, each pushed, then the bundle 6 viewer check and its fixer. Bundle 6 had two rows.
+- Agents, in order (all Opus 5.5, run as `opus`, one at a time; duration, subagent tokens and tool calls as the harness reported them at each final notification; for an agent a restart stopped and resumed, only the resumed run is visible):
+  - R17 builder: stopped by a session restart after about 3 h 48 m, resumed from its transcript; resumed run 255,736 ms, 334,479 tokens, 5 calls; commit 88defbb; text layers, spec v2, lowercase wordmark; applied no Carried item (none named R17).
+  - R17 reviewer: 4,871,494 ms, 206,026 tokens, 43 calls; verdict fix, 2 errors, 7 should-fix, 7 minor; review R17.
+  - R17 fixer: 6,662,390 ms, 382,633 tokens, 147 calls; commit 52eeabc; 16 of 16 applied, S1 in part.
+  - R12 builder: stopped by a restart after about 1 h 31 m, resumed; resumed run 5,183,246 ms, 289,374 tokens, 17 calls; commit 075e5bf; five Carried items cleared.
+  - R12 reviewer: 6,486,014 ms, 180,711 tokens, 63 calls; verdict fix, 1 error, 1 should-fix, 6 minor; review R12.
+  - R12 fixer: stopped by a restart after about 32 m, resumed; resumed run 7,902,153 ms, 235,363 tokens, 30 calls; commit b38eb49; E1 in part.
+  - Bundle 6 viewer: 6,362,443 ms, 269,004 tokens, 114 calls; verdict fix, 0 errors, 4 should-fix, 8 minor; review bundle-6.
+  - Bundle 6 fixer: stopped by a restart after about 52 m, resumed; resumed run 8,282,874 ms, 186,354 tokens, 21 calls; commit a509ea2; 12 of 12 applied.
+- Reviews: R17 fix 2/7/7, 16 applied, 0 rejected, S1 in part, 0 rebuilds; R12 fix 1/1/6, all addressed, 0 rejected, E1 in part (type-seed half to Carried), M3 in part, 0 rebuilds; bundle 6 fix 0/4/8, 12 applied, 0 rejected.
+- Scripts: check pass at both row closes (348 tests at R17, 358 at R12, each 1 skipped, main chat's own runs) and in the bundle fixer's final run (the main chat did not repeat it); smoke: the first full run at the R17 close FAILED once (`photo 412x915: with Layout locked, Shuffle moved the photo`, an R14 check), the second full run passed, 7 of 7 reruns of that section alone passed; the R12 close smoke passed; 3 online checks SKIPPED every time (Google Fonts unreachable); the bundle fixer's check needed two reruns (snapshot hash, then a timeout); sheet ran at both closes (4 "pairings NOT LOADED" lines at R12).
+- Choices taken without asking: listed in `docs/CHANGELOG.md` (wordmark only for "logo"; flagged-layer test ceilings; the Advanced 360 px row without the level button; tracking and R12 (from R8) item 1 re-targeted to a new row R20; the 240 s test limit).
+- Human input during the chat: Fri 27 Nov 01:56 Lisbon: "Eta to completion?"; Fri 27 Nov 07:46 Lisbon: "Status". Answered in the chat each time.
+- Stopped: finished the bundle. Pages deploy: R17's succeeded (15 m 12 s); R12's and the viewer fixes' were not checked by this chat.
+- Failures: four agents stopped by session restarts and resumed; the main chat's context also carries further "Request interrupted by user / Continue from where you left off" markers, which are restarts, not messages from Pedro; the one smoke failure above.
+- Commits: 88defbb to a509ea2 on main (builders, fixers, the two row closes 2c27823 and 6879380, the bundle fixes) plus this chat's closing commit.
+- Usage: subagent tokens as above sum to 2,083,944 for the visible runs (not the runs before a restart); main chat tokens and cost not visible.
+- Carried out of this chat: added R12 (from R17) x5, R12 (from R12) error (the photo's type-seed move, spec 8.9 waiver needed), Retouch (from bundle 6), and a new row R20; cleared R12 (from R17) x2, R12 (from bundle 3), R10 (from R10) x2.
+
 ### 26 Nov 2026 · Bundle 5 · chat 1 (started Wed 25 Nov 16:34 Lisbon; wrote this entry at 26 Nov 19:13 by the session clock)
 - Started from: "Clone apcanario/rstr (shallow, push access)." was not in the message the chat saw; the message read: "RSTR, next bundle. Thin main chat on Sonnet 5.5; every agent a fresh Opus 5.5 agent. Read docs/RUN.md and work the next open bundle of docs/BACKLOG.md in full, unattended." and "Repo allowed". No Notes line.
 - Main chat model: Sonnet 5.5 (thin).
