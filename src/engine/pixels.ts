@@ -235,10 +235,10 @@ export function finishProof(spec: Spec, use: Use = {}): { items: number; inkPx: 
  * (a ring of 3 px), on the Clean render (which includes the pass) and on the same Scene drawn without the pass.
  * `low`: cells at `needRatio` of the word's size or more without the pass and under it with the pass (the copier
  * took them under: must be empty). `before`: cells under it already without the pass (not the copier's doing:
- * colliding words, reported). Pixels any later text item paints over are left out. Words with rule 4 waived
+ * colliding words, reported; a boxed word's, `boxed`, must be none since its box keeps clear of earlier halos). Pixels any later text item paints over are left out. Words with rule 4 waived
  * (paper edge off) are not read. `wash` (a test of the check): the paper colour over the Clean render at that alpha.
  */
-export function copierProof(spec: Spec, use: Use = {}, wash = 0): { words: number; cells: number; low: { part: string; cell: number; ratio: number; need: number }[]; before: { part: string; cell: number; ratio: number; need: number }[] } | null {
+export function copierProof(spec: Spec, use: Use = {}, wash = 0): { words: number; cells: number; low: { part: string; cell: number; ratio: number; need: number }[]; before: { part: string; cell: number; ratio: number; need: number; boxed: boolean }[] } | null {
   const [W, H] = FORMATS[spec.format];
   const sc = sceneOf(spec, browserMeasure(), use);
   if (!sc.items.some((i) => i.kind === 'graphic' && i.pass)) return null;
@@ -248,7 +248,7 @@ export function copierProof(spec: Spec, use: Use = {}, wash = 0): { words: numbe
   if (wash > 0) { a.globalAlpha = wash; a.fillStyle = sc.ground; a.fillRect(0, 0, W, H); a.globalAlpha = 1; }
   const fm = canvas(W, H), sm = canvas(W, H), om = canvas(W, H);
   const texts = sc.items.filter((i): i is TextItem => i.kind === 'text');
-  const low: { part: string; cell: number; ratio: number; need: number }[] = [], before: typeof low = [];
+  const low: { part: string; cell: number; ratio: number; need: number }[] = [], before: (typeof low[number] & { boxed: boolean })[] = [];
   let words = 0, cells = 0;
   texts.forEach((it, k) => {
     if (it.waive?.includes(4)) return;
@@ -283,7 +283,8 @@ export function copierProof(spec: Spec, use: Use = {}, wash = 0): { words: numbe
       if (r == null || r0 == null) continue;
       cells++;
       const at = { part: it.part, cell: j, ratio: Math.round(r * 100) / 100, need };
-      if (r0 < need - 1e-6) before.push({ ...at, ratio: Math.round(r0 * 100) / 100 });
+      // `boxed`: a boxed word read against its toner box (Carried R12 from bundle 3: the smoke fails on these)
+      if (r0 < need - 1e-6) before.push({ ...at, ratio: Math.round(r0 * 100) / 100, boxed: !it.stroke?.halo && it.slot === 'title' });
       else if (r < need - 1e-6) low.push(at);
     }
   });

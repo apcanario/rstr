@@ -4,7 +4,7 @@ import { varietyKey } from '../src/engine/proof';
 import { STYLES } from '../src/engine/styles';
 import { choosePalette, choosePairing, layout } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
-import { slotsOf, defaultSpec, FACETS, migrate, type Spec } from '../src/engine/spec';
+import { slotsOf, defaultSpec, FACETS, migrate, STYLE_IDS as STYLE_IDS_ALL, type Spec } from '../src/engine/spec';
 
 /** A seeded seed source, so the tests are reproducible. */
 function counter(start = 1000) {
@@ -198,5 +198,36 @@ describe('the Info field', () => {
     expect(parseInfo('Where: Lisboa · When: Today · A: 1 · B: 2')).toHaveLength(3);
     expect(parseInfo('Just a value')).toEqual([{ k: '', v: 'Just a value' }]);
     expect(parseInfo('')).toEqual([]);
+  });
+});
+
+describe('Layout lock holds the photo (spec 8.9, Carried R12 from R17)', () => {
+  test('a Shuffle with Layout locked keeps the role and scale the photo is drawn in, over 40 designs per style (before the fix 5 to 7 in 100 moved)', async () => {
+    const { registerPhoto, testPhoto } = await import('../src/engine/photo');
+    const { holdPhoto } = await import('../src/app/state');
+    const { seedSet } = await import('../src/engine/proof');
+    registerPhoto(testPhoto('lock-photo', 3000, 4000, 7));
+    const photoOf = (s: Spec) => layout(s, stubMeasure).items.find((i) => i.kind === 'graphic' && i.name === 'photo') as { params: Record<string, unknown> } | undefined;
+    let n = 0;
+    const seq = [11, 23, 37, 41, 53, 67, 79, 83, 97];
+    for (const style of STYLE_IDS_ALL) for (let i = 0; i < 40; i++) {
+      const s0 = defaultSpec(seedSet(i));
+      const s: Spec = { ...s0, style, format: (['1:1', '3:4', '9:16', 'A'] as const)[i % 4], photo: { id: 'lock-photo', treatment: null, place: { crop: 5 } } };
+      const g0 = photoOf(s)!;
+      let k = 0;
+      const held = holdPhoto(s, layout(s, stubMeasure));
+      expect(held.photo?.place).toEqual({ crop: 5, role: g0.params.role });
+      // pinning the role the design draws keeps it (the candidate may differ: another form of the palette list may
+      // have needed another role in that candidate)
+      expect([photoOf(held)!.params.role, photoOf(held)!.params.scale]).toEqual([g0.params.role, g0.params.scale]);
+      const t = shuffle(held, { ...NO_LOCKS, layout: true }, () => seq[k++ % seq.length] * (i + 1) * 7919);
+      const g1 = photoOf(t)!;
+      expect([g1.params.role, g1.params.scale]).toEqual([g0.params.role, g0.params.scale]);
+      n++;
+    }
+    expect(n).toBe(160);
+    // unlocked, Shuffle clears the pinned role with the rest of the place
+    const s = { ...defaultSpec(seedSet(1)), photo: { id: 'lock-photo', treatment: null, place: { role: 'disc' as const, crop: 3 } } };
+    expect(shuffle(s, NO_LOCKS).photo?.place).toBeNull();
   });
 });

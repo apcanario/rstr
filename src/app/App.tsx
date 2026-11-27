@@ -19,7 +19,7 @@ import type { Scene } from '../engine/scene';
 import { defaultSpec, FACETS, migrate, newSeed, newSeeds, seedCode, STYLE_IDS, type Facet, type Finish, type Level, type Marks, type Spec, type StyleId, type TextLayer, LEVELS, MAX_LAYERS, leadsOf, LEVEL_SLOT } from '../engine/spec';
 import { fitAll } from './fit';
 import { Icon } from './icons';
-import { addKept, addLayer, infoText, layerText, moveLayer, removeLayer, setLayerText, setLevel, toggleLayer, newCrop, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withPhoto, withStyle, type Locks, type Saved } from './state';
+import { addKept, addLayer, holdPhoto, infoText, layerText, moveLayer, removeLayer, setLayerText, setLevel, toggleLayer, newCrop, openLink, parseInfo, pushBack, reroll, restore, serialize, shuffleFresh, STORE_KEY, withPhoto, withStyle, type Locks, type Saved } from './state';
 import { addPhoto, ensurePhoto, prune } from '../photos';
 import { photoOf, releasePhotos } from '../engine/photo';
 import { advancedOf, type Advanced } from '../engine/advanced';
@@ -257,7 +257,9 @@ export function App({ ready }: { ready: Promise<void> }) {
   const recentShuffles = useRef<string[]>([]);
   const shuffleKey = (s: Spec) => `${s.style}|${s.format}|${varietyKey(sceneOf(s))}`;
   const doShuffle = () => commit((s) => {
-    const r = shuffleFresh(s, locksRef.current, recentShuffles.current, shuffleKey);
+    // Layout locked: the photo keeps the role it is drawn in (spec 8.9, Carried R12 from R17)
+    const held = locksRef.current.layout && s.photo ? holdPhoto(s, sceneOf(s, undefined, scene ? { pairing: scene.pairing } : {})) : s;
+    const r = shuffleFresh(held, locksRef.current, recentShuffles.current, shuffleKey);
     recentShuffles.current = r.recent;
     return preferAvailable(r.spec, locksRef.current.type);
   });

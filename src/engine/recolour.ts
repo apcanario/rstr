@@ -6,11 +6,11 @@
  * the best plate and the Scene lists it in `colourWarn` (the Colour tab warns). The edit is never refused.
  *
  * The faint pattern's recorded fill is mixed again from the edited ground and ink, as it is drawn (review R10 M1);
- * other colours the styles mix from roles (photocopy contours and tape) keep the palette's mix (Carried). Pure and
- * deterministic: no randomness.
+ * the other colours the styles mix from roles (photocopy contours and tape, `GraphicItem.mixed`) are mixed again from
+ * the edited colours too (Carried R10 from R10). Pure and deterministic: no randomness.
  */
 import type { Form } from '../data/palettes';
-import { contrast, needRatio } from './colour';
+import { contrast, mixHex, needRatio } from './colour';
 import { patternFill } from './graphics/pattern';
 import { paletteTreat, treatColours, treatFills } from './treat';
 import { designRoles, editedForm } from './controls';
@@ -54,9 +54,17 @@ function mapItem(it: Item, f: (c: string) => string, ground: string): Item {
     return { ...it, colours, fills, regions: it.regions?.map((r) => ({ ...r, fills })) };
   }
   const colours = Object.fromEntries(Object.entries(it.colours).map(([k, v]) => [k, f(v)]));
+  // a colour mixed from two palette colours is mixed again from them as edited (Carried R10 from R10), and its
+  // recorded fill with it
+  const remix = new Map<string, string>();
+  for (const [k, m] of Object.entries(it.mixed ?? {})) {
+    const c = mixHex(f(m.a), f(m.b), m.k);
+    if (it.colours[k]) remix.set(it.colours[k].toLowerCase(), c);
+    colours[k] = c;
+  }
   // the faint pattern is drawn as the edited ink over the edited ground: its recorded fill is mixed again from them,
   // so rule 4 reads the colour drawn (review R10 M1)
-  const fills = it.name === 'pattern' && it.layer === 'ground' ? [patternFill(f(ground), colours.ink, it.params)] : it.fills.map(f);
+  const fills = it.name === 'pattern' && it.layer === 'ground' ? [patternFill(f(ground), colours.ink, it.params)] : it.fills.map((c) => remix.get(c.toLowerCase()) ?? f(c));
   return { ...it, colours, fills, ...(it.plate ? { plate: f(it.plate) } : {}) };
 }
 

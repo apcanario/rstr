@@ -68,11 +68,14 @@ with served() as url, browser() as b:
     for style in STYLES:
         for fmt in FORMATS:
             r = pg.evaluate('(o) => window.__rstr.proof.layers(o)', {'styles': [style], 'formats': [fmt], 'n': N})
-            print(f'9.2 {style:6} {fmt:4}  layers: {r["count"]} designs, {r["layers"]} layers, {r["flagged"]} flagged, {r["fallbacks"]} fallbacks, {len(r["failures"])} failing, {len(r["drawnOrFlagged"])} neither drawn nor flagged')
+            print(f'9.2 {style:6} {fmt:4}  layers: {r["count"]} designs, {r["layers"]} layers, {r["flagged"]} flagged, {r["fallbacks"]} fallbacks ({len(r["layerFallbacks"])} from the layers), {len(r["failures"])} failing, {len(r["drawnOrFlagged"])} neither drawn nor flagged')
             for f in r['failures'][:5]:
                 fail(f'9.2 layers {style} {fmt}: ' + '; '.join(f'rule {x["rule"]} {x["part"]}: {x["msg"]}' for x in f['failures'][:4]), f['spec'])
             for d in r['drawnOrFlagged'][:5]:
                 fail(f'9.2 layers {style} {fmt}: a layer neither drawn nor flagged: {d}')
+            # Carried R12 (from R17): no list falls back where its slots alone would not
+            for d in r['layerFallbacks'][:5]:
+                fail(f'9.2 layers {style} {fmt}: a fallback the layers caused: {d}')
     # review R17 S6: the layer lists also through marks light and full (no mark on a text item, labels from the spec),
     # with a photo (9.2 and the "It shows" run inside it), and below through the finishes and the copier pass
     LN = max(25, N // 8)
@@ -164,7 +167,7 @@ with served() as url, browser() as b:
     # designs at one text variant each, for time). A paper wash over the Clean render must fail it.
     t1 = time.time()
     for fmt in FORMATS:
-        nw = ncell = nd = nbefore = 0
+        nw = ncell = nd = nbefore = nboxed = 0
         for spec in pg.evaluate('(o) => window.__rstr.specs(o)', {'styles': ['pomo'], 'formats': [fmt], 'n': N, 'variants': 'cycle', 'pick': {'dialect': 'photocopy'}}):
             r = pg.evaluate('(s) => window.__rstr.copierProof(s)', spec)
             if r is None:
@@ -176,9 +179,14 @@ with served() as url, browser() as b:
             nbefore += len(r['before'])
             if r['low']:
                 fail(f'copier {fmt}: text under its ratio after the copier pass: {r["low"][:3]}', spec)
-        print(f'copier pass {fmt:4}  {nd} photocopy designs, {nw} text items, {ncell} cells read with and without the pass; {nbefore} cells under their ratio before the pass (reported, Carried R12 from bundle 3)' + ('' if not fails else ' (failures above)'))
+            # Carried R12 (from bundle 3): a boxed word's paper letters on its toner box, read without the pass too
+            bx = [x for x in r['before'] if x['boxed']]
+            nboxed += len(bx)
+            if bx:
+                fail(f'copier {fmt}: a boxed word under its ratio on its toner box (before the pass): {bx[:3]}', spec)
+        print(f'copier pass {fmt:4}  {nd} photocopy designs, {nw} text items, {ncell} cells read with and without the pass; {nbefore} cells under their ratio before the pass, {nboxed} of them a boxed word\'s (must be 0)' + ('' if not fails else ' (failures above)'))
         # review R17 S6: the same over text layer lists
-        nw = ncell = nd = nbefore = 0
+        nw = ncell = nd = nbefore = nboxed = 0
         for spec in pg.evaluate('(o) => window.__rstr.specs(o)', {'styles': ['pomo'], 'formats': [fmt], 'n': max(25, N // 8), 'start': 64, 'variants': 'cycle', 'layers': True, 'pick': {'dialect': 'photocopy'}}):
             r = pg.evaluate('(s) => window.__rstr.copierProof(s)', spec)
             if r is None:
@@ -190,7 +198,11 @@ with served() as url, browser() as b:
             nbefore += len(r['before'])
             if r['low']:
                 fail(f'copier layers {fmt}: text under its ratio after the copier pass: {r["low"][:3]}', spec)
-        print(f'copier pass {fmt:4}  layers: {nd} photocopy designs, {nw} text items, {ncell} cells; {nbefore} cells under their ratio before the pass (reported)')
+            bx = [x for x in r['before'] if x['boxed']]
+            nboxed += len(bx)
+            if bx:
+                fail(f'copier layers {fmt}: a boxed word under its ratio on its toner box (before the pass): {bx[:3]}', spec)
+        print(f'copier pass {fmt:4}  layers: {nd} photocopy designs, {nw} text items, {ncell} cells; {nbefore} cells under their ratio before the pass, {nboxed} of them a boxed word\'s (must be 0)')
     nwash = 0
     for i in range(3):
         spec = pg.evaluate('(i) => { const x = window.__rstr.spec(); x.style = "pomo"; x.format = "1:1"; x.pick.dialect = "photocopy"; x.seeds = {layout: 70 + i, colour: 71 + i, graphic: 72 + i, type: 73 + i}; return x; }', i)

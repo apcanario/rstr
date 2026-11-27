@@ -4,6 +4,8 @@
  */
 import { freshDraw, pushRecent } from '../engine/proof';
 import { facetOfParam } from '../engine/controls';
+import { PHOTO_ROLES, type PhotoRole } from '../engine/photo';
+import type { Scene } from '../engine/scene';
 import { FACETS, MAX_LAYERS, migrate, newLayerId, newSeed, type Facet, type InfoPair, type Level, type Spec, type TextLayer } from '../engine/spec';
 
 /** Back keeps this many steps (spec 10.1). */
@@ -52,6 +54,21 @@ export function shuffle(s: Spec, locks: Locks, seed: () => number = newSeed): Sp
     out = dropFacet(out, f);
   }
   return { ...out, seeds, pick: { ...pick, colours: out.pick.colours } };
+}
+
+/**
+ * Locking Layout holds the photo's role and crop (spec 8.9). The role is not the layout seed's alone: the search of the
+ * 'It shows' floor and of text over the photo moves to the next role where the graphics and text over it change, so
+ * a Shuffle with Layout locked could move it (Carried R12 from R17: 5 to 7 in 100 Swiss and Brutalist shuffles moved
+ * it). Before such a Shuffle the role the design draws is pinned in `photo.place`, as New crop keeps it; the crop
+ * seed and the scale already come from the layout stream. Unlocked, Shuffle clears it with the rest of the place.
+ */
+export function holdPhoto(s: Spec, drawn: Scene | null): Spec {
+  if (!s.photo || s.photo.place?.role || !drawn) return s;
+  const g = drawn.items.find((i) => i.kind === 'graphic' && i.name === 'photo');
+  const role = g && g.kind === 'graphic' ? g.params.role : null;
+  if (typeof role !== 'string' || !(PHOTO_ROLES as readonly string[]).includes(role)) return s;
+  return { ...s, photo: { ...s.photo, place: { ...(s.photo.place ?? {}), role: role as PhotoRole } } };
 }
 
 /**

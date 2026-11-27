@@ -7,7 +7,7 @@ import type { Measure } from './measure';
 import { counted, mix, pick, rng } from './rng';
 import type { FontRef, GraphicItem, Item, Scene, TextItem } from './scene';
 import { extrasOf, flagWeight, hasContent, pairsOf, slotsOf, stringOf, type Spec } from './spec';
-import { roomFor } from './parts/shared/layers';
+import { layerBans, roomFor } from './parts/shared/layers';
 import { STYLES } from './styles';
 import { textArea, type PartCtx } from './parts/types';
 import { compose5 } from './styles/compose';
@@ -152,8 +152,23 @@ function formsFor(spec: Spec, P: Form): Form[] {
   return [P, ...all.filter((q) => !(q.id === P.id && q.mode === P.mode))];
 }
 
-/** True if these items pass 9.2 for the form in use and rule 4 for every other form of the style. */
+/** Times a candidate is solved again after a layer's place failed in another form (Carried R12 from R17). */
+const BAN_TRIES = 24;
+
+/**
+ * True if these items pass 9.2 for the form in use and rule 4 for every other form of the style. A text layer placed
+ * in one form and failing in another is banned from that place by the placer (`layerBans`), and the candidate is
+ * solved again, so a second layer's room is checked in every palette and mode before it is taken.
+ */
 function passesAll(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name: string, measured: Map<string, FontRef>): { first: Scene | null; failures: Failure[] } {
+  for (let i = 0; ; i++) {
+    const b0 = layerBans();
+    const r = passesOnce(spec, m, P, T, k, name, measured);
+    if (r.first || layerBans() === b0 || i >= BAN_TRIES) return r;
+  }
+}
+
+function passesOnce(spec: Spec, m: Measure, P: Form, T: Pairing, k: number, name: string, measured: Map<string, FontRef>): { first: Scene | null; failures: Failure[] } {
   let first: Scene | null = null;
   for (const Q of formsFor(spec, P)) {
     const r = build(spec, m, Q, T, k);

@@ -122,10 +122,16 @@ def offline_after_use(b, url, fail, stub=True):
     host = StubHost() if stub else None
     if host:
         host.attach(ctx)
-    pg, errors = open_app(b, url, ctx=ctx)
+    used, unused = ('sw-inter', 'sw-hanken')
+    # Carried R10 (from R10), the cause of the flake: the app used to open on a fresh design with new seeds, and in
+    # about one opening in eight its type seed picked sw-hanken itself, so the 'unused' pairing was fetched and cached
+    # before the network went off and drew with its own fonts (reproduced: 5 of 40 isolated runs, drawn as sw-hanken
+    # with no note and no font request). The app now opens on the used pairing's design, and the cache is checked
+    # to hold nothing of the unused one before the hosts are cut.
+    first = {'v': 2, 'style': 'swiss', 'format': '3:4', 'seeds': {'layout': 5, 'colour': 6, 'graphic': 7, 'type': 8}, 'pick': {'pairing': used}}
+    pg, errors = open_app(b, url, ctx=ctx, query='?s=' + urllib.parse.quote(json.dumps(first)))
     pg.evaluate('() => navigator.serviceWorker.ready')
     pg.wait_for_function('() => !!navigator.serviceWorker.controller')
-    used, unused = ('sw-inter', 'sw-hanken')
     q = spec_query(pg, 'swiss', used)
     pg.goto(url + q)
     pg.wait_for_function('window.__rstr !== undefined')
@@ -133,6 +139,9 @@ def offline_after_use(b, url, fail, stub=True):
     what = 'stub font host' if stub else 'Google Fonts'
     if d['pairing'] != used:
         fail(f'fonts ({what}): online, {used} drew as {d["pairing"]} (note: {d["note"]!r})')
+    cached = pg.evaluate("async () => (await (await caches.open('rstr-fonts-v1')).keys()).map((r) => r.url)")
+    if any('Hanken' in u for u in cached):
+        fail(f'fonts ({what}): before the hosts were cut the cache already held the unused pairing {unused}: {[u for u in cached if "Hanken" in u][:2]}')
     network_off(ctx, hits)
     pg.goto(url + q)
     pg.wait_for_function('window.__rstr !== undefined')
@@ -145,18 +154,29 @@ def offline_after_use(b, url, fail, stub=True):
     if any('Inter:' in h or '/inter-' in h for h in hits):
         fail(f'fonts ({what}): offline, {used} went to the network: {hits[:3]}')
     print(f'fonts ({what}): {used} used once, then the font hosts cut: drawn with its own fonts from the service worker cache')
+    t0 = time.time()
     pg.goto(url + spec_query(pg, 'swiss', unused))
     pg.wait_for_function('window.__rstr !== undefined')
-    d = drawn(pg)
-    # the note is set as the stage draws: wait for it before reading (review R6 M8: one unrecorded flake here)
+    # Carried R10 (from R10): this check failed now and then with nothing changed. It read the stage after idle() and
+    # then gave the note 5 s to appear: idle() returns once the stage has drawn, but the note is set by a render that
+    # follows the draw, and idle() itself gives up after 15 s and returns whatever drew last. Now it waits for the one
+    # state it checks, for up to 30 s: the stage has drawn this spec (the unused pick wanted) and the note shown is the
+    # one that draw set; on a timeout it reads what is there and the failure says what it saw and how long it waited.
+    state = '''() => {
+        const a = window.__rstr, d = a.drawn(), el = document.querySelector('[data-testid="font-note"]');
+        return { d, note: el ? el.textContent : '' };
+    }'''
+    ok = True
     try:
-        pg.wait_for_selector('[data-testid="font-note"]', timeout=5000)
+        pg.wait_for_function('(u) => { const a = window.__rstr, d = a.drawn(), el = document.querySelector(\'[data-testid="font-note"]\'); return !!d && d.wanted === u && !!el && el.textContent === d.note && d.note.length > 0; }', arg=unused, timeout=30000)
     except Exception:
-        pass
-    n = note(pg)
+        ok = False
+    idle(pg)
+    st = pg.evaluate(state)
+    d, n = st['d'] or {}, st['note']
     spec = pg.evaluate('() => window.__rstr.spec()')
-    if d['pairing'] != 'sw-inter-tight' or d['wanted'] != unused or 'Hanken' not in n or spec['pick']['pairing'] != unused:
-        fail(f'fonts ({what}): network off, unused {unused}: drew {d}, note {n!r}, spec pick {spec["pick"]["pairing"]}')
+    if not ok or d.get('pairing') != 'sw-inter-tight' or d.get('wanted') != unused or 'Hanken' not in n or spec['pick']['pairing'] != unused:
+        fail(f'fonts ({what}): network off, unused {unused}: drew {d}, note {n!r}, spec pick {spec["pick"]["pairing"]}, waited {time.time() - t0:.1f} s ({"state reached" if ok else "timed out"}), font requests {hits[-4:]}')
     else:
         print(f'fonts ({what}): network off, unused {unused} picked: drawn with the default, note shown ({n!r}), the spec keeps its pick')
     if errors:

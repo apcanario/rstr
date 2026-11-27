@@ -109,6 +109,17 @@ type Place = { id: string; room: Rect; slot: Slot } | { id: string; x: number; y
  * size cap, the whole plan (transform included) and what the layers keep off (review R17 M3).
  */
 const memo = new WeakMap<Measure, Map<string, { places: Place[]; flagged: string[] }>>();
+/**
+ * Places found legal in the form placement ran in but not in another form of the style (Carried R12 from R17): the
+ * solver checks every form of every palette (layout.ts `passesAll`), so a place one form fails is banned for that
+ * solve's key and the candidate is solved again. A ban names the places before it, so it holds only after the same
+ * ones. Placement then takes, for every colour seed, the first place in its order that every form passes.
+ */
+const banned = new WeakMap<Measure, Map<string, Set<string>>>();
+let bansMade = 0;
+/** How many bans have been made so far: `passesAll` solves a candidate again when this moved. */
+export const layerBans = () => bansMade;
+const sigOf = (p: Place) => ('room' in p ? `${p.id}@${[p.room.x, p.room.y, p.room.w, p.room.h].map(Math.round)}` : `${p.id}#${p.b.size}`);
 
 const overlapR = (a: Rect, b: Rect) => a.x < b.x + b.w - 0.5 && b.x < a.x + a.w - 0.5 && a.y < b.y + b.h - 0.5 && b.y < a.y + a.h - 0.5;
 const inside = (a: Rect, b: Rect) => a.x >= b.x - 0.5 && a.y >= b.y - 0.5 && a.x + a.w <= b.x + b.w + 0.5 && a.y + a.h <= b.y + b.h + 0.5;
@@ -174,10 +185,15 @@ export function placeLayers(c: PartCtx, plan: Plan, below: Item[], text: Item[],
   };
   const sk = (r: Rect) => [Math.round(r.x), Math.round(r.y), Math.round(r.w), Math.round(r.h)];
   const key = JSON.stringify([c.spec.text, c.spec.format, c.spec.params, c.spec.seeds, c.spec.pick, c.spec.marks, c.T.id, c.k, c.cap, c.keep, { ...plan, inert: undefined }, sk(R), hard.map(sk), soft.map(sk), panels.map(sk)]);
-  let byM = memo.get(c.m);
+  let byM = memo.get(c.m), byB = banned.get(c.m);
   if (!byM) memo.set(c.m, (byM = new Map()));
+  if (!byB) banned.set(c.m, (byB = new Map()));
+  const bans = byB.get(key) ?? new Set<string>();
+  // what the page held before any layer was placed: the colour pass below reads each place against it, in its own form
+  const sofar0 = sofar.slice();
   let got = byM.get(key);
   if (!got) {
+    let pre = '';
     got = { places: [], flagged: [] };
     const order = [...layers].sort((a, b) => LEVEL_RANK.indexOf(a.level) - LEVEL_RANK.indexOf(b.level));
     const leadPx: Partial<Record<Level, number>> = {};
@@ -225,6 +241,7 @@ export function placeLayers(c: PartCtx, plan: Plan, below: Item[], text: Item[],
           if (onPanel(b)) continue;
           if (soft.some((o) => overlapR(o, b)) && (clear || !(allOnPlates || type.soloOver?.(plan)))) return 'hit';
         }
+        if (bans.has(pre + '|' + sigOf({ id: L.id, room, slot }))) return 'hit';
         if (!free) {
           const r = maxPx(out) / lead!;
           if (r > 1.25) return 'big';
@@ -248,6 +265,8 @@ export function placeLayers(c: PartCtx, plan: Plan, below: Item[], text: Item[],
     };
 
     const find = (b: Block, s: LevelSet, fromTop: boolean, clear: boolean): { x: number; y: number; plate: Rect } | null => {
+      // a block on its plate reads against the plate alone, wherever it sits: a ban holds for its size
+      if (bans.has(`${pre}|${curId}#${b.size}`)) return null;
       const pw = b.w + 2 * pad, ph = b.h + 2 * pad;
       if (pw > R.w + 1e-6 || ph > R.h + 1e-6) return null;
       const x = s.align === 'centre' ? R.x + (R.w - pw) / 2 : R.x;
@@ -264,8 +283,9 @@ export function placeLayers(c: PartCtx, plan: Plan, below: Item[], text: Item[],
     };
     const overOk = (s: LevelSet) => s.over === true || (Array.isArray(s.over) && s.over.includes(plan.frame));
     // the size a layer of a lower level may start at: never above a higher level placed before it (lowest shrink first)
-    let ceil = Infinity, ceilRank = -1, lowest = Infinity;
+    let ceil = Infinity, ceilRank = -1, lowest = Infinity, curId = '';
     for (const L of order) {
+      curId = L.id;
       const s = sets[L.level], rank = LEVEL_RANK.indexOf(L.level);
       if (rank > ceilRank) { ceil = lowest; ceilRank = rank; }
       if (SLOT_LEVELS.includes(L.level)) {
@@ -273,6 +293,7 @@ export function placeLayers(c: PartCtx, plan: Plan, below: Item[], text: Item[],
         if (!room) { got.flagged.push(L.id); continue; }
         const out = soloSet(LEVEL_SLOT[L.level], L, room)!;
         got.places.push({ id: L.id, room, slot: LEVEL_SLOT[L.level] });
+        pre += '|' + sigOf(got.places[got.places.length - 1]);
         const px = maxPx(out);
         if (px) lowest = Math.min(lowest, px);
         for (const it of out) keep(it);
@@ -299,18 +320,34 @@ export function placeLayers(c: PartCtx, plan: Plan, below: Item[], text: Item[],
       }
       if (!hit) { got.flagged.push(L.id); continue; }
       got.places.push({ id: L.id, x: hit.x, y: hit.y, b: hit.b, plate: hit.plate });
+      pre += '|' + sigOf(got.places[got.places.length - 1]);
       lowest = Math.min(lowest, hit.b.size);
       hard.push({ x: hit.plate.x - G + pad, y: hit.plate.y - G + pad, w: hit.plate.w + 2 * G - 2 * pad, h: hit.plate.h + 2 * G - 2 * pad });
     }
-    if (byM.size > 400) byM.clear();
+    if (byM.size > 400) { byM.clear(); byB.clear(); }
     byM.set(key, got);
   }
-  // colours per form: a slot's setter again in its room; a plate's role and the ink that reads on it
+  // colours per form: a slot's setter again in its room; a plate's role and the ink that reads on it. Each place is read
+  // in this form against the page and the places before it; one that fails here is banned and the solve is redone
   const items: Item[] = [];
+  sofar.splice(0, sofar.length, ...sofar0);
+  let pre = '', ban = false;
+  const read = (p: Place, out: Item[]) => {
+    if (!ban && !legal(out)) {
+      bans.add(pre + '|' + sigOf(p));
+      byB.set(key, bans);
+      byM.delete(key);
+      bansMade++;
+      ban = true;
+    }
+    sofar.push(...out.map(world));
+    pre += '|' + sigOf(p);
+  };
   for (const p of got.places) {
     const L = c.spec.text.find((l) => l.id === p.id)!;
     if ('room' in p) {
       const out = soloSet(p.slot, L, p.room) ?? [];
+      read(p, out);
       for (const it of out) {
         if (it.kind === 'text') { it.lid = p.id; it.extra = true; it.part = p.id + '.' + it.part; }
         items.push(it);
@@ -320,13 +357,15 @@ export function placeLayers(c: PartCtx, plan: Plan, below: Item[], text: Item[],
     const s = sets[L.level];
     const plate = plateOf(c.P, s);
     const ink = inkOnPlate(c.P, plate, needRatio(p.b.size));
-    items.push(mkRect(p.plate, plate, { plate: true }));
+    const out: Item[] = [mkRect(p.plate, plate, { plate: true })];
     for (const t of p.b.texts) {
       const it = mkText(c.m, { slot: LEVEL_SLOT[L.level], part: p.id + '.' + t.part, font: t.font, size: t.size, tracking: t.tracking, runs: t.runs.map((r) => ({ ...r, x: r.x + p.x, y: r.y + p.y })), fill: ink, ink: [ink], min: s.min });
       it.lid = p.id;
       it.extra = true;
-      items.push(it);
+      out.push(it);
     }
+    read(p, out);
+    items.push(...out);
   }
   // plates first, so no layer's plate is drawn over another's text (rule 3)
   return { items: [...items.filter((i) => i.kind !== 'text'), ...items.filter((i) => i.kind === 'text')], flagged: [...got.flagged] };

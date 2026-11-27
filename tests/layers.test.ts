@@ -20,10 +20,13 @@ import { FORMAT_LIST } from '../src/engine/formats';
 /**
  * The fixture: 672 v1 specs (every style x format x mode x text variant, 3 seed sets; a quarter with marks, some with
  * the test photo, Swiss and Postmodern with positions set) and a hash of the whole Scene each drew, written by the
- * engine at e510dbc, the commit before R17. The hash leaves out only what R17 adds to a Scene (`lid`, `flagged`).
+ * engine at e510dbc, the commit before R17. The hash leaves out only what R17 adds to a Scene (`lid`, `flagged`) and
+ * what R12 adds (`mixed`, the recipe of a colour mixed from two roles). R12 (Carried from bundle 3) pushes a photocopy
+ * boxed word clear of earlier words' paper halos on purpose: the 16 entries marked `since: "R12"` (photocopy
+ * copy-stack designs whose boxed word moved) were recorded again at R12; the other 656 still hold the pre-R17 Scene.
  */
 const FIX: { spec: Record<string, unknown>; fp: string; frame: string }[] = JSON.parse(readFileSync(new URL('./fixtures/v1-kept.json', import.meta.url), 'utf8'));
-const strip = (k: string, v: unknown) => (k === 'lid' || k === 'flagged' ? undefined : v);
+const strip = (k: string, v: unknown) => (k === 'lid' || k === 'flagged' || k === 'mixed' ? undefined : v);
 function fp(sc: unknown): string {
   const s = JSON.stringify(sc, strip);
   let h = 2166136261;
@@ -103,6 +106,9 @@ describe('9.2 for 1 to 8 layers in every mix of levels, per style (tested over 2
       expect(r.count).toBe(200);
       expect(r.failures, r.failures.slice(0, 2).map((f) => JSON.stringify(f)).join('\n')).toEqual([]);
       expect(r.drawnOrFlagged, 'a layer neither drawn nor flagged').toEqual([]);
+      // Carried R12 (from R17): a second layer's room is checked in every palette and mode before it is taken, so no
+      // list falls back where its slots alone would not (was up to 4 of 200 per format in Swiss and Vaporwave)
+      expect(r.layerFallbacks, 'a fallback caused by the layers').toEqual([]);
       // most layers find room: a run that flagged nearly everything would pass the two lines above. The ceiling is the
       // share this run flags plus a margin (review R17 S5); a third of the lists are one level throughout, up to eight
       // headlines, which cannot all be set at the lead's size (spec 8.6: set alike, else flagged)

@@ -265,3 +265,36 @@ describe('Edit for this design (spec 5): the design\'s colours', () => {
     expect(migrate({ v: 1, pick: { colours: 'red' } }).pick.colours).toBeNull();
   });
 });
+
+describe('colours mixed from two roles follow an edit (Carried R10 from R10)', () => {
+  test('photocopy tape and faint contours are mixed again from the edited paper, toner and spot, and their fills with them', async () => {
+    const { mixHex } = await import('../src/engine/colour');
+    let tape = 0, topo = 0;
+    for (const s0 of specs({ styles: ['pomo'], n: 80, pick: { dialect: 'photocopy' } })) {
+      const P = choosePalette(s0);
+      const edit: Record<string, string> = { paper: '#f3e1c8', toner: '#1b2a4a' };
+      if (P.spot && P.spot !== P.toner) edit.spot = '#c0302a';
+      const s: Spec = { ...s0, pick: { ...s0.pick, colours: { [s0.mode]: edit } } };
+      const E = { ...P, ...edit } as unknown as Record<string, string>;
+      const after = solve(s, stubMeasure).scene;
+      for (const g of after.items) {
+        if (g.kind !== 'graphic') continue;
+        if (g.name === 'tape') {
+          tape++;
+          const want = mixHex(E.paper, P.spot && P.spot !== P.toner ? E.spot : E.toner, 0.32);
+          expect(g.colours.a).toBe(want);
+          expect(g.fills).toContain(want);
+        }
+        if (g.name === 'topo') {
+          topo++;
+          const want = mixHex(E.paper, E.toner, 0.42);
+          expect(g.colours.ink).toBe(want);
+          expect(g.fills).toContain(want);
+          expect(g.colours.a).toBe(E.toner);
+        }
+      }
+    }
+    expect(tape).toBeGreaterThan(5);
+    expect(topo).toBeGreaterThan(5);
+  });
+});

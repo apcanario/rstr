@@ -32,7 +32,8 @@ export function copyGraphics(c: PartCtx, plan: Plan): Item[] {
   const { W, P, spec, rg } = c, pg = plan.page, gb = plan.boxes.graphic ?? pg;
   const paper = P.paper ?? P.ground, toner = P.toner ?? P.ink, spot = P.spot ?? toner;
   const pickC = () => (rg() < 0.35 ? spot : toner);
-  const faint = mixHex(paper, toner, 0.42), tapeC = mixHex(paper, spot === toner ? toner : spot, 0.32);
+  const tapeOf = spot === toner ? toner : spot;
+  const faint = mixHex(paper, toner, 0.42), tapeC = mixHex(paper, tapeOf, 0.32);
   const kinds = shuffle(rg, [...FOUND]);
   const motif = FOUND.includes(spec.pick.motif ?? '') ? spec.pick.motif! : null;
   if (motif) { kinds.splice(kinds.indexOf(motif), 1); kinds.unshift(motif); }
@@ -58,11 +59,18 @@ export function copyGraphics(c: PartCtx, plan: Plan): Item[] {
         out.push(framed(c, 'scribble', { x: p.x - s / 2, y: p.y - s / 2, w: s, h: s }, undefined, { a: rg() < 0.4 ? spot : toner }));
         break;
       }
-      case 'tape': out.push(framed(c, 'tape', { ...pg }, undefined, { a: tapeC })); break;
+      case 'tape': {
+        const g = framed(c, 'tape', { ...pg }, undefined, { a: tapeC });
+        g.mixed = { a: { a: paper, b: tapeOf, k: 0.32 } };
+        out.push(g);
+        break;
+      }
       case 'xmarks': out.push(framed(c, 'xmarks', { x: pg.x + W * 0.03, y: pg.y + W * 0.03, w: pg.w - W * 0.06, h: pg.h - W * 0.06 }, undefined, { a: toner })); break;
       case 'topo': {
         const h = pg.h * (0.45 + rg() * 0.3), y = pg.y + rg() * (pg.h - h);
-        out.push(framed(c, 'topo', { x: pg.x - 2, y, w: pg.w + 4, h }, undefined, { ink: faint, a: toner }));
+        const g = framed(c, 'topo', { x: pg.x - 2, y, w: pg.w + 4, h }, undefined, { ink: faint, a: toner });
+        g.mixed = { ink: { a: paper, b: toner, k: 0.42 } };
+        out.push(g);
         break;
       }
       case 'lines': {

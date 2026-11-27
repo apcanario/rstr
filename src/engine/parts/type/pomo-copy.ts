@@ -44,6 +44,23 @@ const inInk = (k: Ink, px: number, py: number) => {
   const u = dx * cs + dy * sn, v = -dx * sn + dy * cs;
   return u >= -k.l && u <= k.r && v >= -k.a && v <= k.d;
 };
+/** The corners of an ink box on the page, its extents grown by g. */
+const cornersOf = (k: Ink, g = 0): [number, number][] => {
+  const cs = Math.cos(k.rot), sn = Math.sin(k.rot);
+  return [[-k.l - g, -k.a - g], [k.r + g, -k.a - g], [k.r + g, k.d + g], [-k.l - g, k.d + g]].map(([u, v]) => [k.x + u * cs - v * sn, k.y + u * sn + v * cs]);
+};
+/** Whether two ink boxes (each grown by its own g) meet: separating axes of two rotated rectangles. */
+export function inksMeet(a: Ink, ga: number, b: Ink, gb: number): boolean {
+  const A = cornersOf(a, ga), B = cornersOf(b, gb);
+  for (const rot of [a.rot, b.rot]) for (const [ax, ay] of [[Math.cos(rot), Math.sin(rot)], [-Math.sin(rot), Math.cos(rot)]]) {
+    const pa = A.map(([x, y]) => x * ax + y * ay), pb = B.map(([x, y]) => x * ax + y * ay);
+    if (Math.max(...pa) <= Math.min(...pb) || Math.max(...pb) <= Math.min(...pa)) return false;
+  }
+  return true;
+}
+/** The toner box round the boxed word, in em past its ink. */
+export const BOX_PAD = 0.08;
+
 /** The share of ink box k under any of the boxes over it, sampled on a 24 x 12 grid. */
 export function coverOf(k: Ink, over: Ink[]): number {
   const cs = Math.cos(k.rot), sn = Math.sin(k.rot);
@@ -289,6 +306,19 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
           for (let k = 0; k < 14; k++) { const mid = (lo + hi) / 2; if (worst(mid) > COVER) lo = mid; else hi = mid; }
           b = hi;
         }
+        // the boxed word's toner box is drawn under every title word: an earlier word's paper halo (and the ghost's)
+        // over it would put the boxed word's paper letters on paper (Carried R12 from bundle 3). The boxed word is
+        // pushed down, as COVER pushes, until its box meets no earlier word's halo; later words cover it as usual
+        if (i === boxed && !force) {
+          const reach = (j: number) => out[j].sz * (HALO + (j === hot ? GHOST[1] + HALO : 0)) + 1;
+          const hits = (y: number) => out.some((o, j) => inksMeet(o.ink, reach(j), ink(y), sz * BOX_PAD));
+          if (hits(b)) {
+            let lo = b, hi = b + Math.max(...out.map((o, j) => o.b + o.e.bot + reach(j))) - (b + e.top) + sz;
+            for (let k = 0; k < 18 && hits(hi); k++) hi += sz;
+            for (let k = 0; k < 16; k++) { const mid = (lo + hi) / 2; if (hits(mid)) lo = mid; else hi = mid; }
+            b = hi;
+          }
+        }
       }
       prevBot = e.bot;
       h = Math.max(h, b + e.bot);
@@ -326,7 +356,7 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
     const isBox = i === boxed && !force;
     const base = { slot: 'title' as const, font: u.face, size: sz, xf, min: MIN.title, group: 'title' };
     if (isBox) {
-      const p = sz * 0.08;
+      const p = sz * BOX_PAD;
       rects.push(mkRect({ x: -Math.max(0, mt.left) - p, y: -mt.ascent - p, w: w + 2 * p, h: mt.ascent + mt.descent + 2 * p }, ink.toner, { xf, plate: true }));
       texts.push(mkText(m, { ...base, part: 'word' + i, runs: [{ s: u.s, x: 0, y: 0 }], clip: clipX, fill: ink.paper, ink: [ink.paper] }));
       return;

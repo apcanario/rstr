@@ -9,7 +9,7 @@ import type { Item, Scene, TextItem } from './scene';
 import { coverOf } from './cover';
 import { STYLES } from './styles';
 import { labelsOf, markOverlaps } from './marks';
-import { DEFAULT_SLOTS, defaultSpec, layersOf, LEVELS, slotsOf, SLOTS, type InfoPair, type Level, type TextLayer, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
+import { DEFAULT_SLOTS, defaultSpec, extrasOf, layersOf, LEVELS, slotsOf, SLOTS, type InfoPair, type Level, type TextLayer, STYLE_IDS, type Mode, type Spec, type StyleId } from './spec';
 import { advancedOf, allControls, valuesOf } from './advanced';
 import { apply, designColours, setColour } from './controls';
 import { choosePalette } from './layout';
@@ -450,7 +450,7 @@ export function layerMix(i: number): TextLayer[] {
   return out;
 }
 
-export interface LayerReport { count: number; layers: number; flagged: number; fallbacks: number; drawnOrFlagged: string[]; failures: { spec: Spec; failures: Failure[] }[]; }
+export interface LayerReport { count: number; layers: number; flagged: number; fallbacks: number; layerFallbacks: string[]; drawnOrFlagged: string[]; failures: { spec: Spec; failures: Failure[] }[]; }
 /**
  * The format and mode of layer list i (review R17 E2): taken from other bits of i than the layer count (i mod 8), so
  * every block of 64 lists has every count x format x mode. With `formats` given, i runs over those only.
@@ -465,7 +465,7 @@ export function layerCase(i: number, formats: readonly Format[] = FORMAT_LIST): 
  * that is neither). With `marks`, `finish`, `dialect` or `photo` the lists run with them (review R17 S6).
  */
 export function runLayers(m: Measure, o: { styles?: StyleId[]; n?: number; start?: number; formats?: Format[]; marks?: Spec['marks']; finish?: Spec['finish']; dialect?: Spec['pick']['dialect']; photo?: string } = {}, resolve?: Resolve): LayerReport {
-  const r: LayerReport = { count: 0, layers: 0, flagged: 0, fallbacks: 0, drawnOrFlagged: [], failures: [] };
+  const r: LayerReport = { count: 0, layers: 0, flagged: 0, fallbacks: 0, layerFallbacks: [], drawnOrFlagged: [], failures: [] };
   const formats = o.formats ?? FORMAT_LIST;
   for (const style of o.styles ?? STYLE_IDS) for (let i = o.start ?? 0; i < (o.start ?? 0) + (o.n ?? 200); i++) {
     const s = defaultSpec(seedSet(i));
@@ -478,7 +478,14 @@ export function runLayers(m: Measure, o: { styles?: StyleId[]; n?: number; start
     s.text = layerMix(i);
     r.count++;
     const { scene } = solve(s, m, resolve?.(s));
-    if (scene.layout === 'fallback') r.fallbacks++;
+    if (scene.layout === 'fallback') {
+      r.fallbacks++;
+      // a fallback the layers caused: the same design with its slots' leads alone does not fall back (Carried R12 from
+      // R17: a second layer's room is checked in every palette and mode, so a layer is flagged rather than this)
+      const ex = new Set(extrasOf(s.text).map((l) => l.id));
+      const lone = { ...s, text: s.text.filter((l) => !ex.has(l.id)) };
+      if (solve(lone, m, resolve?.(lone)).scene.layout !== 'fallback' && r.layerFallbacks.length < 20) r.layerFallbacks.push(`${style} ${s.format} ${s.mode} seed ${i}`);
+    }
     const f = check(scene);
     if (f.length && r.failures.length < 50) r.failures.push({ spec: s, failures: f });
     for (const L of s.text) {

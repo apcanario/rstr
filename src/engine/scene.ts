@@ -73,6 +73,11 @@ export interface GraphicItem {
   cut?: 'rect' | 'disc';
   /** Filled inside the clip before the graphic draws: the plate a cut-in sits on. */
   plate?: string;
+  /**
+   * Colours mixed from two palette colours at layout time (photocopy contours and tape): colour key -> the two
+   * colours and the share of the second. A colour edit mixes them again from the edited colours (recolour.ts).
+   */
+  mixed?: Record<string, { a: string; b: string; k: number }>;
   /** Depth (spec 8.0): ground, back graphics, front graphics. Text is the top layer. A mark (spec 7.2) sits in free space over all of them. */
   layer?: 'ground' | 'back' | 'front' | 'mark';
   /** The first graphic of the design when it is drawn after the graphics cut into it (Swiss shapes): counted first. */

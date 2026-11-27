@@ -1076,8 +1076,12 @@ def run_photo(b, url, fail):
         g0 = [i for i in pg.evaluate('(s) => window.__rstr.scene(s)', spec(pg))['items'] if i['kind'] == 'graphic' and i['name'] == 'photo']
         tap(pg, '[data-testid="shuffle"]')
         g1 = [i for i in pg.evaluate('(s) => window.__rstr.scene(s)', spec(pg))['items'] if i['kind'] == 'graphic' and i['name'] == 'photo']
+        s1 = spec(pg)
         if not g0 or not g1 or (g0[0]['params']['role'], g0[0]['params']['scale']) != (g1[0]['params']['role'], g1[0]['params']['scale']):
             fail(f'{at}: with Layout locked, Shuffle moved the photo')
+        # Carried R12 (from R17): the lock holds the role by pinning the one drawn, and the crop seed with it
+        elif not s1['photo'] or (s1['photo']['place'] or {}).get('role') != g0[0]['params']['role'] or (s1['photo']['place'] or {}).get('crop') != s2['photo']['place'].get('crop'):
+            fail(f'{at}: with Layout locked, Shuffle did not pin the photo\'s role and crop: {s1["photo"]}')
         pg.click('button[data-lock="layout"]')
         # row R15: the Treatment tiles (spec 10.2) pick a treatment by hand, which the design draws; Auto gives it back
         for i in range(npages(pg)):
