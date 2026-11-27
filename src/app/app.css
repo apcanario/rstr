@@ -85,8 +85,10 @@ header { display: flex; align-items: center; gap: 6px; height: 48px; flex: none;
 .layer .icon.down svg { transform: rotate(-90deg); }
 .layer .icon.wide { flex: 1; min-width: 0; gap: 6px; font-size: 14px; font-weight: 500; }
 .layer .icon:disabled { color: #f1efe930; }
-/* a layer the design cannot fit (spec 8.6): its level reads warn, its field gets an edge */
-.layer.flagged .lvl { background: #f1efe9; color: #0a0a0c; }
+/* a layer the design cannot fit (spec 8.6): its level button filled with a dot (no text added, review bundle 6 M7),
+   its field gets an edge */
+.layer.flagged .lvl { position: relative; background: #f1efe9; color: #0a0a0c; }
+.layer.flagged .lvl::after { content: ''; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: #0a0a0c; }
 .layer.flagged .field { box-shadow: inset 0 0 0 1.5px #f1efe9; }
 /* a layer that is off (its switch is under More): its words dimmed */
 .layer.off .field { color: #f1efe955; }

@@ -25,7 +25,9 @@ import { FORMAT_LIST } from '../src/engine/formats';
  * (Carried from bundle 3) pushes a photocopy boxed word clear of earlier words' paper halos on purpose: the 16 entries
  * marked `since: "R12"` (photocopy copy-stack designs whose boxed word moved) were recorded again at R12. Review R12 E1
  * chooses the photo's place once over every form of the palette list: the 6 entries marked `since: "R12 E1"` (Swiss
- * designs with the test photo, of 101 with it) were recorded again then; the other 650 still hold the pre-R17 Scene.
+ * designs with the test photo, of 101 with it) were recorded again then. Review bundle 6 S1 keeps later words' paper
+ * halos off the boxed word's letters: the 16 entries marked `since: "bundle 6 S1"` (photocopy copy-stack designs, 8 of
+ * them R12's) were recorded again then; the other 642 still hold the pre-R17 Scene.
  */
 const FIX: { spec: Record<string, unknown>; fp: string; frame: string }[] = JSON.parse(readFileSync(new URL('./fixtures/v1-kept.json', import.meta.url), 'utf8'));
 const strip = (k: string, v: unknown) => (k === 'lid' || k === 'flagged' || k === 'mixed' || k === 'boxed' ? undefined : v);

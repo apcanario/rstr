@@ -170,7 +170,10 @@ export function runIndependence(m: Measure, o: Opts = {}, resolve?: Resolve): { 
     const c = vary('colour');
     if (boxes(base, () => true, 'colour') !== boxes(c, () => true, 'colour')) out.failures.push({ spec, facet: 'colour moved a box' });
     const t = vary('type');
-    if (boxes(base, (i) => i.kind === 'graphic' && notMark(i), 'type') !== boxes(t, (i) => i.kind === 'graphic' && notMark(i), 'type')) out.failures.push({ spec, facet: 'type moved a graphic' });
+    const gr = (i: Item) => i.kind === 'graphic' && notMark(i), other = (i: Item) => gr(i) && !(i.kind === 'graphic' && i.name === 'photo');
+    // review bundle 6 M2: a move of the photo alone is named apart from a move of any other graphic, so the carried
+    // type-seed move of the photo (Carried R12 from R12) can be bounded without hiding a move of anything else
+    if (boxes(base, gr, 'type') !== boxes(t, gr, 'type')) out.failures.push({ spec, facet: boxes(base, other, 'type') === boxes(t, other, 'type') ? 'type moved the photo' : 'type moved a graphic' });
     // the check means something only where the type seed changed the pairing and so the text
     if (t.pairing !== base.pairing && boxes(base, (i) => i.kind === 'text') !== boxes(t, (i) => i.kind === 'text')) out.typeMoved++;
     const g = vary('graphic');

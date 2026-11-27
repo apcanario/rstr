@@ -473,11 +473,12 @@ export function App({ ready }: { ready: Promise<void> }) {
   ];
   // a text layer's row (spec 8.6, 10.2, 10.3): its level (a tap steps to the next), its words and More, which turns
   // the row to its edit controls (in Advanced Up and Down, then on/off, Remove and Done) so the field keeps at least
-  // 160 px at 360 (review R17 M2); a layer that is off shows its words dimmed; one the design cannot fit is flagged
+  // 160 px at 360 (review R17 M2); a layer that is off shows its words dimmed; one the design cannot fit is flagged:
+  // its level button filled and dotted, the level word kept at the row's size (review bundle 6 M7: " !" shrank it)
   const textRow = (l: TextLayer, i: number) => {
     const flagged = !!scene?.flagged?.includes(l.id);
     const next = LEVELS[(LEVELS.indexOf(l.level) + 1) % LEVELS.length];
-    const lvl = <button class="lvl" data-level-of={l.id} aria-label={`${LEVEL_NAME[l.level]}${flagged ? ', does not fit' : ''}: change to ${LEVEL_NAME[next]}`} onClick={() => commit((s) => setLevel(s, l.id, next))}><L t={flagged ? LEVEL_SHORT[l.level] + ' !' : LEVEL_SHORT[l.level]} /></button>;
+    const lvl = <button class="lvl" data-level-of={l.id} aria-label={`${LEVEL_NAME[l.level]}${flagged ? ', does not fit' : ''}: change to ${LEVEL_NAME[next]}`} data-warn={flagged ? '' : undefined} onClick={() => commit((s) => setLevel(s, l.id, next))}><L t={LEVEL_SHORT[l.level]} /></button>;
     const cls = (flagged ? 'slot layer flagged' : 'slot layer') + (editing === l.id ? ' editing' : '') + (l.on ? '' : ' off');
     if (editing === l.id) return (
       <div class={cls} data-layer={l.id} data-flagged={flagged ? '' : undefined}>

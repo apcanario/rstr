@@ -17,6 +17,8 @@ fails = []
 # draw seeds 0..N-1, so for N <= 200 these counts are a ceiling; above, scaled.
 # Unpicked and per-palette runs allow none: a fallback there means a palette or form cut every candidate.
 PICKED_FALLBACKS = {}
+# Review bundle 6 M3: the most of a style's layers the layer run may flag with real fonts, per format (spec 8.6).
+FLAG_CEILING = {'swiss': 0.09, 'pomo': 0.09, 'brutal': 0.12, 'vapor': 0.11}
 
 
 def fail(msg, spec=None):
@@ -76,6 +78,10 @@ with served() as url, browser() as b:
             # Carried R12 (from R17): no list falls back where its slots alone would not
             for d in r['layerFallbacks'][:5]:
                 fail(f'9.2 layers {style} {fmt}: a fallback the layers caused: {d}')
+            # review bundle 6 M3: a ceiling on the flagged share with real fonts, per style (bundle 6 measured at most
+            # Swiss 7.3%, Postmodern 7.0%, Brutalist 10.6%, Vaporwave 9.3% of layers; each ceiling about 1.5 points over)
+            if r['layers'] and r['flagged'] / r['layers'] > FLAG_CEILING[style]:
+                fail(f'9.2 layers {style} {fmt}: {r["flagged"]} of {r["layers"]} layers flagged ({100 * r["flagged"] / r["layers"]:.1f}%), over the real-font ceiling of {100 * FLAG_CEILING[style]:.0f}%')
     # review R17 S6: the layer lists also through marks light and full (no mark on a text item, labels from the spec),
     # with a photo (9.2 and the "It shows" run inside it), and below through the finishes and the copier pass
     LN = max(25, N // 8)
@@ -480,9 +486,13 @@ with served() as url, browser() as b:
             cl += len(r['low'])
             for x in r['low'][:3]:
                 fail(f'photo copier {t}: {x["part"]} cell {x["cell"]} at {x["ratio"]} under {x["need"]} with the copier pass over the photo', spec)
+            # review bundle 6 S1: cells under their ratio before the pass fail too, as in the runs without a photo
+            # (review R12 M5); the two the viewer found were a later word's paper halo on the boxed word's letters
+            for x in r['before'][:3]:
+                fail(f'photo copier {t}: {x["part"]} cell {x["cell"]} at {x["ratio"]} under {x["need"]} before the copier pass, over the photo', spec)
     if cw < 20:
         fail(f'photo copier: only {cw} text items over the photo read with the pass, want at least 20')
-    print(f'photo copier: {cw} photocopy text items over the photo, {cc} cells read with the copier pass on, {cl} taken under by it, {cb} under before it; {time.time() - t1:.0f} s')
+    print(f'photo copier: {cw} photocopy text items over the photo, {cc} cells read with the copier pass on, {cl} taken under by it, {cb} under before it (both must be 0); {time.time() - t1:.0f} s')
     times = {}
     for t in TREATS:
         spec = pg.evaluate('(t) => { const x = window.__rstr.spec(); x.style = "swiss"; x.format = "9:16"; x.finish = "clean"; x.marks = "off"; x.params = {}; x.photo = {id: "test-portrait", treatment: t, place: {role: "ground"}}; return x; }', t)

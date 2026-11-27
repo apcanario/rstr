@@ -79,22 +79,33 @@ describe('9.3 stream independence on the stub measure, light and dark', () => {
   }
 });
 
+/** The most designs per style in which the type seed alone may move the photo (Carried R12 from R12; review bundle 6 M2). */
+const PHOTO_TYPE_MOVES = 2;
+
 describe('9.3 with a test photo in every role, and unpinned (review R12 E1)', () => {
   beforeAll(() => { registerPhoto(testPhoto('proof-photo', 3000, 4000, 7)); });
   for (const style of STYLE_IDS) {
     test(style, () => {
       const type: string[] = [];
+      let moved = 0, count = 0;
       for (const role of [null, ...PHOTO_ROLES]) {
         const photo = { id: 'proof-photo', treatment: null, place: role ? { role } : null };
         const r = runIndependence(stubMeasure, { styles: [style], n: role ? 4 : 12, variants: 'cycle', photo });
-        // the colour seed, the graphic seed and the mode: the photo's place is chosen over every form, so none moves it
-        const f = r.failures.filter((x) => x.facet !== 'type moved a graphic');
+        // the colour seed, the graphic seed and the mode: the photo's place is chosen over every form, so none moves
+        // it; the type seed moves no graphic but the photo (review bundle 6 M2: 'type moved a graphic' fails here)
+        const f = r.failures.filter((x) => x.facet !== 'type moved the photo');
         expect(f, `${role ?? 'unpinned'}\n${show(f)}`).toEqual([]);
+        moved += r.failures.length - f.length;
+        count += r.count;
         type.push(`${role ?? 'unpinned'} ${r.failures.length - f.length}/${r.count}`);
       }
-      // the type seed can still move it: the 'It shows' floor (spec 8.9) reads the set glyphs, which the pairing
-      // changes. Not fixable within the spec: Carried as an error (review R12 E1)
-      console.log(`9.3 photo ${style}: type seed moved the photo in`, type.join(', '));
+      // the type seed can still move the photo: the 'It shows' floor (spec 8.9) reads the set glyphs, which the
+      // pairing changes. Not fixable within the spec: Carried as an error (review R12 E1). Review bundle 6 M2: bounded
+      // at PHOTO_TYPE_MOVES per style (2 of 416 over the four styles when it was carried), the count in the message
+      const msg = `9.3 photo ${style}: type seed moved the photo in ${moved} of ${count} (${type.join(', ')})`;
+      // written to stdout, not console.log, which vitest leaves out of a passing run's log (review bundle 6 M2)
+      process.stdout.write(msg + '\n');
+      expect(moved, msg).toBeLessThanOrEqual(PHOTO_TYPE_MOVES);
     }, 600000);
   }
 });

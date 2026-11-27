@@ -80,7 +80,9 @@ describe('9.2 with every graphic parameter at both ends of its range, per style'
       // every style places its graphic (Brutalist's band too since R8: a picked motif takes the small title)
       expect(missing, style).toEqual([]);
       expect(ends).toBeGreaterThanOrEqual(usesOf(style).length * 6);
-    }, 120000);
+      // review bundle 6 S1: Postmodern's push of later words clear of the boxed word took this run from 83 s to 111 s
+      // alone and past 120 s inside the whole check (two cores), so the limit is the config's 240 s
+    }, 240000);
   }
 });
 

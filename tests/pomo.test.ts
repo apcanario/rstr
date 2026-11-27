@@ -11,10 +11,11 @@ import { choosePalette, solve } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { COPY_LAYOUTS, ICE_LAYOUTS, POMO_POS } from '../src/engine/parts/layout/pomo';
 import { copier } from '../src/engine/graphics/copier';
-import { BOX_PAD, coverOf, GHOST, HALO, inksMeet, OVER, unitsOf, type Ink } from '../src/engine/parts/type/pomo-copy';
+import { BOX_CLEAR, BOX_PAD, coverOf, GHOST, HALO, inksMeet, OVER, unitsOf, type Ink } from '../src/engine/parts/type/pomo-copy';
 import { fit, fitShort, inkW } from '../src/engine/text';
 import { blendDist } from '../src/engine/pixels';
 import { rng } from '../src/engine/rng';
+import { registerPhoto, testPhoto } from '../src/engine/photo';
 import { seedSet, shuffleSeeds, specs } from '../src/engine/proof';
 import type { GraphicItem, Scene, TextItem } from '../src/engine/scene';
 import { lead, slotsOf, defaultSpec, migrate, type Dialect, type Slot, type Spec } from '../src/engine/spec';
@@ -261,6 +262,32 @@ describe('photocopy (spec 8.2)', () => {
       }
     }
     expect(n).toBeGreaterThan(100);
+    expect(bad, show(bad)).toEqual([]);
+  });
+  test('no later title word\'s paper halo or ghost meets the boxed word\'s letters, over 400 designs in every format and the bundle 6 S1 photo spec (review bundle 6 S1)', () => {
+    registerPhoto(testPhoto('test-landscape', 4000, 2600, 11));
+    // the spec the bundle 6 viewer read at 2.34:1 with the test photo (smoke's photo copier run), and its posterise twin
+    const s1 = (t: string) => migrate({ v: 2, style: 'pomo', format: '9:16', mode: 'light', finish: 'clean', marks: 'off', seeds: { layout: 6137, colour: 6201, graphic: 6301, type: 6401 }, pick: { palette: null, colours: null, pairing: null, motif: null, layout: null, dialect: 'photocopy' }, photo: { id: 'test-landscape', treatment: t, place: { role: 'box' } }, params: {} });
+    const bad: unknown[] = [];
+    let n = 0, later = 0;
+    for (const s of [s1('mono'), s1('posterise'), ...specs({ styles: ['pomo'], n: 400, variants: 'cycle', pick: { dialect: 'photocopy' } })]) {
+      const sc = solve(s, stubMeasure).scene;
+      if (sc.layout === 'fallback') continue;
+      const P = choosePalette(s), ws = texts(sc).filter((t) => t.slot === 'title');
+      const inkOf = (t: TextItem): Ink => { const mt = stubMeasure(t.runs[0].s, t.font, t.size), b = ws.find((x) => x.part === t.part + 'b'); return { x: t.xf!.x, y: t.xf!.y, rot: t.xf!.rot, l: mt.left, r: mt.right + (b ? b.runs[0].x : 0), a: mt.ascent, d: mt.descent }; };
+      const words = ws.filter((t) => !t.part.endsWith('b'));
+      const j = words.findIndex((t) => t.fill === P.paper && !haloOf(t));
+      if (j < 0) continue;
+      n++;
+      const box = words[j];
+      for (const t of words.slice(j + 1)) {
+        later++;
+        const reach = t.size * (HALO + (t.echoes?.length ? GHOST[1] + HALO : 0));
+        if (inksMeet(inkOf(box), BOX_CLEAR, inkOf(t), reach)) bad.push({ spec: s, word: t.part, boxed: box.part });
+      }
+    }
+    expect(n).toBeGreaterThan(100);
+    expect(later).toBeGreaterThan(100);
     expect(bad, show(bad)).toEqual([]);
   });
   test('no title word has more than 40% of its ink box under later title words, over 200 designs (review R6 S1)', () => {

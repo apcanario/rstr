@@ -61,6 +61,8 @@ export function inksMeet(a: Ink, ga: number, b: Ink, gb: number): boolean {
 }
 /** The toner box round the boxed word, in em past its ink. */
 export const BOX_PAD = 0.08;
+/** Px past the boxed word's letters that a later word's paper halo keeps off: the reader's 4 px ring and 1 more. */
+export const BOX_CLEAR = 5;
 
 /** The share of ink box k under any of the boxes over it, sampled on a 24 x 12 grid. */
 export function coverOf(k: Ink, over: Ink[]): number {
@@ -309,12 +311,26 @@ function copyTitle(c: PartCtx, plan: Plan, title: string, zone: Rect, availH: nu
         }
         // the boxed word's toner box is drawn under every title word: an earlier word's paper halo (and the ghost's)
         // over it would put the boxed word's paper letters on paper (Carried R12 from bundle 3). The boxed word is
-        // pushed down, as COVER pushes, until its box meets no earlier word's halo; later words cover it as usual
+        // pushed down, as COVER pushes, until its box meets no earlier word's halo; later words cover it, their halos
+        // kept off its letters (below)
         if (i === boxed && !force) {
           const reach = (j: number) => out[j].sz * (HALO + (j === hot ? GHOST[1] + HALO : 0)) + 1;
           const hits = (y: number) => out.some((o, j) => inksMeet(o.ink, reach(j), ink(y), sz * BOX_PAD));
           if (hits(b)) {
             let lo = b, hi = b + Math.max(...out.map((o, j) => o.b + o.e.bot + reach(j))) - (b + e.top) + sz;
+            for (let k = 0; k < 18 && hits(hi); k++) hi += sz;
+            for (let k = 0; k < 16; k++) { const mid = (lo + hi) / 2; if (hits(mid)) lo = mid; else hi = mid; }
+            b = hi;
+          }
+        }
+        // a later word covers the boxed word as usual, but its paper halo (and its ghost's) stays off the boxed
+        // word's letters and the ring round them: paper halo against the boxed word's paper letters left a letter's
+        // foot on paper (review bundle 6 S1, 2.34:1 with a photo). Pushed down, as COVER pushes, until clear
+        if (boxed >= 0 && i > boxed && !force) {
+          const bk = out[boxed].ink, reach = sz * (HALO + (i === hot ? GHOST[1] + HALO : 0) + (i === cut ? 0.02 : 0)) + 1;
+          const hits = (y: number) => inksMeet(bk, BOX_CLEAR, ink(y), reach);
+          if (hits(b)) {
+            let lo = b, hi = b + (bk.y + bk.d + BOX_CLEAR + reach) - (b - mt.ascent) + sz;
             for (let k = 0; k < 18 && hits(hi); k++) hi += sz;
             for (let k = 0; k < 16; k++) { const mid = (lo + hi) / 2; if (hits(mid)) lo = mid; else hi = mid; }
             b = hi;

@@ -426,7 +426,7 @@ def run_layers(pg, at, fail):
             if marked != set(flagged):
                 fail(f'{at}: {style} flags {flagged} but the rows marked are {sorted(marked)}')
             # a list that always flags (review R17 S7): eight long headlines on 1:1; at least one row is marked and its
-            # level button says so
+            # level button says so (its dot)
             pg.evaluate('([x, st, t]) => window.__rstr.app.load({ ...x, style: st, format: "1:1", text: t })', [s0, style, CROWD])
             idle(pg)
             flagged = pg.evaluate('(x) => window.__rstr.scene(x).flagged || []', spec(pg))
@@ -436,11 +436,13 @@ def run_layers(pg, at, fail):
             for i in range(npages(pg)):
                 goto(pg, i)
                 marked |= set(pg.evaluate('() => [...document.querySelectorAll("[data-layer][data-flagged]")].map((e) => e.dataset.layer)'))
-                bangs |= set(pg.evaluate('() => [...document.querySelectorAll("[data-layer][data-flagged] [data-level-of]")].filter((b) => b.textContent.trim().endsWith("!")).map((b) => b.dataset.levelOf)'))
+                # review bundle 6 M7: marked by the button's fill and dot (data-warn), its level word unchanged (no " !"
+                # added to shrink it)
+                bangs |= set(pg.evaluate('() => [...document.querySelectorAll("[data-layer][data-flagged] [data-level-of][data-warn]")].filter((b) => !b.textContent.includes("!") && getComputedStyle(b, "::after").content !== "none").map((b) => b.dataset.levelOf)'))
             if not marked or marked != set(flagged):
                 fail(f'{at}: {style}, eight long headlines: flags {flagged} but the rows marked are {sorted(marked)}')
             if bangs != marked:
-                fail(f'{at}: {style}, eight long headlines: marked rows {sorted(marked)} but level buttons reading "!" {sorted(bangs)}')
+                fail(f'{at}: {style}, eight long headlines: marked rows {sorted(marked)} but level buttons marked (dot, no "!") {sorted(bangs)}')
             nflag += len(marked)
         # the row's controls reach the spec
         pg.evaluate('(x) => window.__rstr.app.load({ ...x, style: "swiss", text: x.text.slice(0, 4) })', s0)
@@ -485,7 +487,7 @@ def run_layers(pg, at, fail):
         tap(pg, f'[data-remove="{new}"]')
         if any(l['id'] == new for l in spec(pg)['text']):
             fail(f'{at}: Remove did not remove the layer')
-    print(f'{at}: Text tab at 8 layers checked on {n} pages (Simple and Advanced, every style): no scroll, controls at least 48 px, nothing wraps; Add off at 8; add, level, type, move up and down, remove reach the spec; flagged rows marked ({nflag} rows of eight long headlines marked "!")')
+    print(f'{at}: Text tab at 8 layers checked on {n} pages (Simple and Advanced, every style): no scroll, controls at least 48 px, nothing wraps; Add off at 8; add, level, type, move up and down, remove reach the spec; flagged rows marked ({nflag} rows of eight long headlines marked with the dot)')
     pg.evaluate('(x) => window.__rstr.app.load(x)', s0)
     idle(pg)
     pg.click('[data-tab="text"]')
