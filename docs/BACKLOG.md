@@ -9,7 +9,7 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 | 3 | R6, R7 | Both Postmodern dialects finished Closed 24 Nov 2026; five finishes; marks |
 | 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit. Closed 25 Nov 2026 |
 | 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print. Closed 26 Nov 2026 |
-| 6 | R17, R12 | Text layers with hierarchy; retouch from notes |
+| 6 | R17, R12 | Text layers with hierarchy; retouch from notes. R17 closed 27 Nov 2026 |
 | 7 | R18 | Mix: crosses of two styles (experimental, Advanced) |
 | 8 | R19 | Finishes retouched: Grunge as a real photocopy, stronger Grain, stronger VHS (Pedro, 24 Nov 2026, from bundle 3) |
 | later | M | Motion, then the APK. Needs a Fable chat first (spec 11) |
@@ -40,6 +40,12 @@ Row ids are never reused or renumbered: R5 to R10 and R12 keep the meaning they 
 
 - **R12 (from bundle 5).** 26 Nov 2026, found by the bundle 5 viewer fixer. At 360 x 640 the second row of Treatment tiles sets its labels at 12 px against 14 px in the first, and 'Duotone' fills its tile edge to edge when the tile is marked as drawn; both pass the layout check. Pedro to say from the phone whether it matters; fix with his Notes.
 
+- **R12 (from R17).** 27 Nov 2026, found by the R17 fixer. Layer lists sometimes fall back to the style's fallback: up to 4 of 200 per format in Swiss and Vaporwave, up to 1 in Brutalist, none in Postmodern. A second layer's room is checked for contrast only in the design's own palette, so another palette or mode fails rule 4. Fix: check that room in every palette and mode before taking it.
+- **R12 (from R17).** 27 Nov 2026, found by R17 review S1 and S5. Flagged layers are weighed by level and lower leads give up room, but the reviewer's test (nothing flagged while a lower layer is above its minimum) was not adopted: a second caption must match the lead caption's size, so it cannot shrink to its minimum. The flagged share is still 5.7 to 8% per style on the stub measure and 4 to 11% per style and format with real fonts, mostly lists of up to eight headlines that cannot all be set at the lead's size; test ceilings are 8 to 10% per style. Brutalist and Vaporwave flag up to five layers on 8-layer sheets. Pedro to say from the phone whether it matters; fix with his Notes.
+- **R12 (from R17).** 27 Nov 2026, found by R17 (review M7). `shots/layers-swiss.jpg` cell 9: extra layers small at the top right over an empty page. Pedro to say from the phone whether it matters. Also: in Advanced at 360 px a layer row's edit controls leave out the level button to keep 48 px controls; Pedro to say whether that matters.
+- **R12 (from R17).** 27 Nov 2026, found by the R17 builder. The drawn word "RSTR" on posters (the Brutalist format tag "RSTR/3:4" and the marks' micro label) was left upper case: it is poster content set in the style's case, and changing it changes Scenes. Pedro to say whether those count as the logo of his note "the rstr logo should be all lowercase". The header wordmark and tab title read "rstr"; its 0.22 em letter-spacing reads loose in lower case (minor).
+- **R12 (from R17).** 27 Nov 2026, found by the main chat's smoke run at the R17 close. `FAIL photo 412x915: with Layout locked, Shuffle moved the photo` (`tools/appcheck.py` run_photo, line 1080) failed once in one full smoke and passed in the next full smoke and in 7 of 7 reruns of that section alone; the check dates from R14 and the failure was not seen at the R17 fixer's smoke. Cause not found (the shuffle seed is random, so a placement that the spec 8.9 'It shows' floor moves when Layout is locked is one reading). Find why and make the lock hold the photo's role and scale deterministically, or the check exact about what the lock holds.
+
 ## By hand (Pedro)
 
 - **H3. Run the online type checks.** Where Google Fonts is reachable (your computer): `npm ci`, `npm run smoke`, `python3 tools/fetch_fonts.py --check`, `npm run sheet`; report the output or send it as `Notes:`. Detail in Carried R3. Open until done.
@@ -59,12 +65,6 @@ Read spec 5, 8.0, 8.3, 8.4 and 10.3.
 ## Bundle 6: text layers, retouch
 
 Read spec 8.6.
-
-### R17. Text layers
-
-- The layer list, the six levels, add, remove, reorder, up to 8; each style's treatment and places per level; migration from the four slots.
-
-**Done when:** every v1 design in Kept opens and draws the same layout after migration (tested on the Scene); 9.2 passes for 1 to 8 layers in every mix of levels, per style (tested over 200 seeds); a layer that cannot fit is flagged, never dropped (tested); the Text tab fits without scrolling at 8 layers (page chips) (tested).
 
 ### R12. Retouch
 
@@ -98,6 +98,7 @@ Read spec 7.1 and `docs/design/elements.md`; look at `docs/design/refs/v2-grunge
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **R17. Text layers.** 27 Nov 2026, 1 chat (bundle 6; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R17 applied (fix: 2 errors, 7 should-fix, 7 minor; all 16 applied by the fixer, none rejected, S1 only in part: see Carried R12 (from R17)); Pedro's note "the rstr logo should be all lowercase" applied to the header wordmark and tab title; see `docs/CHANGELOG.md` and `docs/reviews/R17.md`.
 - **Bundle 5 viewer check.** 26 Nov 2026. Fix: 0 errors, 3 should-fix, 7 minor; 10 applied by the fixer, 0 rejected. `docs/reviews/bundle-5.md`.
 - **R16. Export.** 26 Nov 2026, 1 chat (bundle 5; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R16 applied (fix: 0 errors, 4 should-fix, 9 minor; 13 applied, M7 and M8 recorded as Choices for Pedro to veto, none rejected); Carried R16 (from R7) and R16 (from R14) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R16.md`.
 - **R15. Photo treatments.** 26 Nov 2026, 1 chat (bundle 5; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R15 applied (fix: 0 errors, 5 should-fix, 8 minor; 12 applied (11 by the fixer, M8 by the main chat at close), M5 kept as built and recorded for Pedro to veto, none rejected); Carried R15 (from R14) cleared; see `docs/CHANGELOG.md` and `docs/reviews/R15.md`.
