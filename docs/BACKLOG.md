@@ -10,7 +10,7 @@ The next open bundle is the first numbered bundle below with a row not in Done. 
 | 4 | R8, R9, R10 | Brutalist and Vaporwave finished; Advanced mode with per-design colour edit. Closed 25 Nov 2026 |
 | 5 | R14, R15, R16 | Photo with shuffled placement, photo treatments, export sizes and file types, the A format and A3 print. Closed 26 Nov 2026 |
 | 6 | R17, R12 | Text layers with hierarchy; retouch from notes. R17 closed 27 Nov 2026, R12 closed 27 Nov 2026 |
-| 7 | R19, R21 | Finishes retouched: Grunge as a real photocopy, stronger Grain, stronger VHS (Pedro, 24 Nov 2026, from bundle 3). Real font files in the workspace through npm; Swiss and Brutalist go from 16 and 10 pairings to 32 each; title weight for Swiss |
+| 7 | R19, R21 | R19 closed 28 Nov 2026. Finishes retouched: Grunge as a real photocopy, stronger Grain, stronger VHS (Pedro, 24 Nov 2026, from bundle 3). Real font files in the workspace through npm; Swiss and Brutalist go from 16 and 10 pairings to 32 each; title weight for Swiss |
 | 8 | R22, R23 | The graphics library grows for the prime styles: ten constructed graphics (graded grids, shaped gradients, arcs, rays, quarter tiles and more) on named progressions; topography in seven renders and seven landforms, with ridges, flow, relief and sections |
 | 9 | R24, R25 | Swiss as a prime style: grids of 4 to 12 columns, four constructive layouts, the Elements filter, 14 palettes; then three new dialects: Basel, Programme, Now. Pedro looks at Swiss before bundle 10 |
 | 10 | R26, R27 | Brutalist as a prime style: the cropped title, three more Heavy layouts, line fills, four graphics, 14 palettes; then two new dialects: Raw, Neo |
@@ -51,6 +51,9 @@ Items named **Retouch** were targeted at R12, closed 27 Nov 2026 (review bundle 
 
 - **Retouch (from R12), error.** 27 Nov 2026, found by R12 review E1 (older than R12, from R14). Spec 9.3 says a seed moves only its own part. R12 fixed the colour-seed and mode half: the photo's role, placement and plates are chosen once over every palette form, tested with a photo unpinned and in every role (fails without the fix in all 4 styles). The type-seed half remains: the type seed alone still moves the photo in rare cases (recorded at R12 as 2 of 416 in the test, a count the bundle 6 viewer could not confirm; read at review bundle 6 as 2 of 1024, all Brutalist with the photo pinned to the column, 2 of 32; 1 to 2 of 40 per style in the builder's probe). Since review bundle 6 M2 `tests/proof.test.ts` fails above 2 per style and on any type-seed move of a graphic other than the photo, and writes the count to the check log, because spec 8.9 measures the 'It shows' floor on the drawn letters, which the pairing changes. Measuring on the layout's text zones instead changes that rule. Pedro or a Fable chat to write a 9.3 waiver for the photo into spec 8.9 or change the rule; then fix and test.
 
+- **R20 (from R19).** 28 Nov 2026, found by R19 review E1. Vaporwave's chrome title has cells that read 3.00 to 3.14:1 on Clean, so any Grain or Grunge texture takes them under the 3:1 text guard and the guard restamps them: held at 21 of 286 text items for Grain (7.3%; R7 16, 5.6%) and 32 of 286 for Grunge (11.2%; R7 25, 8.7%), both over spec 9.4's 5% for this style alone (the other three styles are under it; the limit still holds pooled over all four). Fix is in the type part: keep about 3.3:1 per cell of the chrome title whenever a finish is on (text rendering), then lower the per-style ceilings in `tools/smoke.py` and spec 9.4. Needs no Pedro call.
+- **Retouch (from R19).** 28 Nov 2026, found by R19 review S6 (Pedro's call; the look was not changed). Against `refs/v2-grunge-*.jpg` the new Grunge: pinholes read as a starfield on dark solids; the refs' regular feed lines are missing; light paper is flat (240); the edge shadow is narrower than the refs. Pedro to say from `shots/finish-grunge.jpg` and the phone whether it reads as a photocopy; fix with his Notes. Also (R19 M4, rejected): finish noise is one value per export pixel, so at 3x the grain is a third the size; counts scale, texture does not; a per-cell lattice would fail the export-size check of Carried R16, so spec 7.1 records it as an exception.
+
 ## By hand (Pedro)
 
 - **H7. Judge the new dialects.** They have no reference image (spec 8). After bundle 9: `shots/sheet-swiss-zurich.jpg`, `-basel`, `-programme`, `-now`, and each on the phone through the Dialect control. After bundle 10: `sheet-brutal-heavy`, `-raw`, `-neo`. Say which to keep, which to change and which to drop; a dropped dialect is switched off in the data with a changelog line. Open until Pedro says done.
@@ -71,27 +74,6 @@ Read spec 5, 8.0, 8.3, 8.4 and 10.3.
 ## Bundle 7: finishes retouched, real fonts
 
 Read spec 6, 7.1 and 9.4, `docs/design/pairings.md` and `docs/design/swiss-brutalist.md` section 3; look at `docs/design/refs/v2-grunge-*.jpg` and `shots/finish-*.jpg` (run `npm run sheet` first: `shots/` is not committed). Pedro's verdict on the bundle 3 finishes, 24 Nov 2026, after looking at the sheets: "The grunge only puts a black ragged border on the page, it's nothing like a photocopy. The grain could be stronger, the glitch is good, the vhs also could use more oomph." Glitch stays as it is. The design chat of 27 Nov 2026 looked at the same sheets: Grunge is R7's ragged edge with faint streaks, and Grain and VHS are hard to tell from Clean at sheet size.
-
-### R19. Finishes retouched
-
-- First, before any change: measure the R7 build (commit e41f8ef) on the seeds of the tests below and record, per style, the mean change in brightness against Clean for Grain, Grunge and VHS (VHS outside the held text). These are the baselines of spec 9.4.
-- **Grunge** becomes a photocopy of the whole page, the seven steps of spec 7.1 in order: tone curve, uneven toner, feed streaks and bands, speckle and dropout, dust and hair, the edge shadow with R7's nibbles at half depth, ink spread and the lighter title stamp. Port ideas from the spike's `grunge` and `photocopy` functions in `docs/archive/spike/engine.js`. On the photocopy dialect it runs as the second generation (steps 2, 4 and 5 at half).
-- **Grain** as spec 7.1: fine layer, clumped layer, tone weighting, the 24% vignette. The strength dial (`finish.<name>.strength`) still scales it.
-- **VHS** as spec 7.1: the eight steps. Still under the text, never on it.
-- Glitch unchanged except where the shared two-pass code requires; its pixels on the R7 test seeds do not change.
-- Each kernel keeps its terms separable (a term can be switched off in a test).
-
-**Done when:**
-- Grain, Grunge and VHS meet the thresholds of spec 9.4 at strength 1 over 100 seeds per style, with the R7 baselines recorded in the test file and any threshold raised to 1.5 times its baseline recorded in the changelog (tested).
-- Grunge marks the inside of the page: the two interior figures of spec 9.4 hold (tested).
-- Each term of each kernel changes pixels when it alone is on (tested).
-- On a photocopy-dialect design Grunge's steps 2, 4 and 5 run at half (tested on the kernel's inputs), and the design still passes the 3:1 guard (tested).
-- The two-pass rule, the 3:1 text guard and "VHS and Glitch leave text ink as Clean" hold for all five finishes over the same seeds as R7's tests (tested); the guard puts back fewer than 5% of text items per finish at strength 1 (tested).
-- Glitch draws the same pixels as the R7 build on R7's test seeds (tested).
-- A finish at 3x differs from the stage only by scale: the count of streaks, bands, hairs and tracking bands is the same at 1x and 3x for one seed (tested).
-- Export time for 9:16 with each retouched finish is recorded and is not more than twice the R7 figures (Grunge photocopy 688 ms) without a changelog line saying why; one 3:4 Grunge render under a 4x CPU throttle is recorded against R7's 1.24 s (review R7 M6, H5).
-- `shots/finish-*.jpg` show every style under every finish; the reviewer compares Grunge with `refs/v2-grunge-*.jpg` and says where it falls short.
-- Whether the finishes now read as a photocopy, as grain, as a tape is Pedro's call.
 
 ### R21. Real fonts in the workspace; more faces for Swiss and Brutalist
 
@@ -265,6 +247,7 @@ Read spec 8.7 and 8.8.
 
 One line per closed row: id, title, date closed, chats it took, review file.
 
+- **R19. Finishes retouched.** 28 Nov 2026, 1 chat (bundle 7; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R19 applied (fix: 1 error, 6 should-fix, 4 minor; 9 applied, E1 in part (the Vaporwave guard share is tested per style and recorded in spec 9.4, not removed), M4 rejected and recorded as an exception in spec 7.1, S6 left to Pedro, M1 recorded as a Choice; none rebuilt); see `docs/CHANGELOG.md` and `docs/reviews/R19.md`.
 - **Bundle 6 viewer check.** 27 Nov 2026. Fix: 0 errors, 4 should-fix, 8 minor; all 12 applied by the fixer (an Opus 5.5 agent), 0 rejected: S1 in the engine (later words' paper halos kept off the boxed word's letters, tested; smoke fails on any photo copier cell under its ratio before the pass), M8 as Carried Retouch (from bundle 6), the changelog notes of S3 and M6 left to the main chat's entry. `docs/reviews/bundle-6.md`.
 - **R12. Retouch.** 27 Nov 2026, 1 chat (bundle 6; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R12 applied (fix: 1 error, 1 should-fix, 6 minor; E1 applied in part, its type-seed half to Carried; M3 in part; M6 at this close; none rejected); Carried R12 (from R17) x2, R12 (from bundle 3), R10 (from R10) x2 cleared; R10 (from R10) tracking and R12 (from R8) item 1 re-targeted to R20; see `docs/CHANGELOG.md` and `docs/reviews/R12.md`.
 - **R17. Text layers.** 27 Nov 2026, 1 chat (bundle 6; the builder, reviewer and fixer ran as separate Opus 5.5 agents). Review R17 applied (fix: 2 errors, 7 should-fix, 7 minor; all 16 applied by the fixer, none rejected, S1 only in part: see Carried R12 (from R17)); Pedro's note "the rstr logo should be all lowercase" applied to the header wordmark and tab title; see `docs/CHANGELOG.md` and `docs/reviews/R17.md`.
