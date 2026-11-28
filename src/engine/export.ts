@@ -231,8 +231,8 @@ export async function renderStrips(spec: Spec, sc: Scene, D: ExportDims, rows: n
       const bad = need.filter((it) => {
         const m = readingOf(fin.get(it) ?? null);
         if (!readsLow(m)) return false;
-        if (!tooLow(readingOf(cl.get(it) ?? null), m)) { done.add(it); return false; }
-        return true;
+        // an item read fine is read again next round, as on one canvas (finish.ts guard)
+        return !!tooLow(readingOf(cl.get(it) ?? null), m);
       });
       if (!bad.length) break;
       restores.push(...bad);

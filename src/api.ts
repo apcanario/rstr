@@ -28,6 +28,7 @@ import { exportDims, type Size } from './engine/formats';
 import { exportName, forgetFailures, makeExport, photoNeed, workingSizes, type FileKind, type Limits } from './engine/export';
 import { exportBench, exportPaths, scaleProof, stripsSame } from './engine/pixels';
 import { seedCode } from './engine/spec';
+import { finishStats } from './engine/finishstats';
 
 /** Every tool call lays out the way the app does: with the wanted pairing only if its fonts are loaded (spec 6). */
 const useOf = (spec: Spec) => resolvePairing(spec, available);
@@ -82,6 +83,8 @@ export function installApi(ready: Promise<void>, current: () => Spec, view: { id
     ghostShows: (raw: unknown) => { const s = migrate(raw); return ghostShows(s, useOf(s)); },
     /** Row R7: a finish against Clean, text ink and contrast (spec 7.1). */
     finishProof: (raw: unknown) => { const s = migrate(raw); return finishProof(s, useOf(s)); },
+    /** Row R19 (spec 9.4): each finish against Clean at strength 1 (./engine/finishstats). */
+    finishStats: (raw: unknown, fins?: Spec['finish'][]) => { const s = migrate(raw); return finishStats(s, useOf(s), fins); },
     /** Review bundle 3 M5: photocopy title words read in cells on the Clean render, copier pass included. */
     copierProof: (raw: unknown, wash = 0) => { const s = migrate(raw); return copierProof(s, useOf(s), wash); },
     /** The specs a proof run walks, for the pixel checks the tools run spec by spec. */

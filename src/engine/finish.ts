@@ -4,7 +4,11 @@
  *
  * - Clean: nothing.
  * - Grain, Grunge: cover everything, type included; Grunge also spreads the ink of type a little first. Then the
- *   title is stamped again at part strength so its edges hold, in register (no colour ghost).
+ *   title is stamped again at part strength so its edges hold, in register (no colour ghost); Grunge's stamp is
+ *   lighter than Grain's, so its speckle and pinholes show inside the letters (row R19).
+ * - Row R19 rebuilt Grain, Grunge (a photocopy of the whole page, the seven steps of spec 7.1) and VHS (the eight
+ *   steps). Each kernel takes a scale per term (`Terms`), so a test can switch one off; the counts each draws come
+ *   from a plan of its seed alone (`grungePlan`, `vhsPlan`), the same at every export size. Glitch is R7's.
  * - VHS, Glitch: two passes. Ground and graphics (and marks), then the effect, then every text item on top, then
  *   any surface pass that belongs to the style (the photocopy copier pass). The effects never touch text: under
  *   every glyph and HOLD px round it, pass one's pixels are held as they were, so a plate stays under its text and
@@ -17,7 +21,7 @@
  *
  * The pixel kernels are pure functions on RGBA arrays, so they are unit-tested without a canvas.
  */
-import { contrast, toHex } from './colour';
+import { contrast, LARGE_TEXT_PX, parseHex, toHex } from './colour';
 import { MASK } from '../data/palettes/system';
 import { bounds, overlaps, pad, rectQuad, type Rect } from './geom';
 import type { Time } from './graphics/clock';
@@ -25,7 +29,7 @@ import type { Ctx } from './graphics/types';
 import { choosePalette } from './layout';
 import { knockText, paint, paintText, textSpan } from './paint';
 import { base, surfaceLike, viewOf, type View } from './view';
-import { mix, noiseAt, rng, type Rng } from './rng';
+import { mix, noiseAt, rng, shuffle, type Rng } from './rng';
 import type { GraphicItem, Item, Scene, TextItem } from './scene';
 import type { Finish, Spec } from './spec';
 import { editedForm, type Ranged } from './controls';
@@ -43,8 +47,16 @@ export const LOW_KEEP = 0.95;
 export const CELL = 0.7, CELL_MIN = 8;
 /** A cell is read only with at least this many ink pixels and this many ring pixels in it. */
 export const CELL_PX = 12;
-/** How strongly the title is stamped again over Grain and Grunge: Clean's pixels of the title, masked to its ink. */
-export const RESTAMP: Partial<Record<Finish, number>> = { grain: 0.5, grunge: 0.55 };
+/** How strongly the title is stamped again over Grain and Grunge: Clean's pixels of the title, masked to its ink and a
+ *  STAMP_EDGE rim. Grunge's lower than Grain's (spec 7.1 step 7); Grain's down from R7's 0.5 so a page that is mostly
+ *  title still changes by 7 levels (spec 9.4; at 0.5 a Brutalist A seed read 6.81). */
+export const RESTAMP: Partial<Record<Finish, number>> = { grain: 0.4, grunge: 0.35 };
+/**
+ * Grain and Grunge stamp the title again over its ink and this edge round it, px at 1080 wide (spec 7.1: "so its
+ * edges hold"). Without it Grunge's lighter stamp let the guard put back 5.4% of Postmodern's text items over 48 seeds
+ * (photocopy title words Clean already reads under 3:1, their rings darkened by the tone curve and uneven toner).
+ */
+export const STAMP_EDGE = 2;
 /** Grunge's ink spread on type, px at 1080 wide. */
 export const SPREAD = 1.1;
 
@@ -83,16 +95,77 @@ export function valueNoise(r: Rng, n: number, knot: number): Float32Array {
   return out;
 }
 
-/** Grain: fine film grain over everything and a little vignette. `d`: rows y0 on of a W x H image. */
-export function grainKernel(d: Uint8ClampedArray, W: number, H: number, seed: number, k: number, y0 = 0): void {
-  const amp = 16 * k, vg = 0.16 * k, rows = rowsOf(d, W);
+/**
+ * Smooth value noise in [0, 1] on a square lattice of `cell` px, by position (a knot is a hash of its place), read a
+ * row at a time: any strip of a big render reads the noise of the same rows of the whole (R16).
+ */
+export class Lattice {
+  private nx: number; private ix: Int32Array; private fx: Float32Array; private rows = new Map<number, Float32Array>();
+  constructor(private seed: number, W: number, private cell: number) {
+    this.cell = Math.max(1e-3, cell);
+    this.nx = Math.ceil(W / this.cell) + 2;
+    this.ix = new Int32Array(W); this.fx = new Float32Array(W);
+    for (let x = 0; x < W; x++) { const a = x / this.cell, i = Math.floor(a), t = a - i; this.ix[x] = i; this.fx[x] = t * t * (3 - 2 * t); }
+  }
+  private knots(iy: number): Float32Array {
+    let k = this.rows.get(iy);
+    if (!k) {
+      if (this.rows.size > 3) this.rows.clear();
+      k = new Float32Array(this.nx);
+      for (let i = 0; i < this.nx; i++) k[i] = noiseAt(this.seed, iy * this.nx + i);
+      this.rows.set(iy, k);
+    }
+    return k;
+  }
+  /** The noise along row y into out (length W). */
+  row(y: number, out: Float32Array): Float32Array {
+    const a = y / this.cell, iy = Math.floor(a), t = a - iy, fy = t * t * (3 - 2 * t), k0 = this.knots(iy), k1 = this.knots(iy + 1);
+    for (let x = 0; x < out.length; x++) {
+      const i = this.ix[x], f = this.fx[x], top = k0[i] + (k0[i + 1] - k0[i]) * f, bot = k1[i] + (k1[i + 1] - k1[i]) * f;
+      out[x] = top + (bot - top) * fy;
+    }
+    return out;
+  }
+}
+
+/** Each kernel's terms, by name: a scale on each (1 when unset, 0 off). A term can be switched off in a test (R19). */
+export type Terms<T extends string> = Partial<Record<T, number>>;
+const on = <T extends string>(t: Terms<T>, n: T) => t[n] ?? 1;
+/** Only the one term on. */
+export const only = <T extends string>(all: readonly T[], n: T): Terms<T> => Object.fromEntries(all.map((x) => [x, x === n ? 1 : 0])) as Terms<T>;
+const lum = (r: number, g: number, b: number) => (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+/** Grain's terms (spec 7.1): fine noise, clumps, the vignette. `tone` (the weighting by tone) scales the first two. */
+export const GRAIN_TERMS = ['fine', 'clump', 'vignette'] as const;
+export type GrainTerm = (typeof GRAIN_TERMS)[number] | 'tone';
+/** Grain at strength 1 and 1080 wide (spec 7.1): levels of 255 either way, cell px, the corners' darkening. */
+export const GRAIN = { fine: 26, clump: 14, cell: 2.5, low: 0.6, vignette: 0.24 };
+
+/**
+ * Grain (spec 7.1): fine noise (one value a pixel, the same on the three channels, even across its range: R7's was
+ * the sum of two, peaked at 0, which spec 9.4's floor of 9 levels showed too weak) and clumped noise (value noise on
+ * cells of 2.5 px), both weighted by tone (full at mid-grey, 0.6 at black and white), and a vignette (the corners 24%
+ * darker, falling off with the fourth power of the distance from the centre). Noise that would pass black or white
+ * goes the other way, so black, white and near-white grain as much as mid-tones (R19: clipped, they kept half of it
+ * and spec 9.4's floor of 7 levels a seed failed on Postmodern's dark pages). `d`: rows y0 on of a W x H image.
+ */
+export function grainKernel(d: Uint8ClampedArray, W: number, H: number, seed: number, k: number, y0 = 0, t: Terms<GrainTerm> = {}): void {
+  const u = W / 1080, rows = rowsOf(d, W), fine = GRAIN.fine * k * on(t, 'fine'), clump = GRAIN.clump * k * on(t, 'clump');
+  const vg = GRAIN.vignette * k * on(t, 'vignette'), tw = (1 - GRAIN.low) * on(t, 'tone');
+  const L = new Lattice(mix(seed, 5), W, GRAIN.cell * u), cl = new Float32Array(W);
   const fx = new Float32Array(W);
   for (let x = 0; x < W; x++) { const v = (x - W / 2) / (W / 2); fx[x] = v * v; }
   for (let y = y0, i = 0; y < y0 + rows; y++) {
     const vy = (y - H / 2) / (H / 2), fy = vy * vy;
+    if (clump) L.row(y, cl);
     for (let x = 0; x < W; x++, i += 4) {
-      const p = (y * W + x) * 2, g = (noiseAt(seed, p) + noiseAt(seed, p + 1) - 1) * amp, r2 = (fx[x] + fy) / 2, f = 1 - vg * r2 * r2;
-      d[i] = d[i] * f + g; d[i + 1] = d[i + 1] * f + g; d[i + 2] = d[i + 2] * f + g;
+      const p = (y * W + x) * 2, r2 = (fx[x] + fy) / 2, f = 1 - vg * r2 * r2;
+      const s = 2 * lum(d[i], d[i + 1], d[i + 2]) - 1, w = 1 - tw * s * s;
+      const g = ((noiseAt(seed, p) * 2 - 1) * fine + (clump ? (cl[x] * 2 - 1) * clump : 0)) * w;
+      const r = d[i] * f, gg = d[i + 1] * f, b = d[i + 2] * f, hi = Math.max(r, gg, b), lo = Math.min(r, gg, b);
+      // grain that would pass white or black goes the other way, the same on the three channels
+      const h = hi + g > 255 || lo + g < 0 ? -g : g;
+      d[i] = r + h; d[i + 1] = gg + h; d[i + 2] = b + h;
     }
   }
 }
@@ -100,50 +173,207 @@ export function grainKernel(d: Uint8ClampedArray, W: number, H: number, seed: nu
 /** Where Grunge's nibbled edges may reach: px from each side, and each corner's largest bite (to stay off text). */
 export interface Keep { l: number; r: number; t: number; b: number; corners: [number, number, number, number]; }
 
-/**
- * Grunge: grain, photocopy dust, faint horizontal streaks, and nibbled edges with bigger bites at the corners,
- * none of which reaches past `keep` (the free distance to the nearest text).
- */
-export function grungeKernel(d: Uint8ClampedArray, W: number, H: number, seed: number, k: number, keep: Keep, y0 = 0): void {
-  const u = W / 1080, r = rng(seed), ns = mix(seed, 1), rows = rowsOf(d, W);
-  const amp = 22 * k, dust = 0.0012 * k;
-  // faint streaks: a few rows a little darker, a very few a little lighter
-  const streak = new Float32Array(H);
-  for (let y = 0; y < H; y++) {
-    const p = r();
-    if (p < 0.02 * k) { const len = 1 + Math.floor(r() * 3 * u), v = -(5 + r() * 12) * k; for (let j = 0; j < len && y + j < H; j++) streak[y + j] = v; }
-    else if (p > 1 - 0.004 * k) streak[y] = (4 + r() * 8) * k;
+/** Grunge's terms, the steps of spec 7.1 in order (step 7, type, is the paint's ink spread and the restamp). */
+export const GRUNGE_TERMS = ['tone', 'toner', 'feed', 'speckle', 'dust', 'edge'] as const;
+export type GrungeTerm = (typeof GRUNGE_TERMS)[number];
+/** On the photocopy dialect Grunge is the second generation of the copy: steps 2, 4 and 5 at half (spec 7.1). */
+export const SECOND_GEN: Terms<GrungeTerm> = { toner: 0.5, speckle: 0.5, dust: 0.5 };
+/** Grunge's terms for a Scene: the second generation where the style has drawn its own copier pass. */
+export const grungeTerms = (sc: Scene): Terms<GrungeTerm> => (sc.items.some(isPass) ? SECOND_GEN : {});
+/** Toner and paper (spec 7.1), levels of 255. */
+export const TONER = 22, PAPER = 240;
+
+/** What a Grunge copy draws, from its seed alone: the counts do not depend on the size (a 3x export has as many). */
+export interface GrungePlan {
+  /** The feed: down the page (streaks run down columns, bands across rows) or across it. */
+  across: boolean;
+  /** Streaks the full length of the page: place across the feed and width, px; levels (signed, at strength 1). */
+  streaks: { at: number; w: number; v: number }[];
+  /** Bands across the feed: place along it and depth, px; levels. */
+  bands: { at: number; h: number; v: number }[];
+  dust: { x: number; y: number; r: number }[];
+  /** Hairs as polylines, px, and their thickness. */
+  hairs: { p: [number, number][]; w: number }[];
+  /** Sides with the lid's shadow (0 left, 1 right, 2 top, 3 bottom) and its depth, px. */
+  shadow: { side: number; depth: number }[];
+}
+
+export function grungePlan(W: number, H: number, seed: number): GrungePlan {
+  const u = W / 1080, r = rng(seed), across = r() < 0.5, cross = across ? H : W, feed = across ? W : H;
+  const sign = () => (r() < 0.55 ? -1 : 1);
+  const streaks = Array.from({ length: 5 + Math.floor(r() * 5) }, () => ({ at: r() * cross, w: (1 + r() * 5) * u, v: sign() * (0.06 + r() * 0.08) * 255 }));
+  const bands = Array.from({ length: 2 + Math.floor(r() * 3) }, () => ({ at: r() * feed, h: (30 + r() * 90) * u, v: sign() * (0.04 + r() * 0.03) * 255 }));
+  const dust = Array.from({ length: 20 + Math.floor(r() * 21) }, () => ({ x: r() * W, y: r() * H, r: ((2 + r() * 4) * u) / 2 }));
+  const hairs = Array.from({ length: 1 + Math.floor(r() * 3) }, () => {
+    const len = (80 + r() * 220) * u, x = r() * W, y = r() * H, a = r() * Math.PI * 2, bend = (r() - 0.5) * 1.6, w = (1 + r() * 0.5) * u;
+    const ex = x + Math.cos(a) * len, ey = y + Math.sin(a) * len, mx = (x + ex) / 2 - Math.sin(a) * len * bend * 0.5, my = (y + ey) / 2 + Math.cos(a) * len * bend * 0.5;
+    const p: [number, number][] = [];
+    for (let j = 0; j <= 32; j++) { const t = j / 32, s = 1 - t; p.push([s * s * x + 2 * s * t * mx + t * t * ex, s * s * y + 2 * s * t * my + t * t * ey]); }
+    return { p, w };
+  });
+  const sides = shuffle(r, [0, 1, 2, 3]).slice(0, 1 + Math.floor(r() * 3));
+  const shadow = sides.map((side) => ({ side, depth: (24 + r() * 36) * u }));
+  return { across, streaks, bands, dust, hairs, shadow };
+}
+
+/** Stamp a disc of radius rad at (cx, cy) into cover (rows y0 on, W wide), keeping the larger coverage. */
+function stamp(cover: Float32Array, W: number, y0: number, rows: number, cx: number, cy: number, rad: number) {
+  const ya = Math.max(y0, Math.floor(cy - rad - 1)), yb = Math.min(y0 + rows - 1, Math.ceil(cy + rad + 1));
+  const xa = Math.max(0, Math.floor(cx - rad - 1)), xb = Math.min(W - 1, Math.ceil(cx + rad + 1));
+  for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) {
+    const c = clamp01(rad + 0.5 - Math.hypot(x + 0.5 - cx, y + 0.5 - cy)), j = (y - y0) * W + x;
+    if (c > cover[j]) cover[j] = c;
   }
-  // the edges: an irregular depth along each side, never past keep
-  const base = (3 + r() * 6) * u * k;
-  const prof = (len: number, lim: number) => { const v = valueNoise(r, len, 28 * u); for (let i = 0; i < len; i++) v[i] = Math.min(lim, base * (0.3 + 1.6 * v[i] * v[i])); return v; };
+}
+
+/**
+ * Grunge (spec 7.1): a photocopy of the whole page, steps 1 to 6 in order: tone (paper and toner, colour a fifth
+ * less saturated), uneven toner, feed streaks and bands, speckle and dropout with grain, dust and hair, and the edge
+ * (the lid's shadow along one to three sides, and R7's nibbles at half depth), neither past `keep` (the free
+ * distance to the nearest text). `paper`: the paper colour (about 240, leaning to the ground's hue). `t`: a scale
+ * per step (SECOND_GEN on the photocopy dialect). `quiet` (one byte a pixel of d, or null; `quietMask`): no uneven
+ * toner on or round type, and no speck, pinhole, dust or hair on or round small type, so the copy holds its text by
+ * itself (without it the guard put back 8% of Swiss text items and 6.8% of Brutalist's; spec 9.4 allows under 5%).
+ * `d`: rows y0 on of a W x H image.
+ */
+export function grungeKernel(d: Uint8ClampedArray, W: number, H: number, seed: number, k: number, keep: Keep, y0 = 0, t: Terms<GrungeTerm> = {}, paper: [number, number, number] = [PAPER, PAPER, PAPER], quiet: Uint8Array | null = null): void {
+  const u = W / 1080, rows = rowsOf(d, W), y1 = y0 + rows, P = grungePlan(W, H, seed);
+  const kTone = Math.min(1, k * on(t, 'tone')), kToner = k * on(t, 'toner'), kFeed = k * on(t, 'feed'), kSpeck = k * on(t, 'speckle'), kDust = Math.min(1, k * on(t, 'dust')), kEdge = k * on(t, 'edge');
+  // 1. tone: the lightest 12% of the range to paper, the darkest 14% to toner
+  const lo = 0.14, hi = 0.88;
+  // 2. uneven toner: value noise on cells of about 180 px
+  const T = new Lattice(mix(seed, 11), W, 180 * u), tn = new Float32Array(W);
+  // 3. feed: streaks across the feed, bands along it, as levels per column or row
+  const cross = new Float32Array(P.across ? H : W), along = new Float32Array(P.across ? W : H), inBand = new Uint8Array(along.length);
+  for (const s of P.streaks) for (let j = Math.max(0, Math.floor(s.at)); j < Math.min(cross.length, Math.ceil(s.at + s.w)); j++) cross[j] += s.v * kFeed;
+  for (const b of P.bands) for (let j = Math.max(0, Math.floor(b.at - b.h / 2)); j < Math.min(along.length, Math.ceil(b.at + b.h / 2)); j++) {
+    const e = clamp01(Math.min(j - (b.at - b.h / 2), b.at + b.h / 2 - j) / (6 * u));
+    along[j] += b.v * kFeed * e; inBand[j] = 1;
+  }
+  // 4. speckle: dark specks on light areas (about 0.6% of pixels, clumps of 1 to 3 px), pinholes in dark ones (1.2%,
+  // 1 to 4 px), both twice as dense inside the bands; grain up to 18 levels either way
+  // (a speck is a round clump at a place of its own inside a cell twice its largest size; the odds of a cell are
+  // set so the share of pixels covered is the spec's: cell area x share / the mean clump area)
+  const ns = mix(seed, 12), np = mix(seed, 13), ng = mix(seed, 14), cs = 6 * u, cp = 8 * u;
+  const nxs = Math.ceil(W / cs) + 1, nxp = Math.ceil(W / cp) + 1, ps = (0.006 * 36) / 3.7, pp = (0.012 * 64) / 5.9;
+  // each cell's odds, read once per row of cells; then a row's coverage by the specks of its row of cells (a speck's
+  // density is set by whether its cell's centre lies in a band)
+  const cellRow = (seedS: number, nx: number) => { const a = new Float32Array(nx); let at = -1; return (cy: number) => { if (cy !== at) { at = cy; for (let i = 0; i < nx; i++) a[i] = noiseAt(seedS, cy * nx + i); } return a; }; };
+  const rowS = cellRow(ns, nxs), rowP = cellRow(np, nxp);
+  const covS = new Float32Array(W), covP = new Float32Array(W);
+  /** Coverage of row y by the specks of its cells into out: diameter 1 to n px (at 1080), odds p (in a band 2p). */
+  const specks = (out: Float32Array, seedS: number, c: number, nx: number, p: number, n: number, y: number, odds: Float32Array) => {
+    out.fill(0);
+    const cy = Math.floor(y / c), yc = (cy + 0.5) * c;
+    for (let cx = 0; cx < nx; cx++) {
+      const h = odds[cx], q = p * (inBand[Math.min(inBand.length - 1, Math.floor(P.across ? (cx + 0.5) * c : yc))] ? 2 : 1);
+      if (h >= q) continue;
+      const j = cy * nx + cx, z = (1 + Math.floor((h / q) * n)) * u, room = c - z;
+      const ox = cx * c + z / 2 + noiseAt(seedS ^ 0x5bd1e995, j) * room, oy = cy * c + z / 2 + noiseAt(seedS ^ 0x27d4eb2f, j) * room, dy = y + 0.5 - oy;
+      if (Math.abs(dy) > z / 2 + 0.5) continue;
+      for (let x = Math.max(0, Math.floor(ox - z / 2 - 1)); x <= Math.min(W - 1, Math.ceil(ox + z / 2 + 1)); x++) {
+        const v = clamp01(z / 2 + 0.5 - Math.hypot(x + 0.5 - ox, dy));
+        if (v > out[x]) out[x] = v;
+      }
+    }
+  };
+  // 5. dust and hair, as coverage on these rows
+  const cover = new Float32Array(rows * W);
+  if (kDust > 0) {
+    for (const s of P.dust) if (s.y + s.r + 1 >= y0 && s.y - s.r - 1 < y1) stamp(cover, W, y0, rows, s.x, s.y, s.r);
+    for (const h of P.hairs) for (let j = 1; j < h.p.length; j++) {
+      const [ax, ay] = h.p[j - 1], [bx, by] = h.p[j], n = Math.ceil(Math.hypot(bx - ax, by - ay) / (0.5 * u)) + 1;
+      if (Math.max(ay, by) + h.w < y0 || Math.min(ay, by) - h.w > y1) continue;
+      for (let q = 0; q <= n; q++) stamp(cover, W, y0, rows, ax + ((bx - ax) * q) / n, ay + ((by - ay) * q) / n, h.w / 2);
+    }
+  }
+  // 6. the edge: the lid's shadow, uneven along each side, and R7's nibbles at half depth, none past keep
+  const re = rng(mix(seed, 15));
+  const lim = [keep.l, keep.r, keep.t, keep.b];
+  const shade = [0, 1, 2, 3].map((side) => {
+    const s = P.shadow.find((q) => q.side === side), len = side < 2 ? H : W, v = valueNoise(re, len, 90 * u);
+    if (!s || kEdge <= 0) return null;
+    for (let i = 0; i < len; i++) v[i] = Math.min(lim[side], s.depth * (0.55 + 0.9 * v[i]));
+    return v;
+  });
+  const base = ((3 + re() * 6) * u * kEdge) / 2;
+  const prof = (len: number, l: number) => { const v = valueNoise(re, len, 28 * u); for (let i = 0; i < len; i++) v[i] = Math.min(l, base * (0.3 + 1.6 * v[i] * v[i])); return v; };
   const dL = prof(H, keep.l), dR = prof(H, keep.r), dT = prof(W, keep.t), dB = prof(W, keep.b);
-  // the corner bites: bigger, irregular round the arc
-  const bite = keep.corners.map((lim) => Math.min(lim, (28 + r() * 80) * u * k));
-  const arcs = bite.map(() => valueNoise(r, 64, 9));
-  const maxL = Math.max(...dL, bite[0], bite[2]) + 2 * u, maxR = Math.max(...dR, bite[1], bite[3]) + 2 * u;
+  const bite = keep.corners.map((l) => Math.min(l, ((28 + re() * 80) * u * kEdge) / 2));
+  const arcs = bite.map(() => valueNoise(re, 64, 9));
   const soft = 1.5 * u;
+  const sh = (side: number, i: number, dist: number) => { const v = shade[side]; if (!v || v[i] <= 0 || dist >= v[i]) return 0; const q = 1 - dist / v[i]; return q * q; };
   const cornerAt = (c: number, dx: number, dy: number) => {
     const R = bite[c];
     if (R <= 0 || dx > R || dy > R) return 0;
     const ang = Math.atan2(dy, dx) / (Math.PI / 2), q = arcs[c][Math.min(63, Math.floor(ang * 63))];
     return clamp01((R * (0.55 + 0.45 * q) - Math.hypot(dx, dy)) / soft);
   };
-  for (let y = y0, i = 0; y < y0 + rows; y++) for (let x = 0; x < W; x++, i += 4) {
-    const p = (y * W + x) * 2, a = noiseAt(ns, p);
-    let v = (a + noiseAt(ns, p + 1) - 1) * amp + streak[y];
-    if (a > 1 - dust) v += 120; else if (a < dust) v -= 150;
-    let e = 0;
-    if (x < maxL || x > W - 1 - maxR || y < dT[x] + soft || y > H - 1 - dB[x] - soft) {
-      e = Math.max(clamp01((dL[y] - x) / soft), clamp01((dR[y] - (W - 1 - x)) / soft), clamp01((dT[x] - y) / soft), clamp01((dB[x] - (H - 1 - y)) / soft));
-      if (e < 1) e = Math.max(e, cornerAt(0, x, y), cornerAt(1, W - 1 - x, y), cornerAt(2, x, H - 1 - y), cornerAt(3, W - 1 - x, H - 1 - y));
+  const maxL = Math.max(...dL, bite[0], bite[2]) + 2 * u, maxR = Math.max(...dR, bite[1], bite[3]) + 2 * u;
+  const maxS = Math.max(0, ...shade.map((v) => (v ? Math.max(...v) : 0))) + 1;
+  const eL = Math.max(maxL, maxS), eR = W - 1 - Math.max(maxR, maxS);
+  // rows this close to the top or bottom are read in full; the others only within eL and eR of the sides
+  const topB = Math.max(maxS, Math.max(...dT, ...dB, ...bite) + 2 * u) + soft + 1;
+  const [pr, pg, pb] = paper, nsh = mix(seed, 16), kk = Math.min(1, kSpeck);
+  // a row at a time, each step its own small loop over the row (one big loop ran at half the speed)
+  const R = new Float32Array(W), G = new Float32Array(W), B = new Float32Array(W);
+  const toward = (x: number, cr: number, cg: number, cb: number, a: number) => { R[x] += (cr - R[x]) * a; G[x] += (cg - G[x]) * a; B[x] += (cb - B[x]) * a; };
+  for (let y = y0; y < y1; y++) {
+    const o = (y - y0) * W;
+    for (let x = 0, i = o * 4; x < W; x++, i += 4) { R[x] = d[i]; G[x] = d[i + 1]; B[x] = d[i + 2]; }
+    // 1. tone, 2. uneven toner (dark areas lightened by up to 14%, light ones darkened by up to 5%; not on type:
+    // quiet), 3. feed: one loop over the row
+    if (kToner) T.row(y, tn);
+    const fc = kFeed ? (P.across ? cross[y] : along[y]) : 0, fx = P.across ? along : cross;
+    for (let x = 0; x < W; x++) {
+      let r = R[x], g = G[x], b = B[x];
+      if (kTone > 0) {
+        const L = lum(r, g, b), c = clamp01((L - lo) / (hi - lo)), q = (2 * c - 1) * (2 * c - 1), sat = 0.8 * (1 - q * q), Y = L * 255;
+        r += (TONER + (pr - TONER) * c + (r - Y) * sat - r) * kTone;
+        g += (TONER + (pg - TONER) * c + (g - Y) * sat - g) * kTone;
+        b += (TONER + (pb - TONER) * c + (b - Y) * sat - b) * kTone;
+      }
+      let v = kFeed ? fc + fx[x] : 0;
+      if (kToner && (quiet === null || !(quiet[o + x] & QUIET_TYPE))) { const L = lum(r, g, b); v += clamp01((tn[x] - 0.2) / 0.7) * kToner * 255 * (0.14 * (1 - L) - 0.05 * L); }
+      R[x] = r + v; G[x] = g + v; B[x] = b + v;
     }
-    const f = 1 - 0.9 * e, g = v * (1 - e);
-    d[i] = d[i] * f + g; d[i + 1] = d[i + 1] * f + g; d[i + 2] = d[i + 2] * f + g;
+    // 4. speckle and dropout (none on small type), and grain
+    if (kSpeck) {
+      specks(covS, ns, cs, nxs, ps * kk, 3, y, rowS(Math.floor(y / cs)));
+      specks(covP, np, cp, nxp, pp * kk, 4, y, rowP(Math.floor(y / cp)));
+      for (let x = 0; x < W; x++) {
+        const sd = covS[x], sp = covP[x];
+        if ((sd || sp) && !(quiet !== null && quiet[o + x] & QUIET_SMALL)) {
+          const L = lum(R[x], G[x], B[x]);
+          if (sd) toward(x, TONER, TONER, TONER, 0.85 * L * sd);
+          if (sp) toward(x, pr, pg, pb, 0.9 * (1 - L) * sp);
+        }
+        const gn = (noiseAt(ng, y * W + x) * 2 - 1) * 18 * kSpeck;
+        R[x] += gn; G[x] += gn; B[x] += gn;
+      }
+    }
+    // 5. dust and hair: dark, as on the glass (none on small type)
+    if (kDust > 0) for (let x = 0; x < W; x++) {
+      const cv = cover[o + x];
+      if (cv && !(quiet !== null && quiet[o + x] & QUIET_SMALL)) toward(x, TONER, TONER, TONER, 0.85 * cv * kDust);
+    }
+    // 6. the edge: the lid's shadow and the nibbles, near the sides only
+    if (kEdge) {
+      const near = y < topB || y > H - 1 - topB;
+      const xs = near ? [[0, W]] : [[0, Math.min(W, Math.ceil(eL) + 1)], [Math.max(0, Math.floor(eR)), W]];
+      for (const [xa, xb] of xs) for (let x = xa; x < xb; x++) {
+        if (!(x < eL || x > eR || y < Math.max(maxS, dT[x] + soft) || y > H - 1 - Math.max(maxS, dB[x] + soft))) continue;
+        let a = Math.max(sh(0, y, x), sh(1, y, W - 1 - x), sh(2, x, y), sh(3, x, H - 1 - y));
+        if (a) { a = Math.min(1, a * 0.92 * Math.min(1, kEdge) * (0.7 + 0.6 * noiseAt(nsh, y * W + x))); toward(x, TONER, TONER, TONER, a); }
+        let e = Math.max(clamp01((dL[y] - x) / soft), clamp01((dR[y] - (W - 1 - x)) / soft), clamp01((dT[x] - y) / soft), clamp01((dB[x] - (H - 1 - y)) / soft));
+        if (e < 1) e = Math.max(e, cornerAt(0, x, y), cornerAt(1, W - 1 - x, y), cornerAt(2, x, H - 1 - y), cornerAt(3, W - 1 - x, H - 1 - y));
+        if (e) toward(x, TONER, TONER, TONER, 0.9 * e);
+      }
+    }
+    for (let x = 0, i = o * 4; x < W; x++, i += 4) { d[i] = R[x]; d[i + 1] = G[x]; d[i + 2] = B[x]; }
   }
 }
 
-const row = (d: Uint8ClampedArray, W: number, y: number) => d.subarray(y * W * 4, (y + 1) * W * 4);
 const wrap = (x: number, W: number) => ((x % W) + W) % W;
 const edge = (x: number, W: number) => (x < 0 ? 0 : x >= W ? W - 1 : x);
 
@@ -162,47 +392,102 @@ export function holdMask(d: Uint8ClampedArray, keep: Uint8ClampedArray, m: Uint8
   }
 }
 
-/** VHS: chroma bleed, scanlines, streak grain, a tracking band, head-switching noise at the bottom. `d`: rows y0 on. */
-export function vhsKernel(d: Uint8ClampedArray, W: number, H: number, seed: number, k: number, y0 = 0): void {
-  const u = W / 1080, r = rng(seed), ns = mix(seed, 1), nb = mix(seed, 3), nh = mix(seed, 4), src = d.slice(), rows = rowsOf(d, W), y1 = y0 + rows;
-  // chroma bleed: red +2 px, blue -2 px
-  const sh = Math.max(1, Math.round(2 * u * Math.min(1, k + 0.25)));
-  for (let y = 0; y < rows; y++) for (let x = 0; x < W; x++) {
-    const i = (y * W + x) * 4;
-    d[i] = src[(y * W + Math.max(0, x - sh)) * 4];
-    d[i + 2] = src[(y * W + Math.min(W - 1, x + sh)) * 4 + 2];
-  }
-  // streak grain: noise blurred 11 x 1 horizontally; scanlines: every other row at 0.90
-  const rad = Math.max(1, Math.round(5 * u)), raw = new Float32Array(W), amp = 30 * k, scan = 1 - 0.1 * Math.min(1, k);
+/** VHS's terms, the eight steps of spec 7.1 in order. */
+export const VHS_TERMS = ['colour', 'scan', 'grain', 'tracking', 'ghost', 'dropout', 'tone', 'head'] as const;
+export type VhsTerm = (typeof VHS_TERMS)[number];
+
+/** What a VHS pass draws, from its seed alone: the counts do not depend on the size. */
+export interface VhsPlan {
+  /** Tracking bands: first row and depth, px. */
+  tracking: { y: number; h: number }[];
+  /** The ghost's offset to the right, px. */
+  ghost: number;
+  /** White dashes: place, length and height, px. */
+  dropouts: { x: number; y: number; len: number; h: number }[];
+}
+export function vhsPlan(W: number, H: number, seed: number): VhsPlan {
+  const u = W / 1080, r = rng(seed), head = 56 * u;
+  const tracking = Array.from({ length: 2 + Math.floor(r() * 2) }, () => { const h = (46 + r() * 44) * u; return { y: Math.floor(r() * Math.max(1, H - head - h)), h }; });
+  const ghost = (10 + r() * 4) * u;
+  const dropouts = Array.from({ length: 6 + Math.floor(r() * 9) }, () => ({ x: r() * W, y: r() * H, len: (20 + r() * 100) * u, h: (1 + r()) * u }));
+  return { tracking, ghost, dropouts };
+}
+
+/**
+ * VHS (spec 7.1), the eight steps in order: colour (the picture's colour, not its brightness, blurred 8 px sideways
+ * and shifted 4 px, red and blue 2 px apart), scanlines (every other row at 0.80), streak grain (noise blurred 11 x 1,
+ * up to 45 levels at three standard deviations, at any size), two or three tracking bands (rows jittered up to 30 px, 12% white noise), a ghost (10 to 14 px to
+ * the right at 12%), dropouts (white dashes), tone (blacks lifted to about 18, saturation up a tenth) and head
+ * switching (the bottom 56 px skewed by up to 90 px, with noise). Every step works within its row, so a strip draws
+ * the rows of the whole. `d`: rows y0 on of a W x H image.
+ */
+export function vhsKernel(d: Uint8ClampedArray, W: number, H: number, seed: number, k: number, y0 = 0, t: Terms<VhsTerm> = {}): void {
+  const u = W / 1080, P = vhsPlan(W, H, seed), ns = mix(seed, 1), nb = mix(seed, 3), nh = mix(seed, 4), nj = mix(seed, 5), rows = rowsOf(d, W), y1 = y0 + rows;
+  const kc = Math.min(1, k * on(t, 'colour')), scan = 1 - 0.2 * Math.min(1, k) * on(t, 'scan'), amp = 45 * k * on(t, 'grain');
+  const kt = on(t, 'tracking'), kg = 0.12 * k * on(t, 'ghost'), kd = Math.min(1, k * on(t, 'dropout')), lift = 18 * k * on(t, 'tone'), sat = 0.1 * k * on(t, 'tone'), kh = on(t, 'head');
+  const blur = Math.max(1, Math.round(8 * u)), shift = Math.round(4 * u), split = Math.max(1, Math.round(u)), rad = Math.max(1, Math.round(5 * u)), step = Math.max(1, Math.round(u));
+  const cr = new Float32Array(W), cg = new Float32Array(W), cb = new Float32Array(W), Y = new Float32Array(W), raw = new Float32Array(W);
+  const pr = new Float32Array(W + 1), pgr = new Float32Array(W + 1), pbl = new Float32Array(W + 1);
+  const hb = Math.round(56 * u);
   for (let y = y0; y < y1; y++) {
-    for (let x = 0; x < W; x++) { const p = (y * W + x) * 2; raw[x] = noiseAt(ns, p) + noiseAt(ns, p + 1) - 1; }
-    const line = Math.floor(y / Math.max(1, Math.round(u))) & 1 ? scan : 1;
-    let acc = 0;
-    for (let x = -rad; x <= rad; x++) acc += raw[wrap(x, W)];
-    for (let x = 0, i = (y - y0) * W * 4; x < W; x++, i += 4) {
-      const g = (acc / (2 * rad + 1)) * amp;
-      d[i] = d[i] * line + g; d[i + 1] = d[i + 1] * line + g; d[i + 2] = d[i + 2] * line + g;
-      acc += raw[wrap(x + rad + 1, W)] - raw[wrap(x - rad, W)];
+    const o = (y - y0) * W * 4;
+    // 1. colour: the chroma (each channel less the brightness) blurred sideways and shifted
+    if (kc > 0) {
+      for (let x = 0, i = o; x < W; x++, i += 4) { const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; Y[x] = v; cr[x] = d[i] - v; cg[x] = d[i + 1] - v; cb[x] = d[i + 2] - v; }
+      pr[0] = pgr[0] = pbl[0] = 0;
+      for (let x = 0; x < W; x++) { pr[x + 1] = pr[x] + cr[x]; pgr[x + 1] = pgr[x] + cg[x]; pbl[x + 1] = pbl[x] + cb[x]; }
+      const box = (p: Float32Array, c: number) => { const a = edge(c - blur, W), b = edge(c + blur, W); return (p[b + 1] - p[a]) / (b - a + 1); };
+      for (let x = 0, i = o; x < W; x++, i += 4) {
+        const c = x - shift, R = Y[x] + box(pr, c - split), G = Y[x] + box(pgr, c), B = Y[x] + box(pbl, c + split);
+        d[i] += (R - d[i]) * kc; d[i + 1] += (G - d[i + 1]) * kc; d[i + 2] += (B - d[i + 2]) * kc;
+      }
     }
-  }
-  // a tracking band: 46 px of jittered rows with 10% white noise
-  const bh = Math.round(46 * u), b0 = Math.floor((0.15 + 0.7 * r()) * (H - bh)), jit = (4 + 10 * r()) * u * k;
-  const offs = Array.from({ length: Math.max(0, bh) }, () => Math.round((r() - 0.5) * 2 * jit));
-  for (let y = Math.max(b0, y0); y < Math.min(b0 + bh, y1); y++) {
-    const off = offs[y - b0], line = row(d, W, y - y0).slice();
-    for (let x = 0, i = (y - y0) * W * 4; x < W; x++, i += 4) {
-      const j = wrap(x - off, W) * 4, p = (y * W + x) * 2;
-      if (noiseAt(nb, p) < 0.1 * Math.min(1, k)) { const v = 170 + 85 * noiseAt(nb, p + 1); d[i] = d[i + 1] = d[i + 2] = v; }
-      else { d[i] = line[j]; d[i + 1] = line[j + 1]; d[i + 2] = line[j + 2]; }
+    // 2. scanlines
+    if (scan < 1 && Math.floor(y / step) & 1) for (let x = 0, i = o; x < W; x++, i += 4) { d[i] *= scan; d[i + 1] *= scan; d[i + 2] *= scan; }
+    // 3. streak grain: noise blurred 11 x 1 sideways
+    if (amp) {
+      for (let x = 0; x < W; x++) { const p = (y * W + x) * 2; raw[x] = noiseAt(ns, p) + noiseAt(ns, p + 1) - 1; }
+      let acc = 0;
+      for (let x = -rad; x <= rad; x++) acc += raw[wrap(x, W)];
+      for (let x = 0, i = o; x < W; x++, i += 4) {
+        const g = (acc / Math.sqrt(2 * rad + 1) / 1.22) * amp;
+        d[i] += g; d[i + 1] += g; d[i + 2] += g;
+        acc += raw[wrap(x + rad + 1, W)] - raw[wrap(x - rad, W)];
+      }
     }
-  }
-  // head-switching: the bottom 36 px skewed progressively, with noise
-  const hb = Math.round(36 * u);
-  for (let y = Math.max(H - hb, y0); y < Math.min(H, y1); y++) {
-    const j = y - (H - hb), t = (j + 1) / hb, off = Math.round(t * t * 60 * u * k), line = row(d, W, y - y0).slice();
-    for (let x = 0, i = (y - y0) * W * 4; x < W; x++, i += 4) {
-      const s = Math.min(W - 1, x + off) * 4, g = (noiseAt(nh, y * W + x) - 0.5) * 60 * k * t;
-      d[i] = line[s] + g; d[i + 1] = line[s + 1] + g; d[i + 2] = line[s + 2] + g;
+    // 4. tracking: the band's rows jittered sideways, with white noise
+    if (kt > 0) for (let b = 0; b < P.tracking.length; b++) {
+      const T = P.tracking[b];
+      if (y < T.y || y >= T.y + T.h) continue;
+      const j = Math.floor((y - T.y) / step), off = Math.round((noiseAt(nj, b * 4096 + j) - 0.5) * 2 * 30 * u * Math.min(1.5, k) * kt), line = d.slice(o, o + W * 4);
+      for (let x = 0, i = o; x < W; x++, i += 4) {
+        const s = wrap(x - off, W) * 4, p = (y * W + x) * 2;
+        if (noiseAt(nb, p) < 0.12 * Math.min(1, k) * kt) { const v = 170 + 85 * noiseAt(nb, p + 1); d[i] = d[i + 1] = d[i + 2] = v; }
+        else { d[i] = line[s]; d[i + 1] = line[s + 1]; d[i + 2] = line[s + 2]; }
+      }
+    }
+    // 5. ghost: the row again, to the right, faint
+    if (kg > 0) {
+      const line = d.slice(o, o + W * 4), g = Math.round(P.ghost);
+      for (let x = 0, i = o; x < W; x++, i += 4) { const s = edge(x - g, W) * 4; d[i] += (line[s] - d[i]) * kg; d[i + 1] += (line[s + 1] - d[i + 1]) * kg; d[i + 2] += (line[s + 2] - d[i + 2]) * kg; }
+    }
+    // 6. dropouts: white dashes
+    if (kd > 0) for (const q of P.dropouts) {
+      if (y < Math.floor(q.y) || y >= Math.floor(q.y) + Math.max(1, Math.round(q.h))) continue;
+      for (let x = Math.max(0, Math.floor(q.x)); x < Math.min(W, Math.floor(q.x + q.len)); x++) { const i = o + x * 4; d[i] += (245 - d[i]) * kd; d[i + 1] += (245 - d[i + 1]) * kd; d[i + 2] += (245 - d[i + 2]) * kd; }
+    }
+    // 7. tone: blacks lifted, saturation up
+    if (lift || sat) for (let x = 0, i = o; x < W; x++, i += 4) {
+      const v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2], f = (255 - lift) / 255;
+      for (let c = 0; c < 3; c++) d[i + c] = lift + (v + (d[i + c] - v) * (1 + sat)) * f;
+    }
+    // 8. head switching: the bottom rows skewed, more towards the bottom, with noise
+    if (kh > 0 && y >= H - hb) {
+      const j = y - (H - hb), tt = (j + 1) / hb, off = Math.round(tt * tt * 90 * u * k * kh), line = d.slice(o, o + W * 4);
+      for (let x = 0, i = o; x < W; x++, i += 4) {
+        const s = Math.min(W - 1, x + off) * 4, g = (noiseAt(nh, y * W + x) - 0.5) * 70 * Math.min(1.5, k) * kh * tt;
+        d[i] = line[s] + g; d[i + 1] = line[s + 1] + g; d[i + 2] = line[s + 2] + g;
+      }
     }
   }
 }
@@ -318,6 +603,14 @@ function corruption(ctx: Ctx, sc: Scene, spec: Spec, r: Rng, k: number) {
 function smearIn(m: Smear | null, v: View): Smear | null {
   if (!m) return null;
   return { x0: Math.round(m.x0 * v.sx + v.ox), y0: Math.round(m.y0 * v.sy + v.oy), h: Math.max(1, Math.round(m.h * v.sy)), len: Math.max(1, Math.round(m.len * v.sx)), dir: m.dir };
+}
+/** Grunge's paper (spec 7.1): about 240, leaning to the ground's hue (a quarter of the ground's colour, its brightness taken out). */
+export function paperOf(sc: Scene): [number, number, number] {
+  let c: [number, number, number];
+  try { c = parseHex(sc.ground); } catch { return [PAPER, PAPER, PAPER]; }
+  if (!c.every((v) => Number.isFinite(v))) return [PAPER, PAPER, PAPER];
+  const y = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+  return c.map((v) => Math.max(0, Math.min(255, PAPER + 0.25 * (v - y)))) as [number, number, number];
 }
 /** Grunge's keep in a view's pixels. */
 const keepIn = (k: Keep, v: View): Keep => ({ l: k.l * v.sx, r: k.r * v.sx, t: k.t * v.sy, b: k.b * v.sy, corners: k.corners.map((c) => c * v.sx) as Keep['corners'] });
@@ -473,7 +766,9 @@ export function cleanOf(ctx: Ctx, sc: Scene, t: Time | null): Ctx {
 /**
  * The guard of spec 7.1: no finish takes a text item under 3:1. Every text item is read in cells on the finished
  * canvas; where any cell is under 3:1, or the whole item is, it is read again on Clean, and put back as Clean drew
- * it if `tooLow` says the finish took it there. `clean` is a Clean render if the caller has one.
+ * it if `tooLow` says the finish took it there; then every item not put back is read again, since putting back an
+ * item can take a word it collides with low (row R19: a photocopy title word, under the new Grunge). `clean` is a
+ * Clean render if the caller has one.
  * Returns how many items it put back. (A big render drawn in strips runs the same rounds over its strips: export.ts.)
  */
 export function guard(ctx: Ctx, sc: Scene, t: Time | null, clean: Ctx | null = null): number {
@@ -484,8 +779,8 @@ export function guard(ctx: Ctx, sc: Scene, t: Time | null, clean: Ctx | null = n
       const m = textContrast(ctx, mask, it);
       if (!readsLow(m)) return false;
       clean ??= cleanOf(ctx, sc, t);
-      if (!tooLow(textContrast(clean, mask, it), m)) { done.add(it); return false; }
-      return true;
+      // an item read fine is read again next round: putting back a neighbour it collides with can take it low (R19)
+      return !!tooLow(textContrast(clean, mask, it), m);
     });
     if (!bad.length) break;
     restoreItems(ctx, clean!, bad);
@@ -525,6 +820,43 @@ export function heldMask(sc: Scene, ctx?: Ctx): Uint8Array {
   for (let i = 0; i < a.length; i++) a[i] = d[i * 4 + 3];
   return dilate(a, W, H, Math.round((HOLD - RING) * v.sx));
 }
+/** Text under this size (scene px) is small for Grunge: its blemishes keep off it (`grungeKernel`'s quiet). */
+export const QUIET_PX = LARGE_TEXT_PX;
+/**
+ * Where Grunge holds back (row R19): every text item's glyphs with the guard's ring, grown by 2 px (at 1080 wide),
+ * get no uneven toner (it lifted black type on a mid-dark plate under 3:1: Brutalist's title on its colour band), and
+ * small ones no speck, pinhole, dust or hair either. One byte per pixel of ctx's canvas (QUIET_TYPE, QUIET_SMALL
+ * bits), or null when the design has no text.
+ */
+export function quietMask(sc: Scene, ctx: Ctx): Uint8Array | null {
+  const all = texts(sc);
+  if (!all.length) return null;
+  const W = ctx.canvas.width, H = ctx.canvas.height, v = viewOf(ctx), grow = Math.round(2 * v.sx), out = new Uint8Array(W * H), M = surfaceLike(ctx);
+  // each item is drawn alone and read over the rows it can reach only (a full-canvas read per item cost 150 ms at 9:16)
+  const spans: [number, number][] = [];
+  for (const it of all) {
+    const [s0, s1] = textSpan(it, RING), r0 = Math.max(0, Math.floor(s0 * v.sy + v.oy - v.top)), r1 = Math.min(H, Math.ceil(s1 * v.sy + v.oy - v.top));
+    if (r1 <= r0) continue;
+    M.setTransform(1, 0, 0, 1, 0, 0);
+    M.clearRect(0, r0, W, r1 - r0);
+    base(M);
+    knockText(M, it, RING);
+    const d = M.getImageData(0, r0, W, r1 - r0).data, bit = it.px < QUIET_PX ? QUIET_TYPE | QUIET_SMALL : QUIET_TYPE;
+    for (let i = 0, j = r0 * W; i < d.length; i += 4, j++) if (d[i + 3] >= 128 && out[j] < bit) out[j] = bit;
+    spans.push([r0, r1]);
+  }
+  // grown by `grow` px over the rows the items reach (the bits nest, small type being type, so one max filter grows both)
+  spans.sort((p, q) => p[0] - q[0]);
+  const merged: [number, number][] = [];
+  for (const [a, b] of spans) { const m = merged[merged.length - 1]; if (m && a <= m[1] + 2 * grow) m[1] = Math.max(m[1], b); else merged.push([a, b]); }
+  for (const [a0, b0] of merged) {
+    const a = Math.max(0, a0 - grow), b = Math.min(H, b0 + grow), g = dilate(out.slice(a * W, b * W), W, b - a, grow);
+    out.set(g, a * W);
+  }
+  return out;
+}
+/** quietMask's bits: under or round any text item (no uneven toner), under or round small text (no blemish either). */
+export const QUIET_TYPE = 1, QUIET_SMALL = 2;
 function blank(w: number, h: number): Ctx {
   const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h });
   return c.getContext('2d') as Ctx;
@@ -547,14 +879,15 @@ export function finishBody(ctx: Ctx, sc: Scene, spec: Spec, t: Time | null, rep:
   if (f === 'grain' || f === 'grunge') {
     paint(ctx, sc, t, f === 'grunge' ? { spread: SPREAD * k } : {});
     rep.paint = now() - t0; t0 = now();
-    const keep = f === 'grunge' ? keepIn(keepOf(sc), v) : null;
-    pixels(ctx, (d, V) => (f === 'grain' ? grainKernel(d, V.W, V.H, seed, k, V.top) : grungeKernel(d, V.W, V.H, seed, k, keep!, V.top)));
+    const keep = f === 'grunge' ? keepIn(keepOf(sc), v) : null, gt = grungeTerms(sc), pp = paperOf(sc), qm = f === 'grunge' ? quietMask(sc, ctx) : null;
+    pixels(ctx, (d, V) => (f === 'grain' ? grainKernel(d, V.W, V.H, seed, k, V.top) : grungeKernel(d, V.W, V.H, seed, k, keep!, V.top, gt, pp, qm)));
     rep.effect = now() - t0; t0 = now();
     // the title again at part strength, so its edges hold: Clean's own pixels of the title's ink (fill, outline,
     // echoes), so it is in register and in Clean's colours, any surface pass included (review R7 E2)
     clean = cleanOf(ctx, sc, t);
     const titles = texts(sc).filter((it) => it.slot === 'title');
-    overMasked(ctx, clean, maskLayer(ctx, titles, null), (RESTAMP[f] ?? 0.5) * Math.min(1, k), titles, 0);
+    const rim = STAMP_EDGE;
+    overMasked(ctx, clean, maskLayer(ctx, titles, rim), (RESTAMP[f] ?? 0.5) * Math.min(1, k), titles, rim);
     rep.text = now() - t0;
   } else {
     // pass one: everything under the text; the effect; pass two: the text, then any surface pass of the style

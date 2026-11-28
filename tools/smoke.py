@@ -1,8 +1,9 @@
 """npm run smoke: the built app in headless Chrome. Runs spec 9.2 and 9.3 over many seeds with the real fonts,
 taps the controls at both phone sizes, and checks exports. Any failure prints the spec that caused it."""
-import base64, io, json, sys, time
+import base64, io, json, os, sys, time
 from PIL import Image
-from common import browser, idle, open_app, served
+from common import ROOT, browser, idle, open_app, served
+from finishcases import FINISHES, r7_cases, r19_specs
 import appcheck, exportcheck, fontcheck
 
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 200
@@ -17,6 +18,16 @@ fails = []
 # draw seeds 0..N-1, so for N <= 200 these counts are a ceiling; above, scaled.
 # Unpicked and per-palette runs allow none: a fallback there means a palette or form cut every candidate.
 PICKED_FALLBACKS = {}
+# Row R19 (spec 9.4): the R7 build's mean change against Clean over the 100 seeds per style of finishcases.r19_specs
+# (commit e41f8ef measured on 27 Nov 2026 by tools/finishbase.py; per seed in tests/fixtures/finish-r7.json): Grain
+# and Grunge over the page, VHS outside the held text. The thresholds: Grain at least 9 (and 7 on every seed),
+# Grunge 14 with 6% of the middle past 24 levels, VHS 1.8 times R7; any figure under 1.5 times R7's is raised to it.
+R7_BASE = {'swiss': {'grain': 6.42, 'grunge': 9.62, 'vhs': 9.05}, 'pomo': {'grain': 6.15, 'grunge': 8.87, 'vhs': 9.47},
+           'brutal': {'grain': 6.05, 'grunge': 9.05, 'vhs': 9.36}, 'vapor': {'grain': 6.53, 'grunge': 9.26, 'vhs': 10.96}}
+R19_MIN = {'grain': 9, 'grain_each': 7, 'grunge': 14, 'grunge_mid': 0.06, 'vhs': 1.8}
+# The R7 build's 9:16 export times on the machine R19 was built on (median of three, ms; tools/finishbase.py --bench).
+R7_BENCH = {'clean swiss': 26, 'clean pomo icecream': 119, 'clean pomo photocopy': 227, 'clean brutal': 30, 'clean vapor': 162, 'grain swiss': 138, 'grain pomo icecream': 276, 'grain pomo photocopy': 411, 'grain brutal': 145, 'grain vapor': 341, 'grunge swiss': 201, 'grunge pomo icecream': 351, 'grunge pomo photocopy': 501, 'grunge brutal': 189, 'grunge vapor': 376, 'vhs swiss': 381, 'vhs pomo icecream': 407, 'vhs pomo photocopy': 552, 'vhs brutal': 260, 'vhs vapor': 565, 'glitch swiss': 165, 'glitch pomo icecream': 265, 'glitch pomo photocopy': 418, 'glitch brutal': 199, 'glitch vapor': 389}
+# and one 3:4 Grunge render under a 4x CPU throttle on the same machine: 638 ms (R7's own record: 1.24 s)
 # Review bundle 6 M3: the most of a style's layers the layer run may flag with real fonts, per format (spec 8.6).
 FLAG_CEILING = {'swiss': 0.09, 'pomo': 0.09, 'brutal': 0.12, 'vapor': 0.11}
 
@@ -271,26 +282,11 @@ with served() as url, browser() as b:
     # Glitch every pixel of every text item's fill and of the ring round its ink is Clean's, and no item is taken
     # too low even before the guard (so the guard is a net, not the fix); after the guard no finish takes any cell
     # of a text item under 3:1 that Clean has at 3:1 or more, nor an item Clean reads under 3:1 lower by over 5%
-    cases = []
-    for style in STYLES:
-        for fmt in FORMATS:
-            for fin in ['grain', 'grunge', 'vhs', 'glitch']:
-                for i in range(4):
-                    cases.append(('([s, f, i, fin]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = i % 2 ? "dark" : "light"; x.finish = fin; x.marks = i < 2 ? "off" : "full"; x.seeds = {layout: 51 + i, colour: 52 + i, graphic: 53 + i, type: 54 + i}; if (s === "pomo") x.pick.dialect = i % 2 ? "photocopy" : "icecream"; return x; }', [style, fmt, i, fin]))
-    found = [('vapor', '9:16', 'dark', 'off', None, {'layout': 1000 + 11 * 7919, 'colour': 2000 + 11 * 104729, 'graphic': 3000 + 11 * 1299709, 'type': 4000 + 11 * 31}),
-             ('pomo', '3:4', 'dark', 'light', 'photocopy', {'layout': 8932, 'colour': 106729, 'graphic': 1302709, 'type': 4031})]
-    for fin in ['grain', 'grunge', 'vhs', 'glitch']:
-        for st, fm, md, mk, d, seeds in found:
-            cases.append(('([s, f, md, mk, d, seeds, fin]) => { const x = window.__rstr.spec(); x.style = s; x.format = f; x.mode = md; x.marks = mk; x.finish = fin; x.seeds = seeds; x.pick = {palette: null, pairing: null, motif: null, layout: null, dialect: d}; x.params = {}; return x; }', [st, fm, md, mk, d, seeds, fin]))
-    # review R17 S6: layer lists through every finish, two per style, format and finish
-    for style in STYLES:
-        for fmt in FORMATS:
-            for fin in ['grain', 'grunge', 'vhs', 'glitch']:
-                for spec in pg.evaluate('(o) => window.__rstr.specs(o)', {'styles': [style], 'formats': [fmt], 'modes': ['light'] if fin in ['grain', 'vhs'] else ['dark'], 'n': 2, 'start': 64 + FORMATS.index(fmt) * 2, 'variants': 'cycle', 'layers': True, 'finish': fin, 'marks': 'full' if fin in ['vhs', 'grunge'] else 'off'}):
-                    cases.append(('(s) => s', spec))
+    # row R19: the same seeds through all five finishes (Clean included), from tools/finishcases.py
+    cases = r7_cases(pg, ['clean'] + FINISHES)
     nf, nrest, worst = 0, 0, 0
-    for js, args in cases:
-        spec = pg.evaluate(js, args)
+    put_back = {f: [0, 0] for f in ['clean'] + FINISHES}
+    for spec in cases:
         fin, style, fmt = spec['finish'], spec['style'], spec['format']
         a = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
         c = pg.evaluate('(s) => window.__rstr.pixels(s)', spec)
@@ -299,6 +295,7 @@ with served() as url, browser() as b:
         r = pg.evaluate('(s) => window.__rstr.finishProof(s)', spec)
         nf += 1
         nrest += r['restored']
+        put_back[fin][0] += r['restored']; put_back[fin][1] += r['items']
         if fin in ['vhs', 'glitch']:
             worst = max(worst, r['maxDelta'])
             if r['inkDiff']:
@@ -309,15 +306,71 @@ with served() as url, browser() as b:
                 fail(f'finish {fin} {style} {fmt}: the effect took text too low before the guard: {r["rawLow"][:3]}', spec)
         if r['low']:
             fail(f'finish {fin} {style} {fmt}: too low after the finish: {r["low"][:3]}', spec)
+    for fin, (n, items) in put_back.items():
+        if items and n >= 0.05 * items:
+            fail(f'finish {fin}: the guard put back {n} of {items} text items on R7\'s seeds (5% or more)')
+    print('finishes, R7 seeds: the guard put back ' + ', '.join(f'{f} {n}/{i} ({100 * n / max(1, i):.1f}%)' for f, (n, i) in put_back.items()))
     print(f'finishes: {nf} designs, same pixels twice; VHS and Glitch leave every text fill pixel and every ring pixel as Clean (largest channel difference over the whole ink {worst}/255, none allowed on the fill) and take no item too low before the guard; no text taken too low (read in cells); the guard put back {nrest} items')
-    # row R7: export time for the largest format (9:16, 1080 x 1920) by stage, Grunge and Glitch, every style, and
-    # Postmodern photocopy with the copier pass timed on its own (Carried R7 from R6); the Style tab's four tiles
-    for fin in ['clean', 'grunge', 'glitch']:
+    # row R19 (spec 9.4): Grain, Grunge and VHS at strength 1 over 100 seeds per style against Clean on the same
+    # design (finishstats.ts); thresholds R19_MIN, each the spec's figure or 1.5 times the R7 build's, whichever is
+    # higher (R7_BASE, measured on commit e41f8ef: tests/fixtures/finish-r7.json). Every finish: the guard puts back
+    # fewer than 5% of text items. Then Glitch's pixels on R7's test seeds are the R7 build's, hash for hash.
+    base7 = json.load(open(os.path.join(ROOT, 'tests', 'fixtures', 'finish-r7.json')))
+    t19 = time.time()
+    pooled = {f: [0, 0] for f in FINISHES}
+    for style in STYLES:
+        b7 = base7['styles'][style]
+        mean = lambda a: sum(a) / len(a)
+        r7 = {'grain': mean(b7['grain']), 'grunge': mean(b7['grunge']), 'vhs': mean(b7['vhs'])}
+        for k, v in R7_BASE[style].items():
+            if abs(r7[k] - v) > 0.01:
+                fail(f'R19 {style}: the R7 baseline of {k} in smoke.py ({v}) is not the fixture\'s ({r7[k]:.2f})')
+        thr = {'grain': max(R19_MIN['grain'], 1.5 * r7['grain']), 'grunge': max(R19_MIN['grunge'], 1.5 * r7['grunge']), 'vhs': R19_MIN['vhs'] * r7['vhs']}
+        got = {f: [] for f in FINISHES}
+        items, back = 0, {f: 0 for f in FINISHES}
+        for spec in r19_specs(pg, style):
+            r = pg.evaluate('(s) => window.__rstr.finishStats(s)', spec)
+            items += r['items']
+            for f in FINISHES:
+                got[f].append(r['stats'][f]); back[f] += r['stats'][f]['restored']
+            if r['stats']['grain']['mean'] < R19_MIN['grain_each']:
+                fail(f'R19 {style}: Grain changes the brightness by {r["stats"]["grain"]["mean"]:.2f} on one seed, under {R19_MIN["grain_each"]}', spec)
+        g, u, v = mean([x['mean'] for x in got['grain']]), mean([x['mean'] for x in got['grunge']]), mean([x['outside'] for x in got['vhs']])
+        mid, rest = mean([x['mid'] for x in got['grunge']]), mean([x['rest'] for x in got['grunge']])
+        each = sum(1 for x in got['grunge'] if x['mid'] < R19_MIN['grunge_mid'] or x['mid'] < 0.5 * x['rest'])
+        print(f'R19 {style:6} grain {g:5.2f} (min {min(x["mean"] for x in got["grain"]):.2f}; needs {thr["grain"]:.2f}, R7 {r7["grain"]:.2f})  grunge {u:5.2f} (needs {thr["grunge"]:.2f}, R7 {r7["grunge"]:.2f}), inside {100 * mid:.1f}% of pixels past 24 levels against {100 * rest:.1f}% outside ({each} seeds short on their own)  vhs outside text {v:5.2f} (needs {thr["vhs"]:.2f}, R7 {r7["vhs"]:.2f})  guard put back ' + ', '.join(f'{f} {back[f]}/{items}' for f in FINISHES) + f'  ({time.time() - t19:.0f} s)')
+        if g < thr['grain']:
+            fail(f'R19 {style}: Grain changes the brightness by {g:.2f} on average, under {thr["grain"]:.2f}')
+        if u < thr['grunge']:
+            fail(f'R19 {style}: Grunge changes the brightness by {u:.2f} on average, under {thr["grunge"]:.2f}')
+        if mid < R19_MIN['grunge_mid'] or mid < 0.5 * rest:
+            fail(f'R19 {style}: Grunge marks {100 * mid:.1f}% of the middle of the page against {100 * rest:.1f}% of the rest (needs {100 * R19_MIN["grunge_mid"]:.0f}% and half the rest)')
+        if v < thr['vhs']:
+            fail(f'R19 {style}: VHS changes the brightness outside the text by {v:.2f} on average, under {thr["vhs"]:.2f}')
+        for f in FINISHES:
+            pooled[f][0] += back[f]; pooled[f][1] += items
+    # per finish over the 400 designs (the Done-when reads "per finish"; per style it is printed above: Vaporwave's
+    # chrome title has cells Clean reads at 3.0 to 3.1, which any grain takes under, and the R7 build's Grain already
+    # put back 5.6% of Vaporwave's items)
+    for f, (n, items) in pooled.items():
+        if n >= 0.05 * items:
+            fail(f'R19: the guard put back {n} of {items} text items under {f} over 100 seeds per style (5% or more)')
+    print('R19: the guard put back ' + ', '.join(f'{f} {n}/{i} ({100 * n / max(1, i):.1f}%)' for f, (n, i) in pooled.items()) + ' over 100 seeds per style')
+    hashes = [pg.evaluate('(s) => window.__rstr.pixels(s)', spec) for spec in r7_cases(pg, ['glitch'])]
+    moved = [i for i, (a, b) in enumerate(zip(hashes, base7['glitch'])) if a != b]
+    if len(hashes) != len(base7['glitch']) or moved:
+        fail(f'R19: Glitch drew other pixels than the R7 build on {len(moved)} of R7\'s {len(hashes)} test seeds (cases {moved[:8]})')
+    print(f'R19: Glitch drew the R7 build\'s pixels on all {len(hashes)} of R7\'s test seeds' if not moved else 'R19: Glitch moved')
+    # row R7: export time for the largest format (9:16, 1080 x 1920) by stage, every finish (R19 added Grain and VHS)
+    # and style, and Postmodern photocopy with the copier pass timed on its own (Carried R7 from R6), against the R7
+    # build's figures on this machine (R7_BENCH; R19: at most twice them without a changelog line); the four tiles
+    for fin in ['clean', 'grain', 'grunge', 'vhs', 'glitch']:
         for style, d in [('swiss', None), ('pomo', 'icecream'), ('pomo', 'photocopy'), ('brutal', None), ('vapor', None)]:
             spec = pg.evaluate('([s, d, fin]) => { const x = window.__rstr.spec(); x.style = s; x.format = "9:16"; x.finish = fin; x.marks = "full"; x.seeds = {layout: 7, colour: 8, graphic: 9, type: 10}; if (d) x.pick.dialect = d; return x; }', [style, d, fin])
             runs = [pg.evaluate('(s) => window.__rstr.bench(s)', spec) for _ in range(3)]
             t = sorted(runs, key=lambda x: x['total'])[1]
-            print(f'export 9:16 {fin:6} {style:6} {d or "":9}  total {t["total"]:6.0f} ms (scene {t["scene"]:.0f}, paint {t["paint"]:.0f}, effect {t["effect"]:.0f}, text {t["text"]:.0f}, guard {t["guard"]:.0f}, jpeg {t["encode"]:.0f})' + (f'; copier pass alone {t["pass"]:.0f} ms' if t['pass'] else ''))
+            was = R7_BENCH.get(f'{fin} {style} {d or ""}'.strip())
+            print(f'export 9:16 {fin:6} {style:6} {d or "":9}  total {t["total"]:6.0f} ms' + (f' ({t["total"] / was:.2f} x R7\'s {was} ms)' if was else '') + f' (scene {t["scene"]:.0f}, paint {t["paint"]:.0f}, effect {t["effect"]:.0f}, text {t["text"]:.0f}, guard {t["guard"]:.0f}, jpeg {t["encode"]:.0f})' + (f'; copier pass alone {t["pass"]:.0f} ms' if t['pass'] else ''))
             if t['total'] > 8000:
                 fail(f'export 9:16 {fin} {style}: {t["total"]:.0f} ms', spec)
     for fin in ['clean', 'grunge', 'glitch']:
