@@ -182,6 +182,12 @@ export const SECOND_GEN: Terms<GrungeTerm> = { toner: 0.5, speckle: 0.5, dust: 0
 export const grungeTerms = (sc: Scene): Terms<GrungeTerm> => (sc.items.some(isPass) ? SECOND_GEN : {});
 /** Toner and paper (spec 7.1), levels of 255. */
 export const TONER = 22, PAPER = 240;
+/**
+ * Grunge's tone keeps 0.8 of a colour's saturation over the whole curve (spec 7.1 step 1), going neutral only over this
+ * share of the curve next to its clipped ends (toner and paper), so the clip leaves no hard step (review R19 S3: R19 as
+ * built kept 0.8 only at mid-tone, so acid, mint and chrome lost three quarters of their colour).
+ */
+export const SAT_EDGE = 0.04;
 
 /** What a Grunge copy draws, from its seed alone: the counts do not depend on the size (a 3x export has as many). */
 export interface GrungePlan {
@@ -328,7 +334,7 @@ export function grungeKernel(d: Uint8ClampedArray, W: number, H: number, seed: n
     for (let x = 0; x < W; x++) {
       let r = R[x], g = G[x], b = B[x];
       if (kTone > 0) {
-        const L = lum(r, g, b), c = clamp01((L - lo) / (hi - lo)), q = (2 * c - 1) * (2 * c - 1), sat = 0.8 * (1 - q * q), Y = L * 255;
+        const L = lum(r, g, b), c = clamp01((L - lo) / (hi - lo)), sat = 0.8 * clamp01(Math.min(c, 1 - c) / SAT_EDGE), Y = L * 255;
         r += (TONER + (pr - TONER) * c + (r - Y) * sat - r) * kTone;
         g += (TONER + (pg - TONER) * c + (g - Y) * sat - g) * kTone;
         b += (TONER + (pb - TONER) * c + (b - Y) * sat - b) * kTone;
@@ -862,6 +868,15 @@ function blank(w: number, h: number): Ctx {
   return c.getContext('2d') as Ctx;
 }
 
+/**
+ * What Grunge's kernel is handed for a Scene drawn in view v, the quiet mask aside: the free distance to the text, the
+ * steps' scales (the second generation on the photocopy dialect) and the paper. finishBody passes exactly these, so
+ * the unit tests read the kernel's inputs here (review R19 M2).
+ */
+export function grungeArgs(sc: Scene, v: View): { keep: Keep; terms: Terms<GrungeTerm>; paper: [number, number, number] } {
+  return { keep: keepIn(keepOf(sc), v), terms: grungeTerms(sc), paper: paperOf(sc) };
+}
+
 /** What paintFinished did, for the tools: ms per stage and how many text items the guard put back. */
 export interface FinishReport { paint: number; effect: number; text: number; guard: number; restored: number; }
 
@@ -879,8 +894,8 @@ export function finishBody(ctx: Ctx, sc: Scene, spec: Spec, t: Time | null, rep:
   if (f === 'grain' || f === 'grunge') {
     paint(ctx, sc, t, f === 'grunge' ? { spread: SPREAD * k } : {});
     rep.paint = now() - t0; t0 = now();
-    const keep = f === 'grunge' ? keepIn(keepOf(sc), v) : null, gt = grungeTerms(sc), pp = paperOf(sc), qm = f === 'grunge' ? quietMask(sc, ctx) : null;
-    pixels(ctx, (d, V) => (f === 'grain' ? grainKernel(d, V.W, V.H, seed, k, V.top) : grungeKernel(d, V.W, V.H, seed, k, keep!, V.top, gt, pp, qm)));
+    const ga = f === 'grunge' ? grungeArgs(sc, v) : null, qm = f === 'grunge' ? quietMask(sc, ctx) : null;
+    pixels(ctx, (d, V) => (f === 'grain' ? grainKernel(d, V.W, V.H, seed, k, V.top) : grungeKernel(d, V.W, V.H, seed, k, ga!.keep, V.top, ga!.terms, ga!.paper, qm)));
     rep.effect = now() - t0; t0 = now();
     // the title again at part strength, so its edges hold: Clean's own pixels of the title's ink (fill, outline,
     // echoes), so it is in register and in Clean's colours, any surface pass included (review R7 E2)

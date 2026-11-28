@@ -4,7 +4,7 @@
  */
 import { describe, expect, test } from 'vitest';
 import { PAIRINGS } from '../src/data/pairings';
-import { corruptionAvoid, dilate, finishSeed, FINISH_MIN_RATIO, grainKernel, grungeKernel, holdMask, keepOf, LOW_KEEP, strength, strengthKey, tooLow, valueNoise, vhsKernel, glitchKernel, type Reading, GRAIN_TERMS, GRUNGE_TERMS, VHS_TERMS, only, grungePlan, vhsPlan, grungeTerms, SECOND_GEN, RESTAMP, paperOf, Lattice, PAPER, QUIET_SMALL, QUIET_TYPE } from '../src/engine/finish';
+import { corruptionAvoid, dilate, finishSeed, FINISH_MIN_RATIO, grainKernel, grungeKernel, holdMask, keepOf, LOW_KEEP, strength, strengthKey, tooLow, valueNoise, vhsKernel, glitchKernel, type Reading, GRAIN_TERMS, GRUNGE_TERMS, VHS_TERMS, only, grungePlan, vhsPlan, grungeTerms, SECOND_GEN, RESTAMP, paperOf, Lattice, PAPER, QUIET_SMALL, QUIET_TYPE, grungeArgs, type Keep } from '../src/engine/finish';
 import { solve, stepLight, weightsOf } from '../src/engine/layout';
 import { stubMeasure } from '../src/engine/measure';
 import { rng } from '../src/engine/rng';
@@ -268,6 +268,18 @@ describe('R19: Grunge on the photocopy dialect is the second generation (spec 7.
       expect(grungeTerms(sceneOf('swiss', null, i)), `swiss ${i}`).toEqual({});
     }
   });
+  test('what finishBody hands the kernel (grungeArgs): the second generation on photocopy, whole steps elsewhere; keep and paper scaled by the view (review R19 M2)', () => {
+    const v1 = { sx: 1, sy: 1, ox: 0, oy: 0, W: 1080, H: 1440, top: 0 }, v3 = { sx: 3, sy: 3, ox: 0, oy: 0, W: 3240, H: 4320, top: 0 };
+    for (let i = 0; i < 6; i++) {
+      const p = sceneOf('pomo', 'photocopy', i), c = sceneOf('pomo', 'icecream', i), w = sceneOf('swiss', null, i);
+      expect(grungeArgs(p, v1).terms, `photocopy ${i}`).toEqual(SECOND_GEN);
+      expect(grungeArgs(c, v1).terms, `icecream ${i}`).toEqual({});
+      expect(grungeArgs(w, v1).terms, `swiss ${i}`).toEqual({});
+      expect(grungeArgs(p, v1).keep).toEqual(keepOf(p));
+      expect(grungeArgs(p, v3).keep.l).toBeCloseTo(keepOf(p).l * 3, 9);
+      expect(grungeArgs(p, v1).paper).toEqual(paperOf(p));
+    }
+  });
   test('at half, steps 2, 4 and 5 change less than whole; steps 1, 3 and 6 the same', () => {
     const change = (t: object) => { const d = picture(); grungeKernel(d, W2, H2, 21, 1, keep2, 0, t); let s = 0; const p = picture(); for (let i = 0; i < d.length; i += 4) s += Math.abs(d[i] - p[i]); return s; };
     for (const t of ['toner', 'speckle', 'dust'] as const) expect(change({ ...off(GRUNGE_TERMS), [t]: SECOND_GEN[t] }), t).toBeLessThan(change(only(GRUNGE_TERMS, t)));
@@ -279,6 +291,39 @@ describe('R19: Grunge on the photocopy dialect is the second generation (spec 7.
 });
 
 describe('R19: a finish at 3x differs from the stage only by scale (spec 7.1)', () => {
+  // review R19 S4: what the kernels draw, not only their plans. A flat grey picture with one term on, at 1080 and at
+  // 3240 wide: the runs of changed columns or rows must be as many at both sizes.
+  const flat = (w: number, h: number) => { const d = new Uint8ClampedArray(w * h * 4); for (let i = 0; i < d.length; i += 4) { d[i] = d[i + 1] = d[i + 2] = 128; d[i + 3] = 255; } return d; };
+  const runs = (on: boolean[]) => on.reduce((n, x, i) => n + (x && !on[i - 1] ? 1 : 0), 0);
+  const mode = (vals: number[]) => { const m = new Map<number, number>(); for (const v of vals) m.set(v, (m.get(v) ?? 0) + 1); return [...m].sort((a, b) => b[1] - a[1])[0][0]; };
+  /** Runs of columns (in one row) and of rows (in one column) whose value is not the row's or column's commonest. */
+  const marks = (d: Uint8ClampedArray, w: number, h: number) => {
+    const y = Math.floor(h * 0.37), x = Math.floor(w * 0.61);
+    const row = Array.from({ length: w }, (_, i) => d[(y * w + i) * 4]), col = Array.from({ length: h }, (_, j) => d[(j * w + x) * 4]);
+    const mr = mode(row), mc = mode(col);
+    return { cols: runs(row.map((v) => v !== mr)), rows: runs(col.map((v) => v !== mc)) };
+  };
+  test('Grunge feed alone draws as many streaks and bands at 3x as at 1x', () => {
+    for (const seed of [3, 8, 21]) {
+      const k1 = { l: 0, r: 0, t: 0, b: 0, corners: [0, 0, 0, 0] as Keep['corners'] }, a = flat(1080, 1080), b = flat(3240, 3240);
+      grungeKernel(a, 1080, 1080, seed, 1, k1, 0, only(GRUNGE_TERMS, 'feed'));
+      grungeKernel(b, 3240, 3240, seed, 1, k1, 0, only(GRUNGE_TERMS, 'feed'));
+      const m1 = marks(a, 1080, 1080), m3 = marks(b, 3240, 3240);
+      expect(m1.cols + m1.rows, `seed ${seed}`).toBeGreaterThan(0);
+      expect(m3, `seed ${seed}`).toEqual(m1);
+    }
+  });
+  test('VHS tracking alone draws as many bands at 3x as at 1x', () => {
+    for (const seed of [3, 8, 21]) {
+      const a = flat(1080, 1920), b = flat(3240, 5760);
+      vhsKernel(a, 1080, 1920, seed, 1, 0, only(VHS_TERMS, 'tracking'));
+      vhsKernel(b, 3240, 5760, seed, 1, 0, only(VHS_TERMS, 'tracking'));
+      const changed = (d: Uint8ClampedArray, w: number, h: number) => Array.from({ length: h }, (_, y) => { for (let x = 0; x < w; x++) if (d[(y * w + x) * 4] !== 128) return true; return false; });
+      const n1 = runs(changed(a, 1080, 1920)), n3 = runs(changed(b, 3240, 5760));
+      expect(n1, `seed ${seed}`).toBeGreaterThanOrEqual(1);
+      expect(n3, `seed ${seed}`).toBe(n1);
+    }
+  });
   test('streaks, bands, dust, hairs and shadowed sides of Grunge, and tracking bands and dropouts of VHS: as many at 1x as at 3x', () => {
     for (let seed = 1; seed <= 40; seed++) {
       const a = grungePlan(1080, 1440, seed), b = grungePlan(3240, 4320, seed);
